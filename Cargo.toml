@@ -1,8 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "bluebottle",
-    "bluebottle-theme",
+    "bluebottle", "bluebottle-ui",
 ]
 
 [workspace.dependencies]
