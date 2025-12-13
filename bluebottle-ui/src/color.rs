@@ -21,15 +21,15 @@ pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;
 
 /// Returns a configured color theme for an iced application.
 pub fn theme() -> iced::theme::Theme {
-    iced::theme::Theme::Custom(Arc::new(Custom::new(
-        "Bluebottle".into(),
-        Palette {
-            background: BACKGROUND,
-            text: TEXT_DEFAULT,
-            primary: PRIMARY,
-            success: SUCCESS,
-            warning: WARNING,
-            danger: ERROR,
-        },
-    )))
+    let base_palette = Palette {
+        background: BACKGROUND,
+        text: TEXT_DEFAULT,
+        primary: PRIMARY,
+        success: SUCCESS,
+        warning: WARNING,
+        danger: ERROR,
+    };
+
+    let custom = Custom::new("Bluebottle".into(), base_palette);
+    iced::theme::Theme::Custom(Arc::new(custom))
 }
