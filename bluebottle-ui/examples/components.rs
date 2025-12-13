@@ -1,8 +1,6 @@
-use std::borrow::Cow;
-use iced::{Element, Font, Settings};
+use bluebottle_ui::{color, font};
 use iced::widget::{column, text};
-
-use bluebottle_ui::font;
+use iced::{Element, Settings};
 
 fn main() -> anyhow::Result<()> {
     let settings = Settings {
@@ -16,6 +14,8 @@ fn main() -> anyhow::Result<()> {
         LoadingSpinners::update,
         LoadingSpinners::view,
     )
+    .title("Bluebottle UI Components")
+    .theme(color::theme())
     .settings(settings)
     .run()?;
 
@@ -26,18 +26,12 @@ fn main() -> anyhow::Result<()> {
 struct LoadingSpinners;
 
 #[derive(Debug, Clone, Copy)]
-enum Message {
-}
+enum Message {}
 
 impl LoadingSpinners {
-    fn update(&mut self, _message: Message) {
-
-    }
+    fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        column![
-            text("Hello world, in Noto!")
-            .font(font::semibold())
-        ].into()
+        column![text("Hello world, in Noto!").font(font::semibold())].into()
     }
 }

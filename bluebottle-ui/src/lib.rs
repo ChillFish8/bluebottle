@@ -1,2 +1,2 @@
-pub mod colour;
+pub mod color;
 pub mod font;
