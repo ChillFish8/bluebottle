@@ -1,11 +1,12 @@
 [workspace]
 resolver = "3"
 members = [
-    "bluebottle", "bluebottle-ui",
+    "bluebottle",
+    "bluebottle-ui",
 ]
 
 [workspace.dependencies]
 palette = "0.7"
 lyon_algorithms = "1"
 iced = "0.14"
-
+anyhow = "1"

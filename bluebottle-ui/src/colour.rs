@@ -1,0 +1,15 @@
+// "Core" colours
+pub const PRIMARY: iced::Color = iced::color!(0x615FFF);
+pub const SUCCESS: iced::Color = iced::color!(0x00BC7D);
+pub const ERROR: iced::Color = iced::color!(0xFF2056);
+pub const WARNING: iced::Color = iced::color!(0xFE9A00);
+
+// Background colours
+pub const BACKGROUND: iced::Color = iced::color!(0x101828);
+pub const SECONDARY: iced::Color = iced::color!(0x162034);
+pub const HOVER_HIGHLIGHT: iced::Color = iced::color!(0x1E2939);
+
+// Text secondary colours
+pub const TEXT_SECONDARY: iced::Color = iced::color!(0x62748E);
+pub const TEXT_DARK: iced::Color = iced::color!(0x364153);
+pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;

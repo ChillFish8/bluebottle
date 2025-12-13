@@ -5,3 +5,9 @@ edition = "2024"
 
 [dependencies]
 iced = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[[example]]
+name = "components"
