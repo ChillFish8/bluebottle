@@ -8,5 +8,9 @@ members = [
 [workspace.dependencies]
 palette = "0.7"
 lyon_algorithms = "1"
-iced = "0.14"
 anyhow = "1"
+foldhash = "0.2"
+phf = "0.13"
+phf_codegen = "0.13"
+
+iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio"] }

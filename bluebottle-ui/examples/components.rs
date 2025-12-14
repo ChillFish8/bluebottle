@@ -1,10 +1,10 @@
 use bluebottle_ui::{color, font};
-use iced::widget::{column, text, row, container};
-use iced::{padding, Element, Settings};
+use iced::widget::{column, container, row, text};
+use iced::{Element, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
     let settings = Settings {
-        fonts: font::noto_fonts(),
+        fonts: font::required_fonts(),
         default_font: font::regular(),
         ..Default::default()
     };
@@ -32,13 +32,11 @@ impl LoadingSpinners {
     fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        column![
-            text_fonts(),
-            colors(),
-        ].padding(padding::all(32)).into()
+        column![text_fonts(), colors(),]
+            .padding(padding::all(32))
+            .into()
     }
 }
-
 
 fn text_fonts() -> Element<'static, Message> {
     column![
@@ -50,20 +48,24 @@ fn text_fonts() -> Element<'static, Message> {
             text("The quick brown fox jumps over the lazy dog").size(12),
             text("The quick brown fox jumps over the lazy dog").size(14),
             text("The quick brown fox jumps over the lazy dog").size(16),
-        ].spacing(4).padding(padding::left(16)),
-    ].into()
+        ]
+        .spacing(4)
+        .padding(padding::left(16)),
+    ]
+    .into()
 }
 
 fn colors() -> Element<'static, Message> {
     column![
         text("Colors").font(font::bold()),
-        column![
-            row![
-                container("")
+        column![row![
+            container("")
                 .width(64)
                 .height(64)
                 .style(container::rounded_box)
-            ]
-        ].spacing(4).padding(padding::left(16)),
-    ].into()
+        ]]
+        .spacing(4)
+        .padding(padding::left(16)),
+    ]
+    .into()
 }

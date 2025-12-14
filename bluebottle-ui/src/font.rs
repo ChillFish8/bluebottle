@@ -15,15 +15,18 @@ static NOTO_TC: &'static [u8] = include_bytes!("../assets/Noto/NotoSansTC-Variab
 /// Noto Sans Simplified Chinese
 static NOTO_SC: &'static [u8] = include_bytes!("../assets/Noto/NotoSansSC-VariableFont_wght.ttf");
 
-/// Returns a vector containing the embedded noto font data.
-pub fn noto_fonts() -> Vec<Cow<'static, [u8]>> {
-    vec![
+/// Returns a vector containing the embedded font data for the UI.
+pub fn required_fonts() -> Vec<Cow<'static, [u8]>> {
+    let mut base = vec![
         Cow::Borrowed(NOTO_DEFAULT),
         Cow::Borrowed(NOTO_JP),
         Cow::Borrowed(NOTO_KR),
         Cow::Borrowed(NOTO_TC),
         Cow::Borrowed(NOTO_SC),
-    ]
+    ];
+    // Add icon font file.
+    crate::icon::extend_fonts(&mut base);
+    base
 }
 
 /// Use the default (Noto) font with regular weighting.
