@@ -1,4 +1,4 @@
-use bluebottle_ui::{color, font};
+use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, row, text};
 use iced::{Element, Settings, padding};
 
@@ -32,8 +32,9 @@ impl LoadingSpinners {
     fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        column![text_fonts(), colors(),]
+        column![text_fonts(), icons(),]
             .padding(padding::all(32))
+            .spacing(16)
             .into()
     }
 }
@@ -55,15 +56,15 @@ fn text_fonts() -> Element<'static, Message> {
     .into()
 }
 
-fn colors() -> Element<'static, Message> {
+fn icons() -> Element<'static, Message> {
     column![
-        text("Colors").font(font::bold()),
-        column![row![
-            container("")
-                .width(64)
-                .height(64)
-                .style(container::rounded_box)
-        ]]
+        text("Icons").font(font::bold()),
+        row![
+            icon::outline("home").size(48),
+            icon::filled("home").size(48),
+            icon::outline("favorite_border").size(48),
+            icon::filled("favorite").size(48),
+        ]
         .spacing(4)
         .padding(padding::left(16)),
     ]
