@@ -42,11 +42,12 @@ pub fn all() -> impl Iterator<Item = &'static str> {
 
 /// Checks if a given icon name exists.
 pub fn exists(name: &str) -> bool {
-    OUTLINE_ICON_CODEPOINTS.contains_key(name) || FILLED_ICON_CODEPOINTS.contains_key(name)
+    OUTLINE_ICON_CODEPOINTS.contains_key(name)
+        || FILLED_ICON_CODEPOINTS.contains_key(name)
 }
 
 /// Get a new icon widget in the outline format.
-pub fn outline<Theme, Renderer>(name: &str) -> Text<'static, Theme, Renderer>
+pub fn outline<Theme, Renderer>(name: &str) -> Text<'_, Theme, Renderer>
 where
     Theme: Catalog,
     Renderer: text::Renderer,

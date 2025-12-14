@@ -1,6 +1,6 @@
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, row, scrollable, text};
-use iced::{Center, Element, Settings, padding, Length};
+use iced::{Center, Element, Length, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
     let settings = Settings {
@@ -30,10 +30,17 @@ impl Components {
     fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        let elements = column![text_fonts(), icons(), nav_buttons(), nav_buttons(),]
-            .width(Length::Fill)
-            .padding(padding::all(32))
-            .spacing(16);
+        let elements = column![
+            text_fonts(),
+            icons(),
+            nav_buttons(),
+            standard_buttons(),
+            icon_buttons(),
+            icon_toggle_buttons()
+        ]
+        .width(Length::Fill)
+        .padding(padding::all(32))
+        .spacing(16);
         scrollable(elements).into()
     }
 }
@@ -81,7 +88,12 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
                 bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
-                bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
+                bluebottle_ui::button::nav(
+                    "Music",
+                    "library_music",
+                    false,
+                    Message::Click
+                ),
             ]
             .align_x(Center),
             column![
@@ -91,7 +103,12 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("Anime", "draw", true, Message::Click),
                 bluebottle_ui::button::nav("TV Shows", "tv", true, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", true, Message::Click),
-                bluebottle_ui::button::nav("Music", "library_music", true, Message::Click),
+                bluebottle_ui::button::nav(
+                    "Music",
+                    "library_music",
+                    true,
+                    Message::Click
+                ),
             ]
             .align_x(Center),
             column![
@@ -101,15 +118,88 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
                 bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
-                bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
+                bluebottle_ui::button::nav(
+                    "Music",
+                    "library_music",
+                    false,
+                    Message::Click
+                ),
             ]
             .align_x(Center),
         ]
         .spacing(8)
     ]
+    .spacing(4)
     .into()
 }
 
 fn standard_buttons() -> Element<'static, Message> {
-    column![].into()
+    column![
+        text("Standard Buttons").font(font::bold()),
+        row![
+            column![
+                bluebottle_ui::button::standard(
+                    "Episodes",
+                    Some("subscriptions"),
+                    false,
+                    Message::Click
+                ),
+                bluebottle_ui::button::standard(
+                    "Episodes",
+                    Some("subscriptions"),
+                    true,
+                    Message::Click
+                ),
+            ]
+            .spacing(8)
+            .align_x(Center),
+            column![
+                bluebottle_ui::button::standard("Genres", None, false, Message::Click),
+                bluebottle_ui::button::standard("Genres", None, true, Message::Click),
+            ]
+            .spacing(8)
+            .align_x(Center),
+        ]
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn icon_buttons() -> Element<'static, Message> {
+    column![
+        text("Icon Buttons").font(font::bold()),
+        row![
+            bluebottle_ui::button::icon("settings", false, Message::Click),
+            bluebottle_ui::button::icon("settings", true, Message::Click),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn icon_toggle_buttons() -> Element<'static, Message> {
+    column![
+        text("Icon Toggle Buttons").font(font::bold()),
+        row![
+            bluebottle_ui::button::toggle_icon(
+                "favorite_border",
+                "favorite",
+                false,
+                Message::Click
+            ),
+            bluebottle_ui::button::toggle_icon(
+                "favorite_border",
+                "favorite",
+                true,
+                Message::Click
+            ),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
 }
