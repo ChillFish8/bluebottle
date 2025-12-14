@@ -26,8 +26,8 @@ pub fn poster(handle: Handle, size: PosterSize) -> Image {
 /// An image in the thumbnail aspect ratio.
 pub fn thumbnail(handle: Handle) -> Image {
     image(handle)
-        .width(272)
-        .height(153)
+        .width(270)
+        .height(152)
         .content_fit(ContentFit::Cover)
         .into()
 }
