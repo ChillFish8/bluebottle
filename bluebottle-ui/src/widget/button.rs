@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, hover, row, text};
+use iced::widget::{Text, button, column, container, hover, row, text};
 use iced::{Background, Center, Color, Element, Theme, border};
 
 use crate::{color, icon};
@@ -95,19 +95,43 @@ where
         .into()
 }
 
+#[doc(hidden)]
+/// An icon name or pre-created icon text widget.
+pub enum IconTextOrName<'a> {
+    Name(&'a str),
+    Text(Text<'a>),
+}
+
+impl<'a> From<&'a str> for IconTextOrName<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::Name(value)
+    }
+}
+
+impl<'a> From<Text<'a>> for IconTextOrName<'a> {
+    fn from(value: Text<'a>) -> Self {
+        Self::Text(value)
+    }
+}
+
 /// An icon button
 ///
 /// This has no label, only a clickable icon.
 pub fn icon<'a, Message>(
-    icon: &'a str,
+    icon: impl Into<IconTextOrName<'a>>,
     selected: bool,
     message: Message,
 ) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
+    let inner = match icon.into() {
+        IconTextOrName::Name(icon) => icon::filled(icon),
+        IconTextOrName::Text(icon) => icon,
+    };
+
     let message = (!selected).then_some(message);
-    button(icon::filled(icon))
+    button(inner)
         .padding(4)
         .style(default_button_style)
         .on_press_maybe(message)

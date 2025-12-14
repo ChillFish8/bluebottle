@@ -1,3 +1,4 @@
+use bluebottle_ui::card::PlayableFormFactor;
 use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, image, row, text};
@@ -42,6 +43,7 @@ impl Components {
             episodes(),
             albums(),
             persons(),
+            playable(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -258,7 +260,7 @@ fn episodes() -> Element<'static, Message> {
 
     column![
         text("Image Episodes").font(font::bold()),
-        row![bluebottle_ui::image::episode(content)]
+        row![bluebottle_ui::image::thumbnail(content)]
             .padding(8)
             .spacing(8)
     ]
@@ -271,7 +273,7 @@ fn albums() -> Element<'static, Message> {
 
     column![
         text("Image Albums").font(font::bold()),
-        row![bluebottle_ui::image::album(content)]
+        row![bluebottle_ui::image::square(content)]
             .padding(8)
             .spacing(8)
     ]
@@ -287,6 +289,47 @@ fn persons() -> Element<'static, Message> {
         row![
             bluebottle_ui::image::person(content.clone(), PersonSize::Poster),
             bluebottle_ui::image::person(content, PersonSize::Square),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn playable() -> Element<'static, Message> {
+    let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
+    let thumbnail =
+        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
+    let square = image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg");
+
+    column![
+        text("Playable Card").font(font::bold()),
+        row![
+            bluebottle_ui::card::playable(
+                "Example Poster",
+                "S1:E1 - Example",
+                poster,
+                PlayableFormFactor::Poster,
+                Message::Click,
+                Message::Click,
+            ),
+            bluebottle_ui::card::playable(
+                "Example Thumbnail",
+                "S1:E1 - Example episode title",
+                thumbnail,
+                PlayableFormFactor::Thumbnail,
+                Message::Click,
+                Message::Click,
+            ),
+            bluebottle_ui::card::playable(
+                "Example Album",
+                "Example Author",
+                square,
+                PlayableFormFactor::Square,
+                Message::Click,
+                Message::Click,
+            ),
         ]
         .padding(8)
         .spacing(8)
