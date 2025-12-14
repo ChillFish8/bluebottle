@@ -1,6 +1,6 @@
 use bluebottle_ui::{color, font, icon};
-use iced::widget::{column, container, row, text};
-use iced::{Element, Settings, padding};
+use iced::widget::{column, container, row, scrollable, text};
+use iced::{Center, Element, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
     let settings = Settings {
@@ -9,33 +9,31 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    iced::application(
-        LoadingSpinners::default,
-        LoadingSpinners::update,
-        LoadingSpinners::view,
-    )
-    .title("Bluebottle UI Components")
-    .theme(color::theme())
-    .settings(settings)
-    .run()?;
+    iced::application(Components::default, Components::update, Components::view)
+        .title("Bluebottle UI Components")
+        .theme(color::theme())
+        .settings(settings)
+        .run()?;
 
     Ok(())
 }
 
 #[derive(Default)]
-struct LoadingSpinners;
+struct Components;
 
 #[derive(Debug, Clone, Copy)]
-enum Message {}
+enum Message {
+    Click,
+}
 
-impl LoadingSpinners {
+impl Components {
     fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        column![text_fonts(), icons(),]
+        let elements = column![text_fonts(), icons(), nav_buttons(),]
             .padding(padding::all(32))
-            .spacing(16)
-            .into()
+            .spacing(16);
+        scrollable(elements).into()
     }
 }
 
@@ -69,4 +67,48 @@ fn icons() -> Element<'static, Message> {
         .padding(padding::left(16)),
     ]
     .into()
+}
+
+fn nav_buttons() -> Element<'static, Message> {
+    column![
+        text("Nav Buttons").font(font::bold()),
+        row![
+            column![
+                bluebottle_ui::button::nav("Home", "home", false, Message::Click),
+                bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+                bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+                bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+                bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
+                bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
+                bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
+            ]
+            .align_x(Center),
+            column![
+                bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+                bluebottle_ui::button::nav("Search", "search", true, Message::Click),
+                bluebottle_ui::button::nav("Liked", "favorite", true, Message::Click),
+                bluebottle_ui::button::nav("Anime", "draw", true, Message::Click),
+                bluebottle_ui::button::nav("TV Shows", "tv", true, Message::Click),
+                bluebottle_ui::button::nav("Movies", "movie", true, Message::Click),
+                bluebottle_ui::button::nav("Music", "library_music", true, Message::Click),
+            ]
+            .align_x(Center),
+            column![
+                bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+                bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+                bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+                bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+                bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
+                bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
+                bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
+            ]
+            .align_x(Center),
+        ]
+        .spacing(8)
+    ]
+    .into()
+}
+
+fn standard_buttons() -> Element<'static, Message> {
+    column![].into()
 }

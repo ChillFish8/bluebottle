@@ -12,11 +12,13 @@ pub const WARNING: iced::Color = iced::color!(0xFE9A00);
 pub const BACKGROUND: iced::Color = iced::color!(0x101828);
 pub const SECONDARY: iced::Color = iced::color!(0x162034);
 pub const HOVER_HIGHLIGHT: iced::Color = iced::color!(0x1E2939);
+pub const DISABLED: iced::Color = iced::color!(0x364153);
 
 // Text secondary colors
 pub const TEXT_DEFAULT: iced::Color = iced::color!(0xFFFFFF);
+pub const TEXT_PRIMARY: iced::Color = PRIMARY;
 pub const TEXT_SECONDARY: iced::Color = iced::color!(0x62748E);
-pub const TEXT_DARK: iced::Color = iced::color!(0x364153);
+pub const TEXT_DARK: iced::Color = DISABLED;
 pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;
 
 /// Returns a configured color theme for an iced application.

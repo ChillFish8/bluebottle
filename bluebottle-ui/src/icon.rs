@@ -22,8 +22,10 @@ const ICON_OUTLINED_FONT: Font = Font {
     style: Style::Normal,
 };
 
-static ICONS_OUTLINE_FONT_DATA: &[u8] =  include_bytes!("../assets/MaterialIcons/MaterialIconsOutlined-Regular.otf");
-static ICONS_FILLED_FONT_DATA: &[u8] =  include_bytes!("../assets/MaterialIcons/MaterialIcons-Regular.ttf");
+static ICONS_OUTLINE_FONT_DATA: &[u8] =
+    include_bytes!("../assets/MaterialIcons/MaterialIconsOutlined-Regular.otf");
+static ICONS_FILLED_FONT_DATA: &[u8] =
+    include_bytes!("../assets/MaterialIcons/MaterialIcons-Regular.ttf");
 
 pub(crate) fn extend_fonts(fonts: &mut Vec<Cow<'static, [u8]>>) {
     fonts.push(Cow::Borrowed(ICONS_OUTLINE_FONT_DATA));
@@ -32,14 +34,15 @@ pub(crate) fn extend_fonts(fonts: &mut Vec<Cow<'static, [u8]>>) {
 
 /// Returns an iterator over all icons.
 pub fn all() -> impl Iterator<Item = &'static str> {
-    OUTLINE_ICON_CODEPOINTS.keys().map(|k| &**k)
+    OUTLINE_ICON_CODEPOINTS
+        .keys()
+        .map(|k| &**k)
         .chain(FILLED_ICON_CODEPOINTS.keys().map(|k| &**k))
 }
 
 /// Checks if a given icon name exists.
 pub fn exists(name: &str) -> bool {
-    OUTLINE_ICON_CODEPOINTS.contains_key(name)
-        || FILLED_ICON_CODEPOINTS.contains_key(name)
+    OUTLINE_ICON_CODEPOINTS.contains_key(name) || FILLED_ICON_CODEPOINTS.contains_key(name)
 }
 
 /// Get a new icon widget in the outline format.
@@ -55,11 +58,12 @@ where
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
     Text::new(code)
         .size(24)
+        .line_height(1.0)
         .font(ICON_OUTLINED_FONT)
 }
 
 /// Get a new icon widget in the filled format.
-pub fn filled<Theme, Renderer>(name: &str) -> Text<'static, Theme, Renderer>
+pub fn filled<Theme, Renderer>(name: &str) -> Text<'_, Theme, Renderer>
 where
     Theme: Catalog,
     Renderer: text::Renderer,
@@ -71,6 +75,7 @@ where
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
 
     Text::new(code)
-        .size(48)
+        .size(24)
+        .line_height(1.0)
         .font(ICON_FILLED_FONT)
 }
