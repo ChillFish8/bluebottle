@@ -20,7 +20,6 @@ pub fn poster<'a, Message>(
     };
 
     image(handle)
-        .border_radius(8)
         .width(width)
         .height(height)
         .content_fit(ContentFit::Cover)
@@ -30,7 +29,6 @@ pub fn poster<'a, Message>(
 /// An image in the episode aspect ratio.
 pub fn episode<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
     image(handle)
-        .border_radius(8)
         .width(276)
         .height(145.67)
         .content_fit(ContentFit::Cover)
@@ -40,7 +38,6 @@ pub fn episode<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
 /// An image in the album aspect ratio.
 pub fn album<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
     image(handle)
-        .border_radius(8)
         .width(152)
         .height(152)
         .content_fit(ContentFit::Cover)
@@ -64,7 +61,6 @@ pub fn person<'a, Message>(
     };
 
     image(handle)
-        .border_radius(8)
         .width(width)
         .height(height)
         .content_fit(ContentFit::Cover)
