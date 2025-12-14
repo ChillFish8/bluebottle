@@ -1,6 +1,8 @@
 use iced::widget::image;
 use iced::{ContentFit, Element};
 
+pub use image::Handle;
+
 /// The sizing options of the poster.
 pub enum PosterSize {
     Small,
@@ -10,7 +12,7 @@ pub enum PosterSize {
 
 /// An image in the poster aspect ratio.
 pub fn poster<'a, Message>(
-    handle: image::Handle,
+    handle: Handle,
     size: PosterSize,
 ) -> Element<'a, Message> {
     let (width, height) = match size {
@@ -26,8 +28,8 @@ pub fn poster<'a, Message>(
         .into()
 }
 
-/// An image in the episode aspect ratio.
-pub fn episode<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
+/// An image in the thumbnail aspect ratio.
+pub fn thumbnail<'a, Message>(handle: Handle) -> Element<'a, Message> {
     image(handle)
         .width(276)
         .height(145.67)
@@ -35,8 +37,8 @@ pub fn episode<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
         .into()
 }
 
-/// An image in the album aspect ratio.
-pub fn album<'a, Message>(handle: image::Handle) -> Element<'a, Message> {
+/// An image in the square aspect ratio.
+pub fn square<'a, Message>(handle: Handle) -> Element<'a, Message> {
     image(handle)
         .width(152)
         .height(152)
@@ -52,17 +54,11 @@ pub enum PersonSize {
 
 /// An image in the person aspect ratio.
 pub fn person<'a, Message>(
-    handle: image::Handle,
+    handle: Handle,
     size: PersonSize,
 ) -> Element<'a, Message> {
-    let (width, height) = match size {
-        PersonSize::Square => (152, 152),
-        PersonSize::Poster => (152, 224),
-    };
-
-    image(handle)
-        .width(width)
-        .height(height)
-        .content_fit(ContentFit::Cover)
-        .into()
+    match size {
+        PersonSize::Square => square(handle),
+        PersonSize::Poster => poster(handle, PosterSize::Small),
+    }
 }
