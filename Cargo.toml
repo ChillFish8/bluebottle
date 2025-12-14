@@ -13,4 +13,4 @@ foldhash = "0.2"
 phf = "0.13"
 phf_codegen = "0.13"
 
-iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio"] }
+iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio", "image"] }

@@ -1,5 +1,6 @@
+use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
-use iced::widget::{column, container, row, scrollable, text};
+use iced::widget::{column, image, row, scrollable, text};
 use iced::{Center, Element, Length, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
@@ -36,7 +37,11 @@ impl Components {
             nav_buttons(),
             standard_buttons(),
             icon_buttons(),
-            icon_toggle_buttons()
+            icon_toggle_buttons(),
+            posters(),
+            episodes(),
+            albums(),
+            persons(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -89,6 +94,12 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
                 bluebottle_ui::button::nav(
+                    "Anime Movies",
+                    "movie",
+                    false,
+                    Message::Click
+                ),
+                bluebottle_ui::button::nav(
                     "Music",
                     "library_music",
                     false,
@@ -104,6 +115,12 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("TV Shows", "tv", true, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", true, Message::Click),
                 bluebottle_ui::button::nav(
+                    "Anime Movies",
+                    "movie",
+                    true,
+                    Message::Click
+                ),
+                bluebottle_ui::button::nav(
                     "Music",
                     "library_music",
                     true,
@@ -118,6 +135,12 @@ fn nav_buttons() -> Element<'static, Message> {
                 bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
                 bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
                 bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
+                bluebottle_ui::button::nav(
+                    "Anime Movies",
+                    "movie",
+                    false,
+                    Message::Click
+                ),
                 bluebottle_ui::button::nav(
                     "Music",
                     "library_music",
@@ -196,6 +219,74 @@ fn icon_toggle_buttons() -> Element<'static, Message> {
                 true,
                 Message::Click
             ),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn posters() -> Element<'static, Message> {
+    let content = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
+
+    column![
+        text("Image Posters").font(font::bold()),
+        row![
+            bluebottle_ui::image::poster(
+                content.clone(),
+                bluebottle_ui::image::PosterSize::Large
+            ),
+            bluebottle_ui::image::poster(
+                content.clone(),
+                bluebottle_ui::image::PosterSize::Medium
+            ),
+            bluebottle_ui::image::poster(
+                content,
+                bluebottle_ui::image::PosterSize::Small
+            ),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn episodes() -> Element<'static, Message> {
+    let content = image::Handle::from_path("bluebottle-ui/assets/examples/episode1.jpg");
+
+    column![
+        text("Image Episodes").font(font::bold()),
+        row![bluebottle_ui::image::episode(content)]
+            .padding(8)
+            .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn albums() -> Element<'static, Message> {
+    let content = image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg");
+
+    column![
+        text("Image Albums").font(font::bold()),
+        row![bluebottle_ui::image::album(content)]
+            .padding(8)
+            .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn persons() -> Element<'static, Message> {
+    let content = image::Handle::from_path("bluebottle-ui/assets/examples/person1.jpg");
+
+    column![
+        text("Image Persons").font(font::bold()),
+        row![
+            bluebottle_ui::image::person(content.clone(), PersonSize::Poster),
+            bluebottle_ui::image::person(content, PersonSize::Square),
         ]
         .padding(8)
         .spacing(8)

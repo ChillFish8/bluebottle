@@ -90,6 +90,7 @@ where
 
     let message = (!selected).then_some(message);
     button(items)
+        .height(24)
         .style(default_button_style)
         .on_press_maybe(message)
         .into()
