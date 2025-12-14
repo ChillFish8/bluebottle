@@ -1,6 +1,6 @@
 use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
-use iced::widget::{column, image, row, scrollable, text};
+use iced::widget::{column, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
@@ -46,7 +46,7 @@ impl Components {
         .width(Length::Fill)
         .padding(padding::all(32))
         .spacing(16);
-        scrollable(elements).into()
+        bluebottle_ui::scrollable::scrollable(elements).into()
     }
 }
 
