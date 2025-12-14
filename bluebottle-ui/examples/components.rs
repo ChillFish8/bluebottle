@@ -1,6 +1,6 @@
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, row, scrollable, text};
-use iced::{Center, Element, Settings, padding};
+use iced::{Center, Element, Settings, padding, Length};
 
 fn main() -> anyhow::Result<()> {
     let settings = Settings {
@@ -30,7 +30,8 @@ impl Components {
     fn update(&mut self, _message: Message) {}
 
     fn view(&self) -> Element<'_, Message> {
-        let elements = column![text_fonts(), icons(), nav_buttons(),]
+        let elements = column![text_fonts(), icons(), nav_buttons(), nav_buttons(),]
+            .width(Length::Fill)
             .padding(padding::all(32))
             .spacing(16);
         scrollable(elements).into()

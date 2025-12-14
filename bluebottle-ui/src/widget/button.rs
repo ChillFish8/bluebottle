@@ -1,5 +1,5 @@
-use iced::widget::{Button, button, center_x, column, container, hover, text};
-use iced::{Background, Center, Element, Font, Length, Theme, border};
+use iced::widget::{button, column, container, hover, text};
+use iced::{Background, Center, Element, Theme, border};
 
 use crate::{color, icon};
 
@@ -40,19 +40,15 @@ where
         }
     }
 
-    let text_style = |_theme: &Theme| text::Style {
-        color: Some(color::TEXT_DEFAULT),
-    };
-
     let message = if selected { None } else { Some(message) };
 
     let base_button =
-        button(column![nav_icon(false), text(label).size(14).style(text_style)].align_x(Center))
+        button(column![nav_icon(false), text(label).size(14).style(text_primary)].align_x(Center))
             .style(style)
             .on_press_maybe(message.clone());
 
     let hovered_button =
-        button(column![nav_icon(true), text(label).size(14).style(text_style)].align_x(Center))
+        button(column![nav_icon(true), text(label).size(14).style(text_primary)].align_x(Center))
             .style(style)
             .on_press_maybe(message);
 
@@ -60,5 +56,11 @@ where
         hovered_button.into()
     } else {
         hover(base_button, hovered_button).into()
+    }
+}
+
+fn text_primary(_theme: &Theme) -> text::Style {
+    text::Style {
+        color: Some(color::TEXT_DEFAULT),
     }
 }
