@@ -1,4 +1,4 @@
-use bluebottle_ui::card::PlayableFormFactor;
+use bluebottle_ui::card::CardFormFactor;
 use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, image, row, text};
@@ -43,7 +43,8 @@ impl Components {
             episodes(),
             albums(),
             persons(),
-            playable(),
+            playable_card(),
+            clickable_card(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -256,7 +257,8 @@ fn posters() -> Element<'static, Message> {
 }
 
 fn episodes() -> Element<'static, Message> {
-    let content = image::Handle::from_path("bluebottle-ui/assets/examples/episode1.jpg");
+    let content =
+        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
 
     column![
         text("Image Episodes").font(font::bold()),
@@ -297,7 +299,7 @@ fn persons() -> Element<'static, Message> {
     .into()
 }
 
-fn playable() -> Element<'static, Message> {
+fn playable_card() -> Element<'static, Message> {
     let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
     let thumbnail =
         image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
@@ -310,7 +312,7 @@ fn playable() -> Element<'static, Message> {
                 "Example Poster",
                 "S1:E1 - Example",
                 poster,
-                PlayableFormFactor::Poster,
+                CardFormFactor::Poster,
                 Message::Click,
                 Message::Click,
             ),
@@ -318,7 +320,7 @@ fn playable() -> Element<'static, Message> {
                 "Example Thumbnail",
                 "S1:E1 - Example episode title",
                 thumbnail,
-                PlayableFormFactor::Thumbnail,
+                CardFormFactor::Thumbnail,
                 Message::Click,
                 Message::Click,
             ),
@@ -326,8 +328,46 @@ fn playable() -> Element<'static, Message> {
                 "Example Album",
                 "Example Author",
                 square,
-                PlayableFormFactor::Square,
+                CardFormFactor::Square,
                 Message::Click,
+                Message::Click,
+            ),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn clickable_card() -> Element<'static, Message> {
+    let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
+    let thumbnail =
+        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
+    let square = image::Handle::from_path("bluebottle-ui/assets/examples/person2.jpg");
+
+    column![
+        text("Clickable Card").font(font::bold()),
+        row![
+            bluebottle_ui::card::clickable(
+                "Example Poster",
+                "Sample text",
+                poster,
+                CardFormFactor::Poster,
+                Message::Click,
+            ),
+            bluebottle_ui::card::clickable(
+                "Example Thumbnail",
+                "Sample text",
+                thumbnail,
+                CardFormFactor::Thumbnail,
+                Message::Click,
+            ),
+            bluebottle_ui::card::clickable(
+                "Example Person",
+                "",
+                square,
+                CardFormFactor::Square,
                 Message::Click,
             ),
         ]

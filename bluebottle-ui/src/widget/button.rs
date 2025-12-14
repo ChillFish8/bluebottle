@@ -1,3 +1,4 @@
+pub use button::{Status, Style};
 use iced::widget::{Text, button, column, container, hover, row, text};
 use iced::{Background, Center, Color, Element, Theme, border};
 
@@ -27,15 +28,15 @@ where
             .into()
     };
 
-    fn style(theme: &Theme, status: button::Status) -> button::Style {
+    fn style(theme: &Theme, status: Status) -> Style {
         let base = button::text(theme, status);
 
         let color = match status {
-            button::Status::Pressed => color::TEXT_PRIMARY,
+            Status::Pressed => color::TEXT_PRIMARY,
             _ => color::TEXT_DEFAULT,
         };
 
-        button::Style {
+        Style {
             text_color: color,
             ..base
         }
@@ -171,22 +172,22 @@ where
         .into()
 }
 
-fn default_button_style(theme: &Theme, status: button::Status) -> button::Style {
+fn default_button_style(theme: &Theme, status: Status) -> Style {
     let base = button::text(theme, status);
 
     let color = match status {
-        button::Status::Pressed => color::TEXT_PRIMARY,
-        button::Status::Disabled => color::TEXT_PRIMARY,
+        Status::Pressed => color::TEXT_PRIMARY,
+        Status::Disabled => color::TEXT_PRIMARY,
         _ => color::TEXT_DEFAULT,
     };
 
     let background = match status {
-        button::Status::Hovered => color::HOVER_HIGHLIGHT,
-        button::Status::Pressed => color::HOVER_HIGHLIGHT,
+        Status::Hovered => color::HOVER_HIGHLIGHT,
+        Status::Pressed => color::HOVER_HIGHLIGHT,
         _ => Color::TRANSPARENT,
     };
 
-    button::Style {
+    Style {
         text_color: color,
         background: Some(Background::Color(background)),
         border: border::rounded(999),
