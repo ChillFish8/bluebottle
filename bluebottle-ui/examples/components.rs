@@ -44,6 +44,7 @@ impl Components {
             persons(),
             clickable_card(),
             bars(),
+            pills()
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -373,4 +374,40 @@ fn bars() -> Element<'static, Message> {
     column![topbar, sidebar_container]
         .width(Length::Fill)
         .into()
+}
+
+fn pills() -> Element<'static, Message> {
+    let no_icon_small = row![
+        bluebottle_ui::pill::small("Small Enabled", None).on_press(Message::Click),
+        bluebottle_ui::pill::small("Small Disabled", None),
+    ]
+    .spacing(4);
+
+    let icon_small = row![
+        bluebottle_ui::pill::small("Small Icon Enabled", Some("access_time_filled"))
+            .on_press(Message::Click),
+        bluebottle_ui::pill::small("Small Icon Disabled", Some("access_time_filled")),
+    ]
+    .spacing(4);
+
+    let no_icon_regular = row![
+        bluebottle_ui::pill::regular("24m", None).on_press(Message::Click),
+        bluebottle_ui::pill::regular("24m", None),
+    ]
+    .spacing(4);
+
+    let icon_regular = row![
+        bluebottle_ui::pill::regular("24m remaining", Some("access_time_filled"))
+            .on_press(Message::Click),
+        bluebottle_ui::pill::regular("24m remaining", Some("access_time_filled")),
+    ]
+    .spacing(4);
+
+    column![
+        text("Pills").font(font::bold()),
+        column![no_icon_small, icon_small].spacing(8),
+        column![no_icon_regular, icon_regular].spacing(8),
+    ]
+    .spacing(8)
+    .into()
 }
