@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 iced = { workspace = true }
 phf = { workspace = true }
+humantime = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

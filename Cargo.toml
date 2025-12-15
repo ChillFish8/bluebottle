@@ -12,5 +12,6 @@ anyhow = "1"
 foldhash = "0.2"
 phf = "0.13"
 phf_codegen = "0.13"
+humantime = "2"
 
 iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio", "image"] }
