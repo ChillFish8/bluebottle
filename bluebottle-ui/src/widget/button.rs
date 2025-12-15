@@ -178,7 +178,7 @@ fn default_button_style(theme: &Theme, status: Status) -> Style {
     let color = match status {
         Status::Pressed => color::TEXT_PRIMARY,
         Status::Disabled => color::TEXT_PRIMARY,
-        _ => color::TEXT_DEFAULT,
+        _ => base.text_color,
     };
 
     let background = match status {
