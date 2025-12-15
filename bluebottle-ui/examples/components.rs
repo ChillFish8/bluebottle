@@ -226,6 +226,13 @@ fn icon_toggle_buttons() -> Element<'static, Message> {
                 true,
                 Message::Click
             ),
+            bluebottle_ui::button::toggle_icon(
+                "cancel",
+                "cancel",
+                false,
+                Message::Click
+            ),
+            bluebottle_ui::button::toggle_icon("cancel", "cancel", true, Message::Click),
         ]
         .padding(8)
         .spacing(8)
