@@ -1,6 +1,6 @@
 use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
-use iced::widget::{column, image, row, text};
+use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
@@ -43,6 +43,7 @@ impl Components {
             albums(),
             persons(),
             clickable_card(),
+            bars(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -347,4 +348,29 @@ fn clickable_card() -> Element<'static, Message> {
     ]
     .spacing(4)
     .into()
+}
+
+fn bars() -> Element<'static, Message> {
+    let topbar = bluebottle_ui::bar::top(text("center text"), "Example Library");
+
+    let top_buttons = column![
+        bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+        bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+        bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+        bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+    ]
+    .align_x(Center);
+
+    let bottom_buttons = column![
+        bluebottle_ui::button::nav("Library", "storage", false, Message::Click),
+        bluebottle_ui::button::nav("Settings", "settings", false, Message::Click),
+    ]
+    .align_x(Center);
+
+    let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
+    let sidebar_container = container(sidebar).height(120);
+
+    column![topbar, sidebar_container]
+        .width(Length::Fill)
+        .into()
 }

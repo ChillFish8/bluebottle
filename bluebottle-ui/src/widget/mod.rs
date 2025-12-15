@@ -1,3 +1,4 @@
+pub mod bar;
 pub mod button;
 pub mod card;
 pub mod image;
