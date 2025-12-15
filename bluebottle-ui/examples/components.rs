@@ -1,4 +1,3 @@
-use bluebottle_ui::card::CardFormFactor;
 use bluebottle_ui::image::PersonSize;
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, image, row, text};
@@ -28,12 +27,6 @@ enum Message {
     Click,
 }
 
-impl From<bluebottle_ui::card::PlayableCardMessage> for Message {
-    fn from(_value: bluebottle_ui::card::PlayableCardMessage) -> Self {
-        Self::Click
-    }
-}
-
 impl Components {
     fn update(&mut self, _message: Message) {}
 
@@ -49,8 +42,6 @@ impl Components {
             episodes(),
             albums(),
             persons(),
-            playable_card(),
-            watched_playable_card(),
             clickable_card(),
         ]
         .width(Length::Fill)
@@ -317,90 +308,6 @@ fn persons() -> Element<'static, Message> {
     .into()
 }
 
-fn playable_card() -> Element<'static, Message> {
-    let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
-    let thumbnail =
-        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
-    let square = image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg");
-
-    let poster_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Poster",
-        subtext: "S1:E1 - Example",
-        image: poster,
-        watch_state: bluebottle_ui::card::WatchState::Unwatched,
-        runtime: None,
-    };
-    let thumbnail_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Thumbnail",
-        subtext: "S1:E1 - Example episode title",
-        image: thumbnail,
-        watch_state: bluebottle_ui::card::WatchState::Unwatched,
-        runtime: None,
-    };
-    let square_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Album",
-        subtext: "Example Author",
-        image: square,
-        watch_state: bluebottle_ui::card::WatchState::Unwatched,
-        runtime: None,
-    };
-
-    column![
-        text("Playable Card").font(font::bold()),
-        row![
-            bluebottle_ui::card::playable(0, poster_info, CardFormFactor::Poster,),
-            bluebottle_ui::card::playable(0, thumbnail_info, CardFormFactor::Thumbnail,),
-            bluebottle_ui::card::playable(0, square_info, CardFormFactor::Square,),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn watched_playable_card() -> Element<'static, Message> {
-    let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
-    let thumbnail =
-        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
-    let square = image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg");
-
-    let poster_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Poster",
-        subtext: "S1:E1 - Example",
-        image: poster,
-        watch_state: bluebottle_ui::card::WatchState::Watched,
-        runtime: None,
-    };
-    let thumbnail_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Thumbnail",
-        subtext: "S1:E1 - Example episode title",
-        image: thumbnail,
-        watch_state: bluebottle_ui::card::WatchState::Watched,
-        runtime: None,
-    };
-    let square_info = bluebottle_ui::card::PlayableCardInfo {
-        label: "Example Album",
-        subtext: "Example Author",
-        image: square,
-        watch_state: bluebottle_ui::card::WatchState::Watched,
-        runtime: None,
-    };
-
-    column![
-        text("Watched Playable Card").font(font::bold()),
-        row![
-            bluebottle_ui::card::playable(0, poster_info, CardFormFactor::Poster,),
-            bluebottle_ui::card::playable(0, thumbnail_info, CardFormFactor::Thumbnail,),
-            bluebottle_ui::card::playable(0, square_info, CardFormFactor::Square,),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
-}
-
 fn clickable_card() -> Element<'static, Message> {
     let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
     let thumbnail =
@@ -410,25 +317,28 @@ fn clickable_card() -> Element<'static, Message> {
     column![
         text("Clickable Card").font(font::bold()),
         row![
-            bluebottle_ui::card::clickable(
+            bluebottle_ui::card::card(
                 "Example Poster",
                 "Sample text",
-                poster,
-                CardFormFactor::Poster,
+                bluebottle_ui::image::poster(
+                    poster,
+                    bluebottle_ui::image::PosterSize::Small
+                ),
+                icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
-            bluebottle_ui::card::clickable(
+            bluebottle_ui::card::card(
                 "Example Thumbnail",
                 "Sample text",
-                thumbnail,
-                CardFormFactor::Thumbnail,
+                bluebottle_ui::image::thumbnail(thumbnail),
+                icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
-            bluebottle_ui::card::clickable(
-                "Example Person",
-                "",
-                square,
-                CardFormFactor::Square,
+            bluebottle_ui::card::card(
+                "Example Square",
+                "Sample text",
+                bluebottle_ui::image::square(square),
+                icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
         ]
