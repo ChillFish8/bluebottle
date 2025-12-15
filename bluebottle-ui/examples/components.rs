@@ -371,9 +371,15 @@ fn bars() -> Element<'static, Message> {
     let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
     let sidebar_container = container(sidebar).height(120);
 
-    column![topbar, sidebar_container]
-        .width(Length::Fill)
-        .into()
+    column![
+        text("Topbar").font(font::bold()),
+        topbar,
+        text("Sidebar").font(font::bold()),
+        sidebar_container,
+    ]
+    .spacing(8)
+    .width(Length::Fill)
+    .into()
 }
 
 fn pills() -> Element<'static, Message> {
