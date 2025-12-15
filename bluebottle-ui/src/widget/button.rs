@@ -79,7 +79,7 @@ pub fn standard<'a, Message>(
     icon: Option<&'a str>,
     selected: bool,
     message: Message,
-) -> Element<'a, Message>
+) -> button::Button<'a, Message>
 where
     Message: Clone + 'a,
 {
@@ -93,7 +93,6 @@ where
     button(items)
         .style(default_button_style)
         .on_press_maybe(message)
-        .into()
 }
 
 #[doc(hidden)]
@@ -122,7 +121,7 @@ pub fn icon<'a, Message>(
     icon: impl Into<IconTextOrName<'a>>,
     selected: bool,
     message: Message,
-) -> Element<'a, Message>
+) -> button::Button<'a, Message>
 where
     Message: Clone + 'a,
 {
@@ -136,7 +135,6 @@ where
         .padding(4)
         .style(default_button_style)
         .on_press_maybe(message)
-        .into()
 }
 
 /// An icon toggle button
@@ -147,11 +145,11 @@ pub fn toggle_icon<'a, Message>(
     selected_icon: &'a str,
     selected: bool,
     message: Message,
-) -> Element<'a, Message>
+) -> button::Button<'a, Message>
 where
     Message: Clone + 'a,
 {
-    let style = move |theme: &Theme, status: button::Status| {
+    let style = move |theme: &Theme, status: Status| {
         let mut base = default_button_style(theme, status);
         if selected {
             base.text_color = color::TEXT_PRIMARY;
@@ -165,14 +163,11 @@ where
         icon::outline(base_icon)
     };
 
-    button(icon)
-        .padding(4)
-        .style(style)
-        .on_press(message)
-        .into()
+    button(icon).padding(4).style(style).on_press(message)
 }
 
-fn default_button_style(theme: &Theme, status: Status) -> Style {
+/// The default button styling behavior.
+pub fn default_button_style(theme: &Theme, status: Status) -> Style {
     let base = button::text(theme, status);
 
     let color = match status {
@@ -193,6 +188,16 @@ fn default_button_style(theme: &Theme, status: Status) -> Style {
         border: border::rounded(999),
         ..base
     }
+}
+
+/// Button styling becomes "secondary", with the text being in the format of
+/// the secondary color on hover and active status.
+pub fn secondary_button_style(theme: &Theme, status: Status) -> Style {
+    let mut style = default_button_style(theme, status);
+    if matches!(status, Status::Active | Status::Hovered) {
+        style.text_color = color::TEXT_SECONDARY;
+    }
+    style
 }
 
 fn text_forced_default(_theme: &Theme) -> text::Style {

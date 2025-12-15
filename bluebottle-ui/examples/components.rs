@@ -198,6 +198,10 @@ fn icon_buttons() -> Element<'static, Message> {
         row![
             bluebottle_ui::button::icon("settings", false, Message::Click),
             bluebottle_ui::button::icon("settings", true, Message::Click),
+            bluebottle_ui::button::icon("arrow_back", false, Message::Click)
+                .style(bluebottle_ui::button::secondary_button_style),
+            bluebottle_ui::button::icon("arrow_back", true, Message::Click)
+                .style(bluebottle_ui::button::secondary_button_style),
         ]
         .padding(8)
         .spacing(8)
