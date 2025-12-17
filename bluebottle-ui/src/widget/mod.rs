@@ -4,4 +4,7 @@ pub mod card;
 pub mod image;
 pub mod pill;
 pub mod scrollable;
+pub mod search;
+pub mod skeleton;
 pub mod spinner;
+pub mod title;
