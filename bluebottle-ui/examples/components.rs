@@ -59,6 +59,7 @@ impl Components {
             rating(),
             titles(),
             search_input(&self.search_content),
+            spinners(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -485,10 +486,20 @@ fn titles() -> Element<'static, Message> {
     .into()
 }
 
-fn search_input<'a>(content: &'a str) -> Element<'a, Message> {
+fn search_input(content: &str) -> Element<'_, Message> {
     column![
         text("Search input").font(font::bold()),
         bluebottle_ui::search::search("Sample input...", content, Message::SearchInput),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn spinners() -> Element<'static, Message> {
+    column![
+        text("Spinners").font(font::bold()),
+        bluebottle_ui::spinner::linear(),
+        bluebottle_ui::spinner::circle().size(40),
     ]
     .spacing(8)
     .into()
