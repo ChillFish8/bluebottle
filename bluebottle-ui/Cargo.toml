@@ -10,6 +10,7 @@ lyon_algorithms = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+tracing-subscriber = "0.3"
 
 [build-dependencies]
 phf = { workspace = true }

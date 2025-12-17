@@ -4,6 +4,8 @@ use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
     let settings = Settings {
         fonts: font::required_fonts(),
         default_font: font::regular(),
@@ -60,6 +62,7 @@ impl Components {
             titles(),
             search_input(&self.search_content),
             spinners(),
+            skeletons(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -500,6 +503,15 @@ fn spinners() -> Element<'static, Message> {
         text("Spinners").font(font::bold()),
         bluebottle_ui::spinner::linear(),
         bluebottle_ui::spinner::circle().size(40),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn skeletons() -> Element<'static, Message> {
+    column![
+        text("Skeletons").font(font::bold()),
+        bluebottle_ui::skeleton::poster(),
     ]
     .spacing(8)
     .into()
