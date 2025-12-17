@@ -20,15 +20,25 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[derive(Default)]
-struct Components;
+struct Components {
+    search_content: String,
+}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     Click,
+    SearchInput(String),
 }
 
 impl Components {
-    fn update(&mut self, _message: Message) {}
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::SearchInput(content) => {
+                self.search_content = content;
+            },
+            _ => {},
+        }
+    }
 
     fn view(&self) -> Element<'_, Message> {
         let elements = column![
@@ -48,6 +58,7 @@ impl Components {
             pillboxes(),
             rating(),
             titles(),
+            search_input(&self.search_content),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -469,6 +480,15 @@ fn titles() -> Element<'static, Message> {
         text("Titles").font(font::bold()),
         bluebottle_ui::title::title(Some("local_fire_department"), "New releases"),
         bluebottle_ui::title::title(None, "Setting option A"),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn search_input<'a>(content: &'a str) -> Element<'a, Message> {
+    column![
+        text("Search input").font(font::bold()),
+        bluebottle_ui::search::search("Sample input...", content, Message::SearchInput),
     ]
     .spacing(8)
     .into()
