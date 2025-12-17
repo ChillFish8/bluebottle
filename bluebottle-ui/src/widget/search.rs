@@ -37,6 +37,6 @@ fn input_style(_theme: &Theme, status: text_input::Status) -> text_input::Style 
         icon: Default::default(),
         placeholder: color::TEXT_DARK,
         value: color::TEXT_SECONDARY,
-        selection: Default::default(),
+        selection: color::TEXT_DARK,
     }
 }
