@@ -46,6 +46,7 @@ impl Components {
             bars(),
             pills(),
             pillboxes(),
+            rating(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -446,6 +447,17 @@ fn pillboxes() -> Element<'static, Message> {
         text("Pill Boxes").font(font::bold()),
         container(bluebottle_ui::pill_box::pill_box("Tags", tags_labels)).width(200),
         bluebottle_ui::pill_box::pill_box("Genres", genres_labels),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn rating() -> Element<'static, Message> {
+    column![
+        text("Rating").font(font::bold()),
+        bluebottle_ui::rating::rating(Some("7"), Some("88")),
+        bluebottle_ui::rating::rating(None, Some("88")),
+        bluebottle_ui::rating::rating(Some("7"), None),
     ]
     .spacing(8)
     .into()
