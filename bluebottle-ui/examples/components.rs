@@ -44,7 +44,8 @@ impl Components {
             persons(),
             clickable_card(),
             bars(),
-            pills()
+            pills(),
+            pillboxes(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -413,6 +414,38 @@ fn pills() -> Element<'static, Message> {
         text("Pills").font(font::bold()),
         column![no_icon_small, icon_small].spacing(8),
         column![no_icon_regular, icon_regular].spacing(8),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn pillboxes() -> Element<'static, Message> {
+    let tags_labels = [
+        "Elves",
+        "Magic",
+        "Immortality",
+        "Friendships",
+        "Slice of lift",
+        "Female protagonist",
+        "Magic",
+        "Elf",
+        "Dragons",
+    ];
+
+    let genres_labels = ["Fantasy", "Drama", "Animation", "Adventure", "Anime"];
+
+    let tags_labels = tags_labels
+        .into_iter()
+        .map(|label| bluebottle_ui::pill::small(label, None).into());
+
+    let genres_labels = genres_labels
+        .into_iter()
+        .map(|label| bluebottle_ui::pill::small(label, None).into());
+
+    column![
+        text("Pill Boxes").font(font::bold()),
+        container(bluebottle_ui::pill_box::pill_box("Tags", tags_labels)).width(200),
+        bluebottle_ui::pill_box::pill_box("Genres", genres_labels),
     ]
     .spacing(8)
     .into()
