@@ -42,18 +42,18 @@ where
         super::skeleton::skeleton()
             .height(12)
             .border(border::rounded(2))
-            .width(Length::FillPortion(3)),
+            .width(Length::FillPortion(4)),
         space().width(Length::FillPortion(1)),
     ]
     .align_y(Center);
 
     let subtext = row![
-        space().width(Length::FillPortion(2)),
+        space().width(Length::FillPortion(1)),
         super::skeleton::skeleton()
             .height(10)
             .border(border::rounded(2))
-            .width(Length::FillPortion(1)),
-        space().width(Length::FillPortion(2)),
+            .width(Length::FillPortion(2)),
+        space().width(Length::FillPortion(1)),
     ]
     .align_y(Center);
 
