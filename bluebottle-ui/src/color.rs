@@ -21,6 +21,9 @@ pub const TEXT_SECONDARY: iced::Color = iced::color!(0x62748E);
 pub const TEXT_DARK: iced::Color = DISABLED;
 pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;
 
+// Special edge cases to be used _very_ sparingly
+pub const SHIMMER: iced::Color = iced::color!(0x182236);
+
 /// Returns a configured color theme for an iced application.
 pub fn theme() -> iced::theme::Theme {
     let base_palette = Palette {

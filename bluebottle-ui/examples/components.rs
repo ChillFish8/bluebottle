@@ -511,7 +511,7 @@ fn spinners() -> Element<'static, Message> {
 fn skeletons() -> Element<'static, Message> {
     column![
         text("Skeletons").font(font::bold()),
-        bluebottle_ui::skeleton::poster(),
+        bluebottle_ui::skeleton::skeleton().height(224).width(152),
     ]
     .spacing(8)
     .into()
