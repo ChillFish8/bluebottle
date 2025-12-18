@@ -3,6 +3,8 @@ pub mod button;
 pub mod card;
 pub mod image;
 pub mod pill;
+pub mod pill_box;
+pub mod rating;
 pub mod scrollable;
 pub mod search;
 pub mod skeleton;
