@@ -66,6 +66,7 @@ impl Components {
             standard_buttons(),
             icon_buttons(),
             icon_toggle_buttons(),
+            navigators(),
             posters(),
             episodes(),
             albums(),
@@ -283,6 +284,36 @@ fn icon_toggle_buttons() -> Element<'static, Message> {
                 Message::Click
             ),
             bluebottle_ui::button::toggle_icon("cancel", "cancel", true, Message::Click),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn navigators() -> Element<'static, Message> {
+    column![
+        text("Carousel Navigators").font(font::bold()),
+        row![
+            bluebottle_ui::carousel_navigator::navigator(
+                1,
+                7,
+                Message::Click,
+                Message::Click,
+            ),
+            bluebottle_ui::carousel_navigator::navigator(
+                4,
+                7,
+                Message::Click,
+                Message::Click,
+            ),
+            bluebottle_ui::carousel_navigator::navigator(
+                7,
+                7,
+                Message::Click,
+                Message::Click,
+            ),
         ]
         .padding(8)
         .spacing(8)
