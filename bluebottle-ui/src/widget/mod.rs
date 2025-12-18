@@ -4,6 +4,7 @@ pub mod card;
 pub mod carousel_navigator;
 pub mod ellipsis_text;
 pub mod image;
+pub mod input;
 pub mod pill;
 pub mod pill_box;
 pub mod rating;

@@ -78,6 +78,7 @@ impl Components {
             rating(),
             titles(),
             search_input(&self.search_content),
+            inputs(&self.search_content),
             spinners(),
             skeletons(),
         ]
@@ -574,6 +575,21 @@ fn search_input(content: &str) -> Element<'_, Message> {
     column![
         text("Search input").font(font::bold()),
         bluebottle_ui::search::search("Sample input...", content, Message::SearchInput),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn inputs(content: &str) -> Element<'_, Message> {
+    column![
+        text("Text input").font(font::bold()),
+        bluebottle_ui::input::text_input(
+            "Sample input...",
+            content,
+            Message::SearchInput
+        ),
+        bluebottle_ui::input::text_input("Password...", content, Message::SearchInput)
+            .secure(true),
     ]
     .spacing(8)
     .into()
