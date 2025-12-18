@@ -1,4 +1,4 @@
-use bluebottle_ui::image::PersonSize;
+use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
@@ -512,6 +512,27 @@ fn skeletons() -> Element<'static, Message> {
     column![
         text("Skeletons").font(font::bold()),
         bluebottle_ui::skeleton::skeleton().height(224).width(152),
+        row![
+            bluebottle_ui::image::poster_skeleton(PosterSize::Large),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Small),
+        ]
+        .spacing(16),
+        bluebottle_ui::image::thumbnail_skeleton(),
+        bluebottle_ui::image::square_skeleton(),
+        row![
+            bluebottle_ui::image::person_skeleton(PersonSize::Poster),
+            bluebottle_ui::image::person_skeleton(PersonSize::Square),
+        ]
+        .spacing(16),
+        row![
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::poster_skeleton(
+                PosterSize::Small
+            )),
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::thumbnail_skeleton()),
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::square_skeleton()),
+        ]
+        .spacing(16),
     ]
     .spacing(8)
     .into()
