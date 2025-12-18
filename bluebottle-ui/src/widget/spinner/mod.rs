@@ -1,7 +1,5 @@
 //! Based on the iced loading_spinners example but stripped out the theming.
 
-use iced::Element;
-
 mod circular;
 mod linear;
 

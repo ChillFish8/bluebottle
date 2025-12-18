@@ -1,5 +1,5 @@
-use iced::widget::{column, container, row, space, text};
-use iced::{Border, Center, Element, Length};
+use iced::widget::{column, row, space, text};
+use iced::{Center, Element, Length};
 
 use crate::{color, font};
 

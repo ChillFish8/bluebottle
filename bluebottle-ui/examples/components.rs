@@ -1,7 +1,22 @@
+use std::sync::LazyLock;
+
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
+
+static POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
+    image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg")
+});
+static THUMBNAIL: LazyLock<image::Handle> = LazyLock::new(|| {
+    image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg")
+});
+static PERSON_POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
+    image::Handle::from_path("bluebottle-ui/assets/examples/person1.jpg")
+});
+static SQUARE: LazyLock<image::Handle> = LazyLock::new(|| {
+    image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg")
+});
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -277,7 +292,7 @@ fn icon_toggle_buttons() -> Element<'static, Message> {
 }
 
 fn posters() -> Element<'static, Message> {
-    let content = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
+    let content = POSTER.clone();
 
     column![
         text("Image Posters").font(font::bold()),
@@ -305,8 +320,7 @@ fn posters() -> Element<'static, Message> {
 }
 
 fn episodes() -> Element<'static, Message> {
-    let content =
-        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
+    let content = THUMBNAIL.clone();
 
     column![
         text("Image Episodes").font(font::bold()),
@@ -322,7 +336,7 @@ fn episodes() -> Element<'static, Message> {
 }
 
 fn albums() -> Element<'static, Message> {
-    let content = image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg");
+    let content = SQUARE.clone();
 
     column![
         text("Image Albums").font(font::bold()),
@@ -338,7 +352,7 @@ fn albums() -> Element<'static, Message> {
 }
 
 fn persons() -> Element<'static, Message> {
-    let content = image::Handle::from_path("bluebottle-ui/assets/examples/person1.jpg");
+    let content = PERSON_POSTER.clone();
 
     column![
         text("Image Persons").font(font::bold()),
@@ -356,10 +370,9 @@ fn persons() -> Element<'static, Message> {
 }
 
 fn clickable_card() -> Element<'static, Message> {
-    let poster = image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg");
-    let thumbnail =
-        image::Handle::from_path("bluebottle-ui/assets/examples/thumbnail1.jpg");
-    let square = image::Handle::from_path("bluebottle-ui/assets/examples/person2.jpg");
+    let poster = POSTER.clone();
+    let thumbnail = THUMBNAIL.clone();
+    let square = SQUARE.clone();
 
     column![
         text("Clickable Card").font(font::bold()),

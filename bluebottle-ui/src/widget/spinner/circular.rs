@@ -5,7 +5,6 @@ use iced::advanced::widget::tree::{self, Tree};
 use iced::advanced::{self, Clipboard, Layout, Shell, Widget, layout, renderer};
 use iced::time::Instant;
 use iced::widget::canvas;
-use iced::widget::canvas::LineCap;
 use iced::{
     Element,
     Event,
