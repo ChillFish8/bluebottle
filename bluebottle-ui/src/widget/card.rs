@@ -1,7 +1,9 @@
-use iced::widget::{self, column, container, hover, row, space, text};
-use iced::{Center, Element, Length, Theme, border};
+use iced::widget::{self, column, container, hover, row, space};
+use iced::{Border, Center, Element, Length, Theme, border, padding};
 
 use super::button;
+use super::ellipsis_text::ellipsis_text;
+use crate::color;
 use crate::color::{TEXT_DEFAULT, TEXT_SECONDARY};
 
 /// Creates a new widget that forms the core structure of the card button.
@@ -15,16 +17,20 @@ pub fn card<'a, Message>(
 where
     Message: 'a,
 {
-    let display = display.into();
-    let overlay = overlay.into();
+    let display = container(display.into()).style(bounding_borders);
+    let overlay = container(overlay.into()).style(bounding_borders);
 
-    let label = text(label).size(14).color(TEXT_DEFAULT);
-    let subtext = text(subtext).size(12).color(TEXT_SECONDARY);
+    let label = ellipsis_text(label).size(14).color(TEXT_DEFAULT).height(16);
+    let subtext = ellipsis_text(subtext)
+        .size(12)
+        .color(TEXT_SECONDARY)
+        .height(14);
 
-    let base = column![display, label, subtext].align_x(Center);
+    let base = container(column![display, label, subtext].spacing(2).align_x(Center))
+        .style(bounding_borders);
 
     // note: the padding is needed due to a clipping issue in the layout engine of iced (I think)
-    widget::button(container(hover(base, overlay)).padding(1))
+    widget::button(container(hover(base, overlay)).padding(0))
         .on_press(on_click)
         .style(wrapping_button_style)
 }
@@ -40,34 +46,49 @@ where
     let label = row![
         space().width(Length::FillPortion(1)),
         super::skeleton::skeleton()
-            .height(12)
+            .height(14)
             .border(border::rounded(2))
             .width(Length::FillPortion(4)),
         space().width(Length::FillPortion(1)),
     ]
+    .padding(padding::vertical(1))
     .align_y(Center);
 
     let subtext = row![
         space().width(Length::FillPortion(1)),
         super::skeleton::skeleton()
-            .height(10)
+            .height(12)
             .border(border::rounded(2))
             .width(Length::FillPortion(2)),
         space().width(Length::FillPortion(1)),
     ]
+    .padding(padding::vertical(1))
     .align_y(Center);
 
     let base = column![display.into(), label, subtext]
         .spacing(4)
         .align_x(Center);
-    container(base).width(Length::Shrink).padding(1).into()
+
+    let wrapper = container(base).width(Length::Shrink);
+
+    container(wrapper).padding(4).style(bounding_borders).into()
 }
 
 fn wrapping_button_style(_theme: &Theme, _status: button::Status) -> button::Style {
     button::Style {
         background: None,
         text_color: Default::default(),
-        border: Default::default(),
+        border: Border::default().width(1).color(color::PRIMARY),
+        shadow: Default::default(),
+        snap: true,
+    }
+}
+
+fn bounding_borders(_theme: &Theme) -> container::Style {
+    container::Style {
+        text_color: None,
+        background: None,
+        border: Border::default().width(1).color(color::PRIMARY),
         shadow: Default::default(),
         snap: true,
     }

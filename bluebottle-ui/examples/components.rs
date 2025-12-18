@@ -45,6 +45,7 @@ impl Components {
     fn view(&self) -> Element<'_, Message> {
         let elements = column![
             text_fonts(),
+            ellipsis_text(),
             icons(),
             nav_buttons(),
             standard_buttons(),
@@ -81,6 +82,22 @@ fn text_fonts() -> Element<'static, Message> {
             text("The quick brown fox jumps over the lazy dog").size(12),
             text("The quick brown fox jumps over the lazy dog").size(14),
             text("The quick brown fox jumps over the lazy dog").size(16),
+        ]
+        .spacing(4)
+        .padding(padding::left(16)),
+    ]
+    .into()
+}
+
+fn ellipsis_text() -> Element<'static, Message> {
+    column![
+        text("Text Ellipsis").font(font::bold()),
+        column![
+            bluebottle_ui::ellipsis_text::ellipsis_text(
+                "The quick brown fox jumps over the lazy dog"
+            )
+            .width(160)
+            .height(50),
         ]
         .spacing(4)
         .padding(padding::left(16)),
@@ -265,21 +282,23 @@ fn posters() -> Element<'static, Message> {
     column![
         text("Image Posters").font(font::bold()),
         row![
-            bluebottle_ui::image::poster(
-                content.clone(),
-                bluebottle_ui::image::PosterSize::Large
-            ),
-            bluebottle_ui::image::poster(
-                content.clone(),
-                bluebottle_ui::image::PosterSize::Medium
-            ),
-            bluebottle_ui::image::poster(
-                content,
-                bluebottle_ui::image::PosterSize::Small
-            ),
+            bluebottle_ui::image::poster(content.clone(), PosterSize::Large),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Large),
         ]
         .padding(8)
-        .spacing(8)
+        .spacing(8),
+        row![
+            bluebottle_ui::image::poster(content.clone(), PosterSize::Medium),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
+        ]
+        .padding(8)
+        .spacing(8),
+        row![
+            bluebottle_ui::image::poster(content, PosterSize::Small),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Small),
+        ]
+        .padding(8)
+        .spacing(8),
     ]
     .spacing(4)
     .into()
@@ -291,9 +310,12 @@ fn episodes() -> Element<'static, Message> {
 
     column![
         text("Image Episodes").font(font::bold()),
-        row![bluebottle_ui::image::thumbnail(content)]
-            .padding(8)
-            .spacing(8)
+        row![
+            bluebottle_ui::image::thumbnail(content),
+            bluebottle_ui::image::thumbnail_skeleton(),
+        ]
+        .padding(8)
+        .spacing(8)
     ]
     .spacing(4)
     .into()
@@ -304,9 +326,12 @@ fn albums() -> Element<'static, Message> {
 
     column![
         text("Image Albums").font(font::bold()),
-        row![bluebottle_ui::image::square(content)]
-            .padding(8)
-            .spacing(8)
+        row![
+            bluebottle_ui::image::square(content),
+            bluebottle_ui::image::square_skeleton(),
+        ]
+        .padding(8)
+        .spacing(8)
     ]
     .spacing(4)
     .into()
@@ -319,7 +344,9 @@ fn persons() -> Element<'static, Message> {
         text("Image Persons").font(font::bold()),
         row![
             bluebottle_ui::image::person(content.clone(), PersonSize::Poster),
+            bluebottle_ui::image::person_skeleton(PersonSize::Poster),
             bluebottle_ui::image::person(content, PersonSize::Square),
+            bluebottle_ui::image::person_skeleton(PersonSize::Square),
         ]
         .padding(8)
         .spacing(8)
@@ -340,13 +367,17 @@ fn clickable_card() -> Element<'static, Message> {
             bluebottle_ui::card::card(
                 "Example Poster",
                 "Sample text",
-                bluebottle_ui::image::poster(
-                    poster,
-                    bluebottle_ui::image::PosterSize::Small
-                ),
+                bluebottle_ui::image::poster(poster, PosterSize::Small),
                 icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::poster_skeleton(
+                PosterSize::Small
+            )),
+        ]
+        .padding(8)
+        .spacing(8),
+        row![
             bluebottle_ui::card::card(
                 "Example Thumbnail",
                 "Sample text",
@@ -354,6 +385,11 @@ fn clickable_card() -> Element<'static, Message> {
                 icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::thumbnail_skeleton()),
+        ]
+        .padding(8)
+        .spacing(8),
+        row![
             bluebottle_ui::card::card(
                 "Example Square",
                 "Sample text",
@@ -361,6 +397,7 @@ fn clickable_card() -> Element<'static, Message> {
                 icon::filled("replay").color(color::TEXT_PRIMARY),
                 Message::Click,
             ),
+            bluebottle_ui::card::skeleton(bluebottle_ui::image::square_skeleton()),
         ]
         .padding(8)
         .spacing(8)
@@ -511,28 +548,7 @@ fn spinners() -> Element<'static, Message> {
 fn skeletons() -> Element<'static, Message> {
     column![
         text("Skeletons").font(font::bold()),
-        bluebottle_ui::skeleton::skeleton().height(224).width(152),
-        row![
-            bluebottle_ui::image::poster_skeleton(PosterSize::Large),
-            bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
-            bluebottle_ui::image::poster_skeleton(PosterSize::Small),
-        ]
-        .spacing(16),
-        bluebottle_ui::image::thumbnail_skeleton(),
-        bluebottle_ui::image::square_skeleton(),
-        row![
-            bluebottle_ui::image::person_skeleton(PersonSize::Poster),
-            bluebottle_ui::image::person_skeleton(PersonSize::Square),
-        ]
-        .spacing(16),
-        row![
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::poster_skeleton(
-                PosterSize::Small
-            )),
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::thumbnail_skeleton()),
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::square_skeleton()),
-        ]
-        .spacing(16),
+        bluebottle_ui::skeleton::skeleton().height(224).width(224),
     ]
     .spacing(8)
     .into()

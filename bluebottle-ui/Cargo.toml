@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 iced = { workspace = true }
+iced_palace = { workspace = true }
 phf = { workspace = true }
 lyon_algorithms = { workspace = true }
 
