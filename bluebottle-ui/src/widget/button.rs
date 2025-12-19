@@ -106,6 +106,11 @@ pub fn disabled<'a, Message>(
 where
     Message: Clone + 'a,
 {
+    if icon.is_some() && label.is_none() {
+        let inner = icon::filled(icon.unwrap()).size(24).color(color::TEXT_DARK);
+        return button(inner).padding(4).style(disabled_button_style).into();
+    }
+
     let mut items = row![].spacing(4).align_y(Center);
 
     if let Some(icon) = icon {
@@ -116,7 +121,7 @@ where
         items = items.push(text(label).color(color::TEXT_DARK));
     }
 
-    container(items).padding(4).into()
+    button(items).style(disabled_button_style).into()
 }
 
 #[doc(hidden)]
@@ -221,6 +226,13 @@ pub fn secondary_button_style(theme: &Theme, status: Status) -> Style {
     if matches!(status, Status::Active | Status::Hovered) {
         style.text_color = color::TEXT_SECONDARY;
     }
+    style
+}
+
+fn disabled_button_style(theme: &Theme, status: Status) -> Style {
+    let mut style = default_button_style(theme, status);
+    style.background = None;
+    style.text_color = color::TEXT_DARK;
     style
 }
 
