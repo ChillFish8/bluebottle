@@ -1,5 +1,5 @@
 use iced::widget::{column, row, space, text};
-use iced::{Center, Element, Length};
+use iced::{Center, Element, Length, padding};
 
 use crate::{color, font};
 
@@ -25,7 +25,7 @@ where
         active_library
     ]
     .height(32)
-    .padding(4)
+    .padding(padding::Padding::default().vertical(4).horizontal(8))
     .align_y(Center)
     .into()
 }
