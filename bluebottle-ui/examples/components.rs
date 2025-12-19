@@ -81,6 +81,7 @@ impl Components {
             inputs(&self.search_content),
             spinners(),
             skeletons(),
+            separators(),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -590,6 +591,15 @@ fn inputs(content: &str) -> Element<'_, Message> {
         ),
         bluebottle_ui::input::text_input("Password...", content, Message::SearchInput)
             .secure(true),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn separators() -> Element<'static, Message> {
+    column![
+        text("Separators").font(font::bold()),
+        bluebottle_ui::separators::seperator(Length::Fixed(400.0))
     ]
     .spacing(8)
     .into()
