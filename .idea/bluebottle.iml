@@ -9,6 +9,8 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bluebottle-ui/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bluebottle-ui/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/iced-libmpv-sys/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/iced-libmpv/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
