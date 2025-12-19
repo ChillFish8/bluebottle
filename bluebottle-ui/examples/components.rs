@@ -229,12 +229,14 @@ fn standard_buttons() -> Element<'static, Message> {
                     true,
                     Message::Click
                 ),
+                bluebottle_ui::button::disabled(Some("Disabled"), Some("subscriptions")),
             ]
             .spacing(8)
             .align_x(Center),
             column![
                 bluebottle_ui::button::standard("Genres", None, false, Message::Click),
                 bluebottle_ui::button::standard("Genres", None, true, Message::Click),
+                bluebottle_ui::button::disabled(Some("Disabled"), None,),
             ]
             .spacing(8)
             .align_x(Center),
@@ -255,6 +257,7 @@ fn icon_buttons() -> Element<'static, Message> {
                 .style(bluebottle_ui::button::secondary_button_style),
             bluebottle_ui::button::icon("arrow_back", true, Message::Click)
                 .style(bluebottle_ui::button::secondary_button_style),
+            bluebottle_ui::button::disabled(None, Some("arrow_back"),),
         ]
         .padding(8)
         .spacing(8)

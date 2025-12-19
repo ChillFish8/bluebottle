@@ -95,6 +95,30 @@ where
         .on_press_maybe(message)
 }
 
+/// A disabled button.
+///
+/// This cannot be interacted with, but is in the same proportions as the [standard]
+/// or [icon] button.
+pub fn disabled<'a, Message>(
+    label: Option<&'a str>,
+    icon: Option<&'a str>,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    let mut items = row![].spacing(4).align_y(Center);
+
+    if let Some(icon) = icon {
+        items = items.push(icon::filled(icon).size(24).color(color::TEXT_DARK));
+    }
+
+    if let Some(label) = label {
+        items = items.push(text(label).color(color::TEXT_DARK));
+    }
+
+    container(items).padding(4).into()
+}
+
 #[doc(hidden)]
 /// An icon name or pre-created icon text widget.
 pub enum IconTextOrName<'a> {
