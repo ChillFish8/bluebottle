@@ -1,5 +1,4 @@
-use bluebottle_ui::{bar, color, font};
-use iced::widget::{column, row, space};
+use bluebottle_ui::{color, font};
 use iced::{Element, Settings, task};
 
 use crate::screen::{library_select, library_view, loading, settings, setup};
@@ -94,10 +93,6 @@ impl Bluebottle {
                 self.settings_screen.view().map(GlobalMessage::Settings)
             },
         }
-    }
-
-    fn setup_ui(&self) -> Element<'_, GlobalMessage> {
-        column![bar::top(space(), "Example Library"), row![]].into()
     }
 }
 
