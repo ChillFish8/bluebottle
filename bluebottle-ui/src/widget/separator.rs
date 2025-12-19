@@ -21,3 +21,14 @@ pub fn default_style(_theme: &Theme) -> container::Style {
         snap: true,
     }
 }
+
+/// The styling of the seperator line with the primary color.
+pub fn primary_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        text_color: None,
+        background: Some(Background::Color(color::PRIMARY)),
+        border: Border::default().rounded(28),
+        shadow: Default::default(),
+        snap: true,
+    }
+}

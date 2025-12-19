@@ -9,5 +9,6 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 iced = { workspace = true }
 url = { workspace = true }
+clap = { workspace = true }
 
 bluebottle-ui = { path = "../bluebottle-ui" }
