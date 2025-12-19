@@ -1,7 +1,7 @@
 //! Onboard a new Jellyfin media library.
 
-use bluebottle_ui::{button, separator};
-use iced::widget::{column, row};
+use bluebottle_ui::{button, color, font, input, separator};
+use iced::widget::{column, container, row, space, text};
 use iced::{Center, Element, Length, padding};
 
 use crate::view;
@@ -86,15 +86,60 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
     }
 
     fn view(&self) -> Element<'_, JellyfinOnboardMsg> {
-        column![self.navbar()]
+        let subsection = match self.stage {
+            Stage::AddServer => self.server_setup(),
+            Stage::AddUser => self.user_setup(),
+            Stage::Test => space().into(),
+            Stage::Customise => space().into(),
+            Stage::Complete => space().into(),
+        };
+
+        column![self.navbar(), subsection]
             .spacing(16)
             .padding(padding::vertical(16))
             .width(Length::Fill)
+            .height(500)
             .into()
     }
 }
 
 impl JellyfinOnboard {
+    fn navigate(&mut self, stage: Stage) {
+        tracing::debug!(stage = ?stage, "navigate");
+        self.stage = stage;
+    }
+
+    /// Returns whether the provided server URL is valid or not.
+    fn is_url_valid(&self) -> bool {
+        if let Some(url) = self.parsed_jellyfin_server_url.as_ref() {
+            matches!(url.scheme(), "http" | "https")
+        } else {
+            false
+        }
+    }
+
+    /// Returns whether the specified user and password is valid (to submit) or not.
+    fn is_user_valid(&self) -> bool {
+        !self.jellyfin_username.is_empty() && !self.jellyfin_password.is_empty()
+    }
+
+    /// Returns if the test is complete and it was successful.
+    fn test_completed_successfully(&self) -> bool {
+        self.test_completed && !self.test_failed
+    }
+
+    /// Returns whether the onboarding has been completed.
+    fn is_complete(&self) -> bool {
+        self.is_url_valid() && self.is_user_valid() && self.test_completed_successfully()
+    }
+
+    /// Returns the parsed Jellyfin server URL.
+    ///
+    /// Panics if the URL is invalid.
+    fn parsed_url(&self) -> &url::Url {
+        self.parsed_jellyfin_server_url.as_ref().unwrap()
+    }
+
     fn navbar(&self) -> Element<'_, JellyfinOnboardMsg> {
         row![
             nav_button(
@@ -142,36 +187,43 @@ impl JellyfinOnboard {
         .into()
     }
 
-    fn navigate(&mut self, stage: Stage) {
-        tracing::debug!(stage = ?stage, "navigate");
-        self.stage = stage;
+    fn server_setup(&self) -> Element<'_, JellyfinOnboardMsg> {
+        column![
+            form_label("Server Address"),
+            input::text_input(
+                "Server URL...",
+                &self.jellyfin_server_url,
+                JellyfinOnboardMsg::ServerUrl,
+            )
+        ]
+        .spacing(4)
+        .into()
     }
 
-    /// Returns whether the provided server URL is valid or not.
-    fn is_url_valid(&self) -> bool {
-        self.parsed_jellyfin_server_url.is_some()
-    }
-
-    /// Returns whether the specified user and password is valid (to submit) or not.
-    fn is_user_valid(&self) -> bool {
-        !self.jellyfin_username.is_empty() && !self.jellyfin_password.is_empty()
-    }
-
-    /// Returns if the test is complete and it was successful.
-    fn test_completed_successfully(&self) -> bool {
-        self.test_completed && !self.test_failed
-    }
-
-    /// Returns whether the onboarding has been completed.
-    fn is_complete(&self) -> bool {
-        self.is_url_valid() && self.is_user_valid() && self.test_completed_successfully()
-    }
-
-    /// Returns the parsed Jellyfin server URL.
-    ///
-    /// Panics if the URL is invalid.
-    fn parsed_url(&self) -> &url::Url {
-        self.parsed_jellyfin_server_url.as_ref().unwrap()
+    fn user_setup(&self) -> Element<'_, JellyfinOnboardMsg> {
+        column![
+            column![
+                form_label("Username"),
+                input::text_input(
+                    "Username...",
+                    &self.jellyfin_username,
+                    JellyfinOnboardMsg::Username,
+                ),
+            ]
+            .spacing(4),
+            column![
+                form_label("Password"),
+                input::text_input(
+                    "Super secure password...",
+                    &self.jellyfin_password,
+                    JellyfinOnboardMsg::Password,
+                )
+                .secure(true),
+            ]
+            .spacing(4),
+        ]
+        .spacing(16)
+        .into()
     }
 }
 
@@ -205,4 +257,12 @@ fn connector_line<'a>(disabled: bool) -> Element<'a, JellyfinOnboardMsg> {
         seperator = seperator.style(separator::primary_style);
     }
     seperator.into()
+}
+
+fn form_label(label: &str) -> Element<'_, JellyfinOnboardMsg> {
+    let label = text(label)
+        .size(12)
+        .font(font::semibold())
+        .color(color::TEXT_SECONDARY);
+    container(label).padding(padding::horizontal(16)).into()
 }
