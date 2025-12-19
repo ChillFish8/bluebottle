@@ -19,6 +19,7 @@ pub struct JellyfinOnboard {
     test_failed: bool,
     test_completed: bool,
     test_fail_reason: Option<String>,
+    customisation_confirmed: bool,
     inflight_task: Option<task::Handle>,
 }
 
@@ -101,7 +102,9 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
             Stage::Complete => space().into(),
         };
 
-        column![self.navbar(), subsection]
+        let wrapped_subsection = container(subsection).padding(padding::horizontal(8));
+
+        column![self.navbar(), wrapped_subsection]
             .spacing(16)
             .padding(padding::vertical(16))
             .width(Length::Fill)
@@ -138,7 +141,10 @@ impl JellyfinOnboard {
 
     /// Returns whether the onboarding has been completed.
     fn is_complete(&self) -> bool {
-        self.is_url_valid() && self.is_user_valid() && self.test_completed_successfully()
+        self.is_url_valid()
+            && self.is_user_valid()
+            && self.test_completed_successfully()
+            && self.customisation_confirmed
     }
 
     /// Returns the parsed Jellyfin server URL.
@@ -319,18 +325,32 @@ fn test_in_progress(address: &str) -> Element<'_, JellyfinOnboardMsg> {
 }
 
 fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
-    column![
-        title::title(Some("error"), "Something went wrong..."),
+    let description = column![
         info_message("Bluebottle couldn't authenticate with the server."),
         info_message(format!("Reason: {reason}")),
         info_message("Please double check the server address and user info."),
+    ]
+    .spacing(8)
+    .padding(padding::horizontal(2));
+
+    column![
+        title::title(Some("error"), "Something went wrong..."),
+        description,
     ]
     .spacing(8)
     .into()
 }
 
 fn test_success() -> Element<'static, JellyfinOnboardMsg> {
-    column![].into()
+    column![
+        title::title(Some("check_circle"), "Success!"),
+        container(info_message(
+            "You're logged in, now we can setup your library."
+        ))
+        .padding(padding::horizontal(2)),
+    ]
+    .spacing(8)
+    .into()
 }
 
 async fn test_jellyfin_configuration(

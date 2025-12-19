@@ -1,6 +1,6 @@
 use bluebottle_ui::{bar, color, font, separator, title};
 use iced::widget::{column, container, row, space, text};
-use iced::{Center, Element, Length, task};
+use iced::{Center, Element, Length, padding, task};
 
 use crate::components::jellyfin_onboard::{JellyfinOnboard, JellyfinOnboardMsg};
 use crate::view;
@@ -43,14 +43,19 @@ impl SetupScreen {
     fn onboarding_menu(&self) -> Element<'_, SetupMsg> {
         use view::View;
 
-        column![
+        let message = column![
             title::title(Some("waving_hand"), "Welcome to Bluebottle"),
             add_library_message(),
+        ]
+        .spacing(8)
+        .padding(padding::horizontal(8));
+
+        column![
+            message,
             self.jellyfin_onboard.view().map(SetupMsg::JellyfinOnboard),
         ]
         .width(1000)
-        .spacing(12)
-        .align_x(Center)
+        .spacing(16)
         .into()
     }
 }
