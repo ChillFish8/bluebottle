@@ -599,7 +599,7 @@ fn inputs(content: &str) -> Element<'_, Message> {
 fn separators() -> Element<'static, Message> {
     column![
         text("Separators").font(font::bold()),
-        bluebottle_ui::separators::seperator(Length::Fixed(400.0))
+        bluebottle_ui::separator::seperator(Length::Fixed(400.0))
     ]
     .spacing(8)
     .into()

@@ -10,7 +10,7 @@ pub mod pill_box;
 pub mod rating;
 pub mod scrollable;
 pub mod search;
-pub mod separators;
+pub mod separator;
 pub mod skeleton;
 pub mod spinner;
 pub mod title;
