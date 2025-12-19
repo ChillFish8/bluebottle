@@ -2,7 +2,8 @@ use bluebottle_ui::{bar, color, font};
 use iced::widget::{column, row, space};
 use iced::{Element, Settings};
 
-use crate::screen::{Screen, library_select, library_view, loading, settings, setup};
+use crate::screen::{library_select, library_view, loading, settings, setup};
+use crate::view::View;
 
 /// Run the Bluebottle UI iced application.
 ///

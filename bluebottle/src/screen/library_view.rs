@@ -2,14 +2,14 @@ use bluebottle_ui::bar;
 use iced::widget::{container, row, space};
 use iced::{Element, Length};
 
-use super::Screen;
+use crate::view;
 
 #[derive(Default)]
 pub struct LibraryViewScreen {}
 
 pub enum LibraryViewMsg {}
 
-impl Screen<LibraryViewMsg> for LibraryViewScreen {
+impl view::View<LibraryViewMsg> for LibraryViewScreen {
     fn update(&mut self, message: LibraryViewMsg) {
         todo!()
     }

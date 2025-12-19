@@ -1,13 +1,13 @@
 use iced::Element;
 
-use super::Screen;
+use crate::view;
 
 #[derive(Default)]
 pub struct LibrarySelectScreen {}
 
 pub enum LibrarySelectMsg {}
 
-impl Screen<LibrarySelectMsg> for LibrarySelectScreen {
+impl view::View<LibrarySelectMsg> for LibrarySelectScreen {
     fn update(&mut self, message: LibrarySelectMsg) {
         todo!()
     }

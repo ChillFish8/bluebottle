@@ -1,13 +1,13 @@
 use iced::Element;
 
-use super::Screen;
+use crate::view;
 
 #[derive(Default)]
 pub struct LoadingScreen {}
 
 pub enum LoadingMsg {}
 
-impl Screen<LoadingMsg> for LoadingScreen {
+impl view::View<LoadingMsg> for LoadingScreen {
     fn update(&mut self, message: LoadingMsg) {
         todo!()
     }
