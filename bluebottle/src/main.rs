@@ -1,6 +1,7 @@
 use anyhow::Context;
 
 mod app;
+mod screen;
 
 fn main() -> anyhow::Result<()> {
     if std::env::var("RUST_LOG").is_err() {

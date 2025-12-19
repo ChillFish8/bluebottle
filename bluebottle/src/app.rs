@@ -1,6 +1,8 @@
 use bluebottle_ui::{bar, color, font};
-use iced::widget::{column, container, row, space};
-use iced::{Element, Length, Settings};
+use iced::widget::{column, row, space};
+use iced::{Element, Settings};
+
+use crate::screen::{Screen, library_select, library_view, loading, settings, setup};
 
 /// Run the Bluebottle UI iced application.
 ///
@@ -22,38 +24,62 @@ pub fn run_app() -> anyhow::Result<()> {
 }
 
 struct Bluebottle {
-    screen: UIScreen,
+    screen: ActiveScreen,
+    library_view_screen: library_view::LibraryViewScreen,
+    library_select_screen: library_select::LibrarySelectScreen,
+    setup_screen: setup::SetupScreen,
+    settings_screen: settings::SettingsScreen,
+    loading_screen: loading::LoadingScreen,
 }
 
-enum GlobalMessage {}
+enum GlobalMessage {
+    LibraryView(library_view::LibraryViewMsg),
+    Loading(loading::LoadingMsg),
+    Setup(setup::SetupMsg),
+    LibrarySelect(library_select::LibrarySelectMsg),
+    Settings(settings::SettingsMsg),
+}
 
 impl Bluebottle {
     fn new() -> Self {
         Self {
-            screen: UIScreen::Setup,
+            screen: ActiveScreen::Setup,
+            library_view_screen: library_view::LibraryViewScreen::default(),
+            library_select_screen: library_select::LibrarySelectScreen::default(),
+            setup_screen: setup::SetupScreen::default(),
+            settings_screen: settings::SettingsScreen::default(),
+            loading_screen: loading::LoadingScreen::default(),
         }
     }
 
-    fn update(&mut self, _message: GlobalMessage) {}
+    fn update(&mut self, message: GlobalMessage) {
+        match message {
+            GlobalMessage::LibraryView(msg) => self.library_view_screen.update(msg),
+            GlobalMessage::Loading(msg) => self.loading_screen.update(msg),
+            GlobalMessage::Setup(msg) => self.setup_screen.update(msg),
+            GlobalMessage::LibrarySelect(msg) => self.library_select_screen.update(msg),
+            GlobalMessage::Settings(msg) => self.settings_screen.update(msg),
+        };
+    }
 
     fn view(&self) -> Element<'_, GlobalMessage> {
         match self.screen {
-            UIScreen::Setup => self.setup_ui(),
-            UIScreen::Library => self.library_ui(),
+            ActiveScreen::LibraryView => self
+                .library_view_screen
+                .view()
+                .map(GlobalMessage::LibraryView),
+            ActiveScreen::Loading => {
+                self.loading_screen.view().map(GlobalMessage::Loading)
+            },
+            ActiveScreen::Setup => self.setup_screen.view().map(GlobalMessage::Setup),
+            ActiveScreen::LibrarySelect => self
+                .library_select_screen
+                .view()
+                .map(GlobalMessage::LibrarySelect),
+            ActiveScreen::Settings => {
+                self.settings_screen.view().map(GlobalMessage::Settings)
+            },
         }
-    }
-
-    fn library_ui(&self) -> Element<'_, GlobalMessage> {
-        column![
-            bar::top(space(), "Example Library"),
-            row![
-                bar::side(space(), space()),
-                container(space()).width(Length::Fill).height(Length::Fill)
-            ]
-        ]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
     }
 
     fn setup_ui(&self) -> Element<'_, GlobalMessage> {
@@ -63,11 +89,17 @@ impl Bluebottle {
 
 #[derive(Copy, Clone, Debug)]
 /// What UI screen the app should be displaying.
-enum UIScreen {
+enum ActiveScreen {
+    /// View an existing media library.
+    LibraryView,
+    /// The library being requested is still being prepared, show
+    /// the user a loading screen for now.
+    Loading,
     /// The user has no libraries available, we should onboard
     /// them with the setup screen.
     Setup,
-    /// The user has some active libraries available, we should
-    /// take them to that.
-    Library,
+    /// Select an existing media library (or add a new one.)
+    LibrarySelect,
+    /// View the app settings.
+    Settings,
 }
