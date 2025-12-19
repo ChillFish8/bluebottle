@@ -13,7 +13,8 @@ foldhash = "0.2"
 phf = "0.13"
 phf_codegen = "0.13"
 humantime = "2"
-libmpv2 = { version = "5", features = [] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 # 3rd party widgets
 iced_palace = "0.14"

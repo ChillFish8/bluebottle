@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1"
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+iced = { workspace = true }
 
 bluebottle-ui = { path = "../bluebottle-ui" }
