@@ -14,10 +14,12 @@ pub struct JellyfinOnboard {
     parsed_jellyfin_server_url: Option<url::Url>,
     stage: Stage,
     test_failed: bool,
+    test_completed: bool,
 }
 
 #[derive(Clone)]
 pub enum JellyfinOnboardMsg {
+    Nop,
     NavigateServer,
     NavigateUser,
     NavigateTest,
@@ -35,6 +37,7 @@ pub enum JellyfinOnboardMsg {
 impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
     fn update(&mut self, message: JellyfinOnboardMsg) {
         match message {
+            JellyfinOnboardMsg::Nop => {},
             JellyfinOnboardMsg::NavigateServer => {
                 self.navigate(Stage::AddServer);
             },
@@ -94,39 +97,44 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
 impl JellyfinOnboard {
     fn navbar(&self) -> Element<'_, JellyfinOnboardMsg> {
         row![
-            button::standard(
+            nav_button(
                 "Server",
-                Some("storage"),
-                false,
-                JellyfinOnboardMsg::NavigateServer
+                "storage",
+                JellyfinOnboardMsg::NavigateServer,
+                self.stage == Stage::AddServer,
+                false
             ),
-            separator::seperator(Length::Fill).style(separator::primary_style),
-            button::standard(
+            connector_line(!self.is_url_valid()),
+            nav_button(
                 "User",
-                Some("account_box"),
-                false,
-                JellyfinOnboardMsg::NavigateUser
+                "account_box",
+                JellyfinOnboardMsg::NavigateUser,
+                self.stage == Stage::AddUser,
+                !self.is_url_valid()
             ),
-            separator::seperator(Length::Fill).style(separator::primary_style),
-            button::standard(
+            connector_line(!self.is_user_valid()),
+            nav_button(
                 "Test",
-                Some("network_check"),
-                false,
-                JellyfinOnboardMsg::NavigateTest
+                "network_check",
+                JellyfinOnboardMsg::NavigateTest,
+                self.stage == Stage::Test,
+                !self.is_user_valid()
             ),
-            separator::seperator(Length::Fill).style(separator::primary_style),
-            button::standard(
+            connector_line(!self.test_completed_successfully()),
+            nav_button(
                 "Customise",
-                Some("dashboard_customize"),
-                false,
-                JellyfinOnboardMsg::NavigateCustomise
+                "dashboard_customize",
+                JellyfinOnboardMsg::NavigateCustomise,
+                self.stage == Stage::Customise,
+                !self.test_completed_successfully()
             ),
-            separator::seperator(Length::Fill).style(separator::primary_style),
-            button::standard(
+            connector_line(!self.is_complete()),
+            nav_button(
                 "Complete",
-                Some("done_all"),
-                false,
-                JellyfinOnboardMsg::NavigateCustomise
+                "done_all",
+                JellyfinOnboardMsg::Nop,
+                self.stage == Stage::Complete,
+                !self.is_complete()
             ),
         ]
         .align_y(Center)
@@ -149,6 +157,16 @@ impl JellyfinOnboard {
         !self.jellyfin_username.is_empty() && !self.jellyfin_password.is_empty()
     }
 
+    /// Returns if the test is complete and it was successful.
+    fn test_completed_successfully(&self) -> bool {
+        self.test_completed && !self.test_failed
+    }
+
+    /// Returns whether the onboarding has been completed.
+    fn is_complete(&self) -> bool {
+        self.is_url_valid() && self.is_user_valid() && self.test_completed_successfully()
+    }
+
     /// Returns the parsed Jellyfin server URL.
     ///
     /// Panics if the URL is invalid.
@@ -157,7 +175,7 @@ impl JellyfinOnboard {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 enum Stage {
     #[default]
     AddServer,
@@ -165,4 +183,26 @@ enum Stage {
     Test,
     Customise,
     Complete,
+}
+
+fn nav_button<'a>(
+    label: &'a str,
+    icon: &'a str,
+    message: JellyfinOnboardMsg,
+    selected: bool,
+    disabled: bool,
+) -> Element<'a, JellyfinOnboardMsg> {
+    if disabled {
+        button::disabled(Some(label), Some(icon))
+    } else {
+        button::standard(label, Some(icon), selected, message).into()
+    }
+}
+
+fn connector_line<'a>(disabled: bool) -> Element<'a, JellyfinOnboardMsg> {
+    let mut seperator = separator::seperator(Length::Fill);
+    if !disabled {
+        seperator = seperator.style(separator::primary_style);
+    }
+    seperator.into()
 }
