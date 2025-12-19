@@ -44,6 +44,6 @@ where
     if let Some(msg) = message {
         button::icon(icon, false, msg).into()
     } else {
-        icon::filled(icon).color(color::TEXT_DARK).into()
+        button::disabled(None, Some(icon))
     }
 }
