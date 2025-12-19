@@ -33,8 +33,6 @@ pub enum JellyfinOnboardMsg {
     ServerUrl(String),
     Username(String),
     Password(String),
-    SubmitUrl,
-    SubmitUser,
     RetryTest,
     TestComplete(Result<(), String>),
 }
@@ -61,24 +59,15 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
             JellyfinOnboardMsg::ServerUrl(value) => {
                 self.parsed_jellyfin_server_url = url::Url::parse(&value).ok();
                 self.jellyfin_server_url = value;
+                self.rest_test_state();
             },
             JellyfinOnboardMsg::Username(value) => {
                 self.jellyfin_username = value;
+                self.rest_test_state();
             },
             JellyfinOnboardMsg::Password(value) => {
                 self.jellyfin_password = value;
-            },
-            JellyfinOnboardMsg::SubmitUrl => {
-                if self.is_url_valid() {
-                    self.stage = Stage::AddUser;
-                    self.test_failed = false;
-                }
-            },
-            JellyfinOnboardMsg::SubmitUser => {
-                if self.is_user_valid() {
-                    self.stage = Stage::Test;
-                    self.test_failed = false;
-                }
+                self.rest_test_state();
             },
             JellyfinOnboardMsg::TestComplete(result) => {
                 self.test_failed = result.is_err();
@@ -159,9 +148,14 @@ impl JellyfinOnboard {
         self.test_fail_reason.as_deref().unwrap_or("unknown error")
     }
 
-    fn start_test(&mut self) -> task::Task<JellyfinOnboardMsg> {
+    fn rest_test_state(&mut self) {
         self.test_completed = false;
         self.test_failed = false;
+        self.test_fail_reason = None;
+    }
+
+    fn start_test(&mut self) -> task::Task<JellyfinOnboardMsg> {
+        self.rest_test_state();
 
         let fut = test_jellyfin_configuration(
             self.parsed_url().clone(),
@@ -367,5 +361,5 @@ async fn test_jellyfin_configuration(
     _password: String,
 ) -> Result<(), String> {
     tokio::time::sleep(Duration::from_secs(2)).await;
-    Err("something went wrong".to_string())
+    Ok(())
 }
