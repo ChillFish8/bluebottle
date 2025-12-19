@@ -1,4 +1,4 @@
-use iced::Element;
+use iced::{Element, task};
 
 use crate::view;
 
@@ -8,7 +8,7 @@ pub struct SettingsScreen {}
 pub enum SettingsMsg {}
 
 impl view::View<SettingsMsg> for SettingsScreen {
-    fn update(&mut self, message: SettingsMsg) {
+    fn update(&mut self, _message: SettingsMsg) -> task::Task<SettingsMsg> {
         todo!()
     }
 

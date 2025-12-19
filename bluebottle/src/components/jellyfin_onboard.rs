@@ -1,8 +1,11 @@
 //! Onboard a new Jellyfin media library.
 
-use bluebottle_ui::{button, color, font, input, separator};
-use iced::widget::{column, container, row, space, text};
-use iced::{Center, Element, Length, padding};
+use std::time::Duration;
+
+use bluebottle_ui::{button, color, font, input, separator, spinner, title};
+use iced::widget::text::IntoFragment;
+use iced::widget::{Text, column, container, row, space, text};
+use iced::{Center, Element, Length, padding, task};
 
 use crate::view;
 
@@ -15,6 +18,8 @@ pub struct JellyfinOnboard {
     stage: Stage,
     test_failed: bool,
     test_completed: bool,
+    test_fail_reason: Option<String>,
+    inflight_task: Option<task::Handle>,
 }
 
 #[derive(Clone)]
@@ -30,12 +35,11 @@ pub enum JellyfinOnboardMsg {
     SubmitUrl,
     SubmitUser,
     RetryTest,
-    TestSuccess,
-    TestFail,
+    TestComplete(Result<(), String>),
 }
 
 impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
-    fn update(&mut self, message: JellyfinOnboardMsg) {
+    fn update(&mut self, message: JellyfinOnboardMsg) -> task::Task<JellyfinOnboardMsg> {
         match message {
             JellyfinOnboardMsg::Nop => {},
             JellyfinOnboardMsg::NavigateServer => {
@@ -46,6 +50,9 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
             },
             JellyfinOnboardMsg::NavigateTest => {
                 self.navigate(Stage::Test);
+                if !self.test_completed_successfully() {
+                    return self.start_test();
+                }
             },
             JellyfinOnboardMsg::NavigateCustomise => {
                 self.navigate(Stage::Customise);
@@ -72,24 +79,24 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
                     self.test_failed = false;
                 }
             },
-            JellyfinOnboardMsg::TestSuccess => {
-                self.stage = Stage::Customise;
-                self.test_failed = false;
-            },
-            JellyfinOnboardMsg::TestFail => {
-                self.test_failed = true;
+            JellyfinOnboardMsg::TestComplete(result) => {
+                self.test_failed = result.is_err();
+                self.test_completed = true;
+                self.test_fail_reason = result.err();
             },
             JellyfinOnboardMsg::RetryTest => {
                 self.test_failed = false;
             },
         }
+
+        task::Task::none()
     }
 
     fn view(&self) -> Element<'_, JellyfinOnboardMsg> {
         let subsection = match self.stage {
             Stage::AddServer => self.server_setup(),
             Stage::AddUser => self.user_setup(),
-            Stage::Test => space().into(),
+            Stage::Test => self.test_view(),
             Stage::Customise => space().into(),
             Stage::Complete => space().into(),
         };
@@ -107,6 +114,7 @@ impl JellyfinOnboard {
     fn navigate(&mut self, stage: Stage) {
         tracing::debug!(stage = ?stage, "navigate");
         self.stage = stage;
+        self.inflight_task = None; // Cancel any inflight task.
     }
 
     /// Returns whether the provided server URL is valid or not.
@@ -138,6 +146,26 @@ impl JellyfinOnboard {
     /// Panics if the URL is invalid.
     fn parsed_url(&self) -> &url::Url {
         self.parsed_jellyfin_server_url.as_ref().unwrap()
+    }
+
+    /// The reason why the latest test failed.
+    fn test_fail_reason(&self) -> &str {
+        self.test_fail_reason.as_deref().unwrap_or("unknown error")
+    }
+
+    fn start_test(&mut self) -> task::Task<JellyfinOnboardMsg> {
+        self.test_completed = false;
+
+        let fut = test_jellyfin_configuration(
+            self.parsed_url().clone(),
+            self.jellyfin_username.clone(),
+            self.jellyfin_password.clone(),
+        );
+
+        let (task, handle) = task::Task::future(fut).abortable();
+        self.inflight_task = Some(handle.abort_on_drop());
+
+        task.map(JellyfinOnboardMsg::TestComplete)
     }
 
     fn navbar(&self) -> Element<'_, JellyfinOnboardMsg> {
@@ -225,6 +253,16 @@ impl JellyfinOnboard {
         .spacing(16)
         .into()
     }
+
+    fn test_view(&self) -> Element<'_, JellyfinOnboardMsg> {
+        if !self.test_completed {
+            test_in_progress(self.parsed_url().as_str())
+        } else if self.test_failed {
+            test_failed(self.test_fail_reason())
+        } else {
+            test_success()
+        }
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -265,4 +303,41 @@ fn form_label(label: &str) -> Element<'_, JellyfinOnboardMsg> {
         .font(font::semibold())
         .color(color::TEXT_SECONDARY);
     container(label).padding(padding::horizontal(16)).into()
+}
+
+fn info_message<'a>(info: impl IntoFragment<'a>) -> Text<'a> {
+    text(info).color(color::TEXT_SECONDARY)
+}
+
+fn test_in_progress(address: &str) -> Element<'_, JellyfinOnboardMsg> {
+    column![
+        info_message(format!("Logging in to {address}")),
+        spinner::linear(),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
+    column![
+        title::title(Some("error"), "Something went wrong..."),
+        info_message("Bluebottle couldn't authenticate with the server."),
+        info_message(format!("Reason: {reason}")),
+        info_message("Please double check the server address and user info."),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn test_success() -> Element<'static, JellyfinOnboardMsg> {
+    column![].into()
+}
+
+async fn test_jellyfin_configuration(
+    _server: url::Url,
+    _username: String,
+    _password: String,
+) -> Result<(), String> {
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    Ok(())
 }

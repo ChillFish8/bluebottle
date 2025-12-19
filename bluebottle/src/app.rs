@@ -1,6 +1,6 @@
 use bluebottle_ui::{bar, color, font};
 use iced::widget::{column, row, space};
-use iced::{Element, Settings};
+use iced::{Element, Settings, task};
 
 use crate::screen::{library_select, library_view, loading, settings, setup};
 use crate::view::View;
@@ -53,14 +53,27 @@ impl Bluebottle {
         }
     }
 
-    fn update(&mut self, message: GlobalMessage) {
+    fn update(&mut self, message: GlobalMessage) -> task::Task<GlobalMessage> {
         match message {
-            GlobalMessage::LibraryView(msg) => self.library_view_screen.update(msg),
-            GlobalMessage::Loading(msg) => self.loading_screen.update(msg),
-            GlobalMessage::Setup(msg) => self.setup_screen.update(msg),
-            GlobalMessage::LibrarySelect(msg) => self.library_select_screen.update(msg),
-            GlobalMessage::Settings(msg) => self.settings_screen.update(msg),
-        };
+            GlobalMessage::LibraryView(msg) => self
+                .library_view_screen
+                .update(msg)
+                .map(GlobalMessage::LibraryView),
+            GlobalMessage::Loading(msg) => {
+                self.loading_screen.update(msg).map(GlobalMessage::Loading)
+            },
+            GlobalMessage::Setup(msg) => {
+                self.setup_screen.update(msg).map(GlobalMessage::Setup)
+            },
+            GlobalMessage::LibrarySelect(msg) => self
+                .library_select_screen
+                .update(msg)
+                .map(GlobalMessage::LibrarySelect),
+            GlobalMessage::Settings(msg) => self
+                .settings_screen
+                .update(msg)
+                .map(GlobalMessage::Settings),
+        }
     }
 
     fn view(&self) -> Element<'_, GlobalMessage> {

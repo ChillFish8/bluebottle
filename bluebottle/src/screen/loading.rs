@@ -1,4 +1,4 @@
-use iced::Element;
+use iced::{Element, task};
 
 use crate::view;
 
@@ -8,7 +8,7 @@ pub struct LoadingScreen {}
 pub enum LoadingMsg {}
 
 impl view::View<LoadingMsg> for LoadingScreen {
-    fn update(&mut self, message: LoadingMsg) {
+    fn update(&mut self, _message: LoadingMsg) -> task::Task<LoadingMsg> {
         todo!()
     }
 

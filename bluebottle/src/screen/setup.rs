@@ -1,6 +1,6 @@
 use bluebottle_ui::{bar, color, font, separator, title};
 use iced::widget::{column, container, row, space, text};
-use iced::{Center, Element, Length};
+use iced::{Center, Element, Length, task};
 
 use crate::components::jellyfin_onboard::{JellyfinOnboard, JellyfinOnboardMsg};
 use crate::view;
@@ -15,9 +15,12 @@ pub enum SetupMsg {
 }
 
 impl view::View<SetupMsg> for SetupScreen {
-    fn update(&mut self, message: SetupMsg) {
+    fn update(&mut self, message: SetupMsg) -> task::Task<SetupMsg> {
         match message {
-            SetupMsg::JellyfinOnboard(msg) => self.jellyfin_onboard.update(msg),
+            SetupMsg::JellyfinOnboard(msg) => self
+                .jellyfin_onboard
+                .update(msg)
+                .map(SetupMsg::JellyfinOnboard),
         }
     }
 

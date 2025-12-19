@@ -1,4 +1,4 @@
-use iced::Element;
+use iced::{Element, task};
 
 use crate::view;
 
@@ -8,7 +8,7 @@ pub struct LibrarySelectScreen {}
 pub enum LibrarySelectMsg {}
 
 impl view::View<LibrarySelectMsg> for LibrarySelectScreen {
-    fn update(&mut self, message: LibrarySelectMsg) {
+    fn update(&mut self, _message: LibrarySelectMsg) -> task::Task<LibrarySelectMsg> {
         todo!()
     }
 

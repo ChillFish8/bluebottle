@@ -1,6 +1,6 @@
 use bluebottle_ui::bar;
 use iced::widget::{container, row, space};
-use iced::{Element, Length};
+use iced::{Element, Length, task};
 
 use crate::view;
 
@@ -10,7 +10,7 @@ pub struct LibraryViewScreen {}
 pub enum LibraryViewMsg {}
 
 impl view::View<LibraryViewMsg> for LibraryViewScreen {
-    fn update(&mut self, message: LibraryViewMsg) {
+    fn update(&mut self, _message: LibraryViewMsg) -> task::Task<LibraryViewMsg> {
         todo!()
     }
 
