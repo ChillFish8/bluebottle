@@ -86,7 +86,7 @@ impl view::View<JellyfinOnboardMsg> for JellyfinOnboard {
                 self.test_fail_reason = result.err();
             },
             JellyfinOnboardMsg::RetryTest => {
-                self.test_failed = false;
+                return self.start_test();
             },
         }
 
@@ -131,7 +131,7 @@ impl JellyfinOnboard {
 
     /// Returns whether the specified user and password is valid (to submit) or not.
     fn is_user_valid(&self) -> bool {
-        !self.jellyfin_username.is_empty() && !self.jellyfin_password.is_empty()
+        !self.jellyfin_username.is_empty() // Password is *technically* allowed to be empty.
     }
 
     /// Returns if the test is complete and it was successful.
@@ -161,6 +161,7 @@ impl JellyfinOnboard {
 
     fn start_test(&mut self) -> task::Task<JellyfinOnboardMsg> {
         self.test_completed = false;
+        self.test_failed = false;
 
         let fut = test_jellyfin_configuration(
             self.parsed_url().clone(),
@@ -329,6 +330,13 @@ fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
         info_message("Bluebottle couldn't authenticate with the server."),
         info_message(format!("Reason: {reason}")),
         info_message("Please double check the server address and user info."),
+        button::standard(
+            "Retry",
+            Some("refresh"),
+            false,
+            JellyfinOnboardMsg::RetryTest
+        )
+        .style(button::secondary_style)
     ]
     .spacing(8)
     .padding(padding::horizontal(2));
@@ -359,5 +367,5 @@ async fn test_jellyfin_configuration(
     _password: String,
 ) -> Result<(), String> {
     tokio::time::sleep(Duration::from_secs(2)).await;
-    Ok(())
+    Err("something went wrong".to_string())
 }

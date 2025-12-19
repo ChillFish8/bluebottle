@@ -254,9 +254,9 @@ fn icon_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::icon("settings", false, Message::Click),
             bluebottle_ui::button::icon("settings", true, Message::Click),
             bluebottle_ui::button::icon("arrow_back", false, Message::Click)
-                .style(bluebottle_ui::button::secondary_button_style),
+                .style(bluebottle_ui::button::text_secondary_style),
             bluebottle_ui::button::icon("arrow_back", true, Message::Click)
-                .style(bluebottle_ui::button::secondary_button_style),
+                .style(bluebottle_ui::button::text_secondary_style),
             bluebottle_ui::button::disabled(None, Some("arrow_back"),),
         ]
         .padding(8)

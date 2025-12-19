@@ -90,9 +90,7 @@ where
     items = items.push(text(label));
 
     let message = (!selected).then_some(message);
-    button(items)
-        .style(default_button_style)
-        .on_press_maybe(message)
+    button(items).style(primary_style).on_press_maybe(message)
 }
 
 /// A disabled button.
@@ -162,7 +160,7 @@ where
     let message = (!selected).then_some(message);
     button(inner)
         .padding(4)
-        .style(default_button_style)
+        .style(primary_style)
         .on_press_maybe(message)
 }
 
@@ -179,7 +177,7 @@ where
     Message: Clone + 'a,
 {
     let style = move |theme: &Theme, status: Status| {
-        let mut base = default_button_style(theme, status);
+        let mut base = primary_style(theme, status);
         if selected {
             base.text_color = color::TEXT_PRIMARY;
         }
@@ -196,7 +194,7 @@ where
 }
 
 /// The default button styling behavior.
-pub fn default_button_style(theme: &Theme, status: Status) -> Style {
+pub fn primary_style(theme: &Theme, status: Status) -> Style {
     let base = button::text(theme, status);
 
     let color = match status {
@@ -221,8 +219,24 @@ pub fn default_button_style(theme: &Theme, status: Status) -> Style {
 
 /// Button styling becomes "secondary", with the text being in the format of
 /// the secondary color on hover and active status.
-pub fn secondary_button_style(theme: &Theme, status: Status) -> Style {
-    let mut style = default_button_style(theme, status);
+pub fn text_secondary_style(theme: &Theme, status: Status) -> Style {
+    let mut style = primary_style(theme, status);
+    if matches!(status, Status::Active | Status::Hovered) {
+        style.text_color = color::TEXT_SECONDARY;
+    }
+    style
+}
+
+/// Button styling where the pill background is always visible.
+pub fn secondary_style(theme: &Theme, status: Status) -> Style {
+    let background = match status {
+        Status::Hovered => color::HOVER_HIGHLIGHT,
+        Status::Pressed => color::HOVER_HIGHLIGHT,
+        _ => color::SECONDARY,
+    };
+
+    let mut style = primary_style(theme, status);
+    style.background = Some(Background::Color(background));
     if matches!(status, Status::Active | Status::Hovered) {
         style.text_color = color::TEXT_SECONDARY;
     }
@@ -230,7 +244,7 @@ pub fn secondary_button_style(theme: &Theme, status: Status) -> Style {
 }
 
 fn disabled_button_style(theme: &Theme, status: Status) -> Style {
-    let mut style = default_button_style(theme, status);
+    let mut style = primary_style(theme, status);
     style.background = None;
     style.text_color = color::TEXT_DARK;
     style
