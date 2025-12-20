@@ -10,7 +10,7 @@ phf = { workspace = true }
 lyon_algorithms = { workspace = true }
 
 [dev-dependencies]
-anyhow = { workspace = true }
+snafu = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [build-dependencies]

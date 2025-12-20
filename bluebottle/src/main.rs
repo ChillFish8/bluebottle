@@ -1,11 +1,10 @@
-use anyhow::Context;
 use clap::Parser;
 
 mod app;
+mod backends;
 mod components;
 mod screen;
 mod view;
-mod backends;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -14,7 +13,7 @@ struct Args {
     debug: bool,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), snafu::Whatever> {
     let args = Args::parse();
 
     if std::env::var("RUST_LOG").is_err() {
@@ -35,7 +34,7 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("starting Bluebottle");
 
-    app::run_app().context("run iced UI")?;
+    app::run_app()?;
 
     tracing::info!("system exit complete");
 

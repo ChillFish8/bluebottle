@@ -1,5 +1,6 @@
 use bluebottle_ui::{color, font};
 use iced::{Element, Settings, task};
+use snafu::ResultExt;
 
 use crate::screen::{library_select, library_view, loading, settings, setup};
 use crate::view::View;
@@ -7,7 +8,7 @@ use crate::view::View;
 /// Run the Bluebottle UI iced application.
 ///
 /// This will block until the user closes the application or the system crashes.
-pub fn run_app() -> anyhow::Result<()> {
+pub fn run_app() -> Result<(), snafu::Whatever> {
     let settings = Settings {
         fonts: font::required_fonts(),
         default_font: font::regular(),
@@ -18,7 +19,8 @@ pub fn run_app() -> anyhow::Result<()> {
         .title("Bluebottle")
         .theme(color::theme())
         .settings(settings)
-        .run()?;
+        .run()
+        .whatever_context("run Bluebottle main app")?;
 
     Ok(())
 }

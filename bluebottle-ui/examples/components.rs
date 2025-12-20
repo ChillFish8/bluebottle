@@ -4,6 +4,7 @@ use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
+use snafu::{ResultExt, whatever};
 
 static POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg")
@@ -18,7 +19,7 @@ static SQUARE: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg")
 });
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), snafu::Whatever> {
     tracing_subscriber::fmt::init();
 
     let settings = Settings {
@@ -31,7 +32,8 @@ fn main() -> anyhow::Result<()> {
         .title("Bluebottle UI Components")
         .theme(color::theme())
         .settings(settings)
-        .run()?;
+        .run()
+        .whatever_context("run UI")?;
 
     Ok(())
 }
