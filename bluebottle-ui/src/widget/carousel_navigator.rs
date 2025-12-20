@@ -1,7 +1,7 @@
 use iced::widget::{row, text};
 use iced::{Center, Element};
 
-use crate::{button, color, font, icon};
+use crate::{button, color, font};
 
 /// The carousel navigator for switching pages.
 pub fn navigator<'a, Message>(

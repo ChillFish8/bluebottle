@@ -1,4 +1,4 @@
-use bluebottle_ui::{bar, color, font, separator, title};
+use bluebottle_ui::{bar, font, title};
 use iced::widget::{column, container, row, space, text};
 use iced::{Center, Element, Length, padding, task};
 
