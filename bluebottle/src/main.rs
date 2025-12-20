@@ -5,6 +5,7 @@ mod app;
 mod components;
 mod screen;
 mod view;
+mod backends;
 
 #[derive(Debug, Parser)]
 struct Args {
