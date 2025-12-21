@@ -11,12 +11,16 @@ pub struct DurableStateStorage {
 impl DurableStateStorage {
     /// Creates a new [DurableStateStorage] instance located within the data directory.
     pub(super) fn open() -> Result<Self, snafu::Whatever> {
-        let paths = super::directory::paths();
+        let conn = if cfg!(test) {
+            rusqlite::Connection::open_in_memory()
+                .whatever_context("open durable SQLite database")?
+        } else {
+            let paths = super::directory::paths();
+            let durable_path = paths.data_dir().join("durable.sqlite");
+            rusqlite::Connection::open(durable_path)
+                .whatever_context("open durable SQLite database")?
+        };
 
-        let durable_path = paths.data_dir().join("durable.sqlite");
-
-        let conn = rusqlite::Connection::open(durable_path)
-            .whatever_context("open durable SQLite database")?;
         conn.pragma_update(None, "journal_mode", "WAL")
             .whatever_context("update durable journal_mode pragma")?;
         conn.pragma_update(None, "synchronous", "FULL")
