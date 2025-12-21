@@ -22,6 +22,7 @@ struct Args {
     storage_path: Option<PathBuf>,
 }
 
+#[snafu::report]
 fn main() -> Result<(), snafu::Whatever> {
     let args = Args::parse();
 
@@ -41,7 +42,8 @@ fn main() -> Result<(), snafu::Whatever> {
 
     tracing_subscriber::fmt::init();
 
-    storage::init_storage(args.storage_path).whatever_context("init app storage")?;
+    storage::init_storage(args.storage_path)
+        .whatever_context("failed to init app storage")?;
 
     tracing::info!("starting Bluebottle");
 

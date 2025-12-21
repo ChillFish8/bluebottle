@@ -16,3 +16,11 @@ pub fn init_storage(base_path: Option<PathBuf>) -> Result<(), snafu::Whatever> {
     state::init_state().whatever_context("init storage state")?;
     Ok(())
 }
+
+/// Returns a new timestamp in milliseconds.
+pub(super) fn now() -> i64 {
+    let duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    duration.as_millis() as i64
+}

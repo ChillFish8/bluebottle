@@ -19,7 +19,6 @@ impl AssetProxyCache {
         let path = self.cache_directory.join(digest);
         if let Err(e) = std::fs::write(path, data) {
             tracing::warn!(error = %e, "failed to write asset to cache");
-            return;
         }
     }
 }
