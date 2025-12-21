@@ -17,7 +17,21 @@ pub trait BackendInit: Sized {
     fn from_context(context: Value) -> Result<Self, snafu::Whatever>;
 }
 
-#[derive(Debug, Copy, Clone)]
+/// A unique identifier assigned to the backend.
+pub type BackendId = uuid::Uuid;
+
+#[derive(Clone)]
+/// Information that describes a media library backend and how to re-create it.
+pub struct BackendInitState {
+    /// The unique identifier of the backend.
+    pub id: uuid::Uuid,
+    /// The type of the backend.
+    pub kind: BackendKind,
+    /// Initialisation context.
+    pub context: Value,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 /// The backend type encompassing all supported backends.
 pub enum BackendKind {
     Jellyfin,

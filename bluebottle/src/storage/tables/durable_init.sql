@@ -1,6 +1,6 @@
 BEGIN;
 -- Backend libraries and their context required to be re-created.
-CREATE TABLE IF NOT EXISTS backend_context (
+CREATE TABLE IF NOT EXISTS backend_init_state (
     backend_id TEXT,
     kind TEXT,
     context TEXT

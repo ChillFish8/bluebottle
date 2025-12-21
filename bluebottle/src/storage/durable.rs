@@ -1,7 +1,6 @@
-use serde::Serialize;
 use snafu::ResultExt;
 
-use crate::backends::BackendKind;
+use crate::backends::BackendInitState;
 
 /// System state storage backed by an SQLite database.
 pub struct DurableStateStorage {
@@ -43,37 +42,86 @@ impl DurableStateStorage {
         Ok(())
     }
 
-    /// Persist the provided backend context to the state DB.
-    pub fn save_backend_context(
+    /// Persist the provided backend init state to storage.
+    pub fn save_backend_init_state(
         &self,
-        backend_id: uuid::Uuid,
-        backend: BackendKind,
-        context: &impl Serialize,
+        state: BackendInitState,
     ) -> Result<(), snafu::Whatever> {
-        let context =
-            serde_json::to_value(context).whatever_context("Serialize context")?;
-
         self.conn
-            .execute("INSERT INTO ", (backend_id, backend, context))
+            .execute("INSERT INTO backend_init_state (backend_id, kind, context) VALUES (?, ?, ?);", (state.id, state.kind, state.context))
             .with_whatever_context(|_| {
-                format!("insert backend ({backend_id}) context")
+                format!("insert backend ({}) context", state.id)
             })?;
 
         Ok(())
     }
 
-    /// Retrieves all persisted backend context from the state.
-    pub fn read_all_backend_context(
+    /// Retrieves all persisted backend init state from the storage.
+    pub fn read_all_backend_init_state(
         &self,
-    ) -> Result<Vec<(uuid::Uuid, BackendKind, serde_json::Value)>, snafu::Whatever> {
+    ) -> Result<Vec<BackendInitState>, snafu::Whatever> {
         let mut stmt = self
             .conn
-            .prepare("SELECT backend_id, kind, context FROM backend_context;")
+            .prepare("SELECT backend_id, kind, context FROM backend_init_state;")
             .whatever_context("prepare context read")?;
 
-        stmt.query_map((), |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-            .whatever_context("retrieve context rows")?
-            .collect::<Result<Vec<_>, rusqlite::Error>>()
-            .whatever_context("deserialize context rows")
+        stmt.query_map((), |row| {
+            Ok(BackendInitState {
+                id: row.get(0)?,
+                kind: row.get(1)?,
+                context: row.get(2)?,
+            })
+        })
+        .whatever_context("retrieve context rows")?
+        .collect::<Result<Vec<_>, rusqlite::Error>>()
+        .whatever_context("deserialize context rows")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::backends::BackendKind;
+
+    #[test]
+    fn test_single_backend_save_retrieve() {
+        let input_init_state = BackendInitState {
+            id: uuid::Uuid::now_v7(),
+            kind: BackendKind::Jellyfin,
+            context: json!({"test": 1234}),
+        };
+        let id = input_init_state.id;
+
+        let storage = DurableStateStorage::open().unwrap();
+        storage.save_backend_init_state(input_init_state).unwrap();
+
+        let states = storage.read_all_backend_init_state().unwrap();
+        assert_eq!(states.len(), 1);
+        assert_eq!(states[0].id, id);
+        assert_eq!(states[0].kind, BackendKind::Jellyfin);
+        assert_eq!(states[0].context, json!({"test": 1234}));
+    }
+
+    #[test]
+    fn test_multiple_backend_save_retrieve() {
+        let input_init_state1 = BackendInitState {
+            id: uuid::Uuid::now_v7(),
+            kind: BackendKind::Jellyfin,
+            context: json!({"test": 1234}),
+        };
+        let input_init_state2 = BackendInitState {
+            id: uuid::Uuid::now_v7(),
+            kind: BackendKind::Jellyfin,
+            context: json!({"test": "other"}),
+        };
+
+        let storage = DurableStateStorage::open().unwrap();
+        storage.save_backend_init_state(input_init_state1).unwrap();
+        storage.save_backend_init_state(input_init_state2).unwrap();
+
+        let states = storage.read_all_backend_init_state().unwrap();
+        assert_eq!(states.len(), 2);
     }
 }

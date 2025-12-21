@@ -6,6 +6,7 @@ use snafu::ResultExt;
 mod app;
 mod backends;
 mod components;
+mod models;
 mod screen;
 mod storage;
 mod view;
