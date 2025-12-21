@@ -2,8 +2,7 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 use snafu::ResultExt;
-use tokio::sync::oneshot;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::backends::BackendKind;
 
@@ -13,8 +12,7 @@ static STATE: OnceLock<mpsc::Sender<StateOp>> = OnceLock::new();
 /// Initialises the global app state using the [DirectoryPaths](super::directory::DirectoryPaths)
 /// configured.
 pub fn init_state() -> Result<(), snafu::Whatever> {
-    let storage = StateStorage::open()
-        .whatever_context("open SQLite storage state")?;
+    let storage = StateStorage::open().whatever_context("open SQLite storage state")?;
 
     let (tx, rx) = mpsc::channel(500);
     std::thread::Builder::new()
@@ -40,22 +38,16 @@ where
         let _ = tx.send(result);
     };
 
-    let sender = STATE
-        .get()
-        .expect("state actor should be initialised");
+    let sender = STATE.get().expect("state actor should be initialised");
 
     sender
         .blocking_send(Box::new(op))
         .expect("state actor shutdown panicked");
 
-    rx.blocking_recv()        .expect("op panicked")
+    rx.blocking_recv().expect("op panicked")
 }
 
-
-fn state_runner_thread(
-    mut ops: mpsc::Receiver<StateOp>,
-    state: StateStorage,
-) {
+fn state_runner_thread(mut ops: mpsc::Receiver<StateOp>, state: StateStorage) {
     tracing::info!("state actor started");
 
     while let Some(access) = ops.blocking_recv() {
@@ -64,7 +56,6 @@ fn state_runner_thread(
 
     tracing::warn!("state actor shut down");
 }
-
 
 /// System state storage backed by an SQLite database.
 pub struct StateStorage {

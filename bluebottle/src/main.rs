@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use clap::Parser;
 use snafu::ResultExt;
 
@@ -40,9 +41,8 @@ fn main() -> Result<(), snafu::Whatever> {
 
     tracing_subscriber::fmt::init();
 
-    storage::init_storage(args.storage_path)
-        .whatever_context("init app storage")?;
-    
+    storage::init_storage(args.storage_path).whatever_context("init app storage")?;
+
     tracing::info!("starting Bluebottle");
 
     app::run_app()?;

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
 use snafu::ResultExt;
 
 static PATHS: OnceLock<DirectoryPaths> = OnceLock::new();
@@ -13,16 +14,16 @@ pub fn init_paths(base_path: Option<PathBuf>) -> Result<(), snafu::Whatever> {
             DirectoryPaths::from_sniffed()
         }
     });
-    
+
     paths.ensure_created()?;
-    
+
     tracing::info!(
         config = %paths.config_dir().display(),
         cache = %paths.cache_dir().display(),
         data = %paths.data_dir().display(),
         "directory paths have been initialised"
     );
-    
+
     Ok(())
 }
 
@@ -30,7 +31,6 @@ pub fn init_paths(base_path: Option<PathBuf>) -> Result<(), snafu::Whatever> {
 pub fn paths() -> &'static DirectoryPaths {
     PATHS.get().expect("paths was not initialized")
 }
-
 
 /// Manages file paths for app data storage.
 pub struct DirectoryPaths {
@@ -47,7 +47,7 @@ impl DirectoryPaths {
             data_dir: path.join("data"),
         }
     }
-    
+
     fn from_sniffed() -> Self {
         let paths = directories::ProjectDirs::from("com", "chillfish8", "Bluebottle")
             .expect("Could not determine project directories");
@@ -59,15 +59,18 @@ impl DirectoryPaths {
     }
 
     fn ensure_created(&self) -> Result<(), snafu::Whatever> {
-        std::fs::create_dir_all(&self.config_dir)
-            .with_whatever_context(|_| format!("create directory {}", self.config_dir.display()))?;
-        std::fs::create_dir_all(&self.cache_dir)
-            .with_whatever_context(|_| format!("create directory {}", self.cache_dir.display()))?;
-        std::fs::create_dir_all(&self.data_dir)
-            .with_whatever_context(|_| format!("create directory {}", self.data_dir.display()))?;
+        std::fs::create_dir_all(&self.config_dir).with_whatever_context(|_| {
+            format!("create directory {}", self.config_dir.display())
+        })?;
+        std::fs::create_dir_all(&self.cache_dir).with_whatever_context(|_| {
+            format!("create directory {}", self.cache_dir.display())
+        })?;
+        std::fs::create_dir_all(&self.data_dir).with_whatever_context(|_| {
+            format!("create directory {}", self.data_dir.display())
+        })?;
         Ok(())
     }
-    
+
     /// Returns the directory that should hold configuration files.
     pub fn config_dir(&self) -> &Path {
         self.config_dir.as_path()
@@ -82,5 +85,4 @@ impl DirectoryPaths {
     pub fn data_dir(&self) -> &Path {
         self.data_dir.as_path()
     }
-    
 }
