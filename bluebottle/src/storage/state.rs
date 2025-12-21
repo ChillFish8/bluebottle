@@ -106,10 +106,29 @@ impl StateStorage {
             .pragma_update(None, "synchronous", "OFF")
             .whatever_context("update relaxed synchronous pragma")?;
 
-        Ok(Self {
+        let this = Self {
             durable_conn,
             relaxed_conn,
-        })
+        };
+        this.init_databases()?;
+        Ok(this)
+    }
+
+    fn init_databases(&self) -> Result<(), snafu::Whatever> {
+        static DURABLE_INIT_SQL: &str = include_str!("tables/durable_init.sql");
+        static RELAXED_INIT_SQL: &str = include_str!("tables/relaxed_init.sql");
+
+        tracing::info!("initializing databases");
+
+        self.durable_conn
+            .execute_batch(DURABLE_INIT_SQL)
+            .whatever_context("initializing durable database")?;
+
+        self.relaxed_conn
+            .execute_batch(RELAXED_INIT_SQL)
+            .whatever_context("initializing relaxed database")?;
+
+        Ok(())
     }
 
     /// Persist the provided backend context to the state DB.
