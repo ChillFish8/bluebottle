@@ -37,3 +37,6 @@ tokio = { version = "1", features = ["net", "time", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "rustls-tls-native-roots", "json", "zstd"] }
 iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio", "image", "svg", "canvas", "sipper"] }
 rusqlite = { version = "0.38", features = ["bundled", "serde_json", "uuid"] }
+
+# Dev dependencies
+rstest = "0.26"

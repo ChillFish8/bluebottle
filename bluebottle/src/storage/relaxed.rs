@@ -1,3 +1,4 @@
+use std::cmp;
 use std::path::Path;
 use std::time::Duration;
 
@@ -63,7 +64,7 @@ impl RelaxedStateStorage {
             })
             .whatever_context("get backend content")?;
 
-        let expires_in = (super::now() - expires_at) as u64;
+        let expires_in = cmp::max(0, expires_at - super::now()) as u64;
 
         Ok((content, Duration::from_millis(expires_in)))
     }
@@ -122,16 +123,17 @@ impl RelaxedStateStorage {
     }
 
     /// Purge the content cache of all entries
-    pub(super) fn purge_content_cache(&self) -> Result<(), snafu::Whatever> {
+    pub(super) fn purge_content_cache(&self) -> Result<usize, snafu::Whatever> {
         let mut stmt = self
             .conn
-            .prepare_cached("DELETE FROM backend_content_cache?;")
+            .prepare_cached("DELETE FROM backend_content_cache;")
             .whatever_context("prepared backend content")?;
 
-        stmt.execute(params![])
+        let n = stmt
+            .execute(params![])
             .whatever_context("execute purge query")?;
 
-        Ok(())
+        Ok(n)
     }
 }
 

@@ -24,6 +24,9 @@ directories = { workspace = true }
 parking_lot = { workspace = true }
 lru = { workspace = true }
 arrayvec = { workspace = true }
-tempfile = { workspace = true }
 
 bluebottle-ui = { path = "../bluebottle-ui" }
+
+[dev-dependencies]
+rstest = { workspace = true }
+tempfile = { workspace = true }

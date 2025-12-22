@@ -25,3 +25,15 @@ pub(super) fn now() -> i64 {
         .unwrap_or_default();
     duration.as_millis() as i64
 }
+
+#[cfg(test)]
+pub mod test_utils {
+
+    #[rstest::fixture]
+    /// Creates a new temporary directory with storage initialised.
+    pub fn temp_storage() -> tempfile::TempDir {
+        let temp_dir = tempfile::tempdir().unwrap();
+        super::init_storage(Some(temp_dir.path().to_path_buf())).unwrap();
+        temp_dir
+    }
+}

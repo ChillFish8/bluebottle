@@ -60,10 +60,83 @@ pub fn prune() -> usize {
 }
 
 /// Delete all content in the cache.
-pub fn purge() {
+pub fn purge() -> usize {
     super::with_relaxed_state(move |state| {
         state.purge_content_cache().unwrap_or_else(|err| {
             tracing::error!(error = %err, "failed to purge content cache");
+            0
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::storage::test_utils::temp_storage;
+
+    #[rstest::rstest]
+    fn test_insert_and_get(_temp_storage: tempfile::TempDir) {
+        let content = json!({
+            "example": 1234,
+        });
+        let backend_id = BackendId::now_v7();
+
+        insert(
+            backend_id,
+            "/example",
+            &content,
+            Some(Duration::from_secs(5)),
+        );
+
+        let entry: CacheEntry<serde_json::Value> =
+            try_get(backend_id, "/example").unwrap();
+        assert_eq!(entry.value, content);
+    }
+
+    #[rstest::rstest]
+    fn test_prune(_temp_storage: tempfile::TempDir) {
+        let content = json!({
+            "example": 1234,
+        });
+        let backend_id = BackendId::now_v7();
+
+        insert(
+            backend_id,
+            "/example",
+            &content,
+            Some(Duration::from_millis(200)),
+        );
+        insert(
+            backend_id,
+            "/example/other",
+            &content,
+            Some(Duration::from_secs(200)),
+        );
+
+        assert!(try_get::<serde_json::Value>(backend_id, "/example").is_some());
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(prune(), 1);
+        assert!(try_get::<serde_json::Value>(backend_id, "/example").is_none());
+    }
+
+    #[rstest::rstest]
+    fn test_purge(_temp_storage: tempfile::TempDir) {
+        let content = json!({
+            "example": 1234,
+        });
+        let backend_id = BackendId::now_v7();
+
+        insert(
+            backend_id,
+            "/example",
+            &content,
+            Some(Duration::from_secs(200)),
+        );
+
+        assert!(try_get::<serde_json::Value>(backend_id, "/example").is_some());
+        assert_eq!(purge(), 1);
+        assert!(try_get::<serde_json::Value>(backend_id, "/example").is_none());
+    }
 }
