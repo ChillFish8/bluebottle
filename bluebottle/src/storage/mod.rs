@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use snafu::ResultExt;
 
-mod cache;
+mod asset_cache;
 mod directory;
 mod durable;
 mod relaxed;

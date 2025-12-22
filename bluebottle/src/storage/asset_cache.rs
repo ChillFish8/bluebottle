@@ -7,6 +7,7 @@ use snafu::ResultExt;
 
 type AssetId = ArrayString<64>;
 
+#[derive(Debug, Copy, Clone)]
 /// Cache assets and images locally on disk rather than fetching from the server.
 pub struct AssetProxyCache {
     cache_directory: &'static Path,
