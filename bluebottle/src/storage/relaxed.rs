@@ -15,10 +15,7 @@ pub struct RelaxedStateStorage {
 impl RelaxedStateStorage {
     /// Creates a new [RelaxedStateStorage] instance located within the data directory.
     pub(super) fn open() -> Result<Self, snafu::Whatever> {
-        let paths = super::directory::paths();
-        let relaxed_path = paths.data_dir().join("relaxed.sqlite");
-
-        let conn = open_sqlite_connection(&relaxed_path)?;
+        let conn = open_sqlite_connection()?;
         conn.pragma_update(None, "journal_mode", "WAL")
             .whatever_context("update relaxed journal_mode pragma")?;
         conn.pragma_update(None, "synchronous", "OFF")
@@ -137,21 +134,109 @@ impl RelaxedStateStorage {
     }
 }
 
-fn open_sqlite_connection(
-    relaxed_path: &Path,
-) -> Result<rusqlite::Connection, snafu::Whatever> {
+fn open_sqlite_connection() -> Result<rusqlite::Connection, snafu::Whatever> {
     if cfg!(test) {
         return rusqlite::Connection::open_in_memory()
             .whatever_context("open relaxed SQLite database");
     };
 
-    match rusqlite::Connection::open(relaxed_path) {
+    let paths = super::directory::paths();
+    let relaxed_path = paths.data_dir().join("relaxed.sqlite");
+
+    match rusqlite::Connection::open(&relaxed_path) {
         Ok(conn) => Ok(conn),
         Err(err) => {
             tracing::warn!(error = %err, "relaxed state could not be opened, truncating and retrying...");
-            let _ = std::fs::remove_file(relaxed_path);
-            rusqlite::Connection::open(relaxed_path)
+            let _ = std::fs::remove_file(&relaxed_path);
+            rusqlite::Connection::open(&relaxed_path)
                 .whatever_context("failed to open relaxed state storage")
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_and_get_content_cache() {
+        let backend_id = BackendId::now_v7();
+
+        let storage = RelaxedStateStorage::open().unwrap();
+        storage
+            .add_content_cache_entry(
+                backend_id,
+                "/example",
+                b"hello, world!".to_vec(),
+                Duration::from_secs(300),
+            )
+            .unwrap();
+
+        let (entry, expires_in) = storage
+            .get_content_cache_entry(backend_id, "/example")
+            .unwrap();
+        assert_eq!(entry, b"hello, world!");
+        assert!(expires_in <= Duration::from_secs(300));
+    }
+
+    #[test]
+    fn test_prune_content_cache() {
+        let backend_id = BackendId::now_v7();
+
+        let storage = RelaxedStateStorage::open().unwrap();
+        storage
+            .add_content_cache_entry(
+                backend_id,
+                "/example",
+                b"hello, world!".to_vec(),
+                Duration::from_millis(50),
+            )
+            .unwrap();
+
+        assert!(
+            storage
+                .get_content_cache_entry(backend_id, "/example")
+                .is_ok()
+        );
+
+        std::thread::sleep(Duration::from_millis(100));
+        let n = storage.prune_content_cache().unwrap();
+        assert_eq!(n, 1);
+
+        assert!(
+            storage
+                .get_content_cache_entry(backend_id, "/example")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_purge_content_cache() {
+        let backend_id = BackendId::now_v7();
+
+        let storage = RelaxedStateStorage::open().unwrap();
+        storage
+            .add_content_cache_entry(
+                backend_id,
+                "/example",
+                b"hello, world!".to_vec(),
+                Duration::from_secs(50),
+            )
+            .unwrap();
+
+        assert!(
+            storage
+                .get_content_cache_entry(backend_id, "/example")
+                .is_ok()
+        );
+
+        let n = storage.purge_content_cache().unwrap();
+        assert_eq!(n, 1);
+
+        assert!(
+            storage
+                .get_content_cache_entry(backend_id, "/example")
+                .is_err()
+        );
     }
 }
