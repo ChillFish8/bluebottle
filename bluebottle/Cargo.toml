@@ -20,5 +20,9 @@ rusqlite = { workspace = true }
 blake3 = { workspace = true }
 uuid = { workspace = true }
 directories = { workspace = true }
+parking_lot = { workspace = true }
+lru = { workspace = true }
+arrayvec = { workspace = true }
+tempfile = { workspace = true }
 
 bluebottle-ui = { path = "../bluebottle-ui" }

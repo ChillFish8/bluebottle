@@ -21,6 +21,10 @@ serde_json = "1"
 snafu = "0.8"
 blake3 = "1"
 directories = "6"
+parking_lot = "0.12"
+lru = "0.16"
+arrayvec = "0.7"
+tempfile = "3"
 
 # 3rd party widgets
 iced_palace = "0.14"
