@@ -39,8 +39,8 @@ where
     Message: 'a,
 {
     column![top.into(), space().height(Length::Fill), bottom.into()]
-        .width(96)
+        .width(80)
         .align_x(Center)
-        .padding(padding::Padding::default().horizontal(4).vertical(8))
+        .padding(padding::Padding::default().vertical(8))
         .into()
 }
