@@ -9,4 +9,11 @@ CREATE TABLE IF NOT EXISTS backend_content_cache (
     expires_at BIGINT,
     PRIMARY KEY (backend_id, cache_key)
 );
+
+-- Useful, but not super important key-value pairs for app state.
+CREATE TABLE IF NOT EXISTS app_kv_state (
+    k TEXT PRIMARY KEY,
+    v BLOB
+);
+
 COMMIT;

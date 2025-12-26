@@ -9,7 +9,7 @@ mod durable;
 mod relaxed;
 mod state;
 
-pub use self::state::{with_durable_state, with_relaxed_state};
+pub use self::state::{submit_relaxed_state, with_durable_state, with_relaxed_state};
 
 /// Initialise the app storage system.
 pub fn init_storage(base_path: Option<PathBuf>) -> Result<(), snafu::Whatever> {

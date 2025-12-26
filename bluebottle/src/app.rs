@@ -2,6 +2,8 @@ use bluebottle_ui::{color, font};
 use iced::{Element, Settings, task};
 use snafu::ResultExt;
 
+use crate::navigator;
+use crate::navigator::ActiveScreen;
 use crate::screen::{library_select, library_view, loading, settings, setup};
 use crate::view::View;
 
@@ -9,6 +11,9 @@ use crate::view::View;
 ///
 /// This will block until the user closes the application or the system crashes.
 pub fn run_app() -> Result<(), snafu::Whatever> {
+    navigator::load_from_state();
+    //navigator::navigate(ActiveScreen::Loading);
+
     let settings = Settings {
         fonts: font::required_fonts(),
         default_font: font::regular(),
@@ -26,7 +31,6 @@ pub fn run_app() -> Result<(), snafu::Whatever> {
 }
 
 struct Bluebottle {
-    screen: ActiveScreen,
     library_view_screen: library_view::LibraryViewScreen,
     library_select_screen: library_select::LibrarySelectScreen,
     setup_screen: setup::SetupScreen,
@@ -45,7 +49,6 @@ enum GlobalMessage {
 impl Bluebottle {
     fn new() -> Self {
         Self {
-            screen: ActiveScreen::Setup,
             library_view_screen: library_view::LibraryViewScreen::default(),
             library_select_screen: library_select::LibrarySelectScreen::default(),
             setup_screen: setup::SetupScreen::default(),
@@ -78,7 +81,7 @@ impl Bluebottle {
     }
 
     fn view(&self) -> Element<'_, GlobalMessage> {
-        match self.screen {
+        match navigator::active() {
             ActiveScreen::LibraryView => self
                 .library_view_screen
                 .view()
@@ -96,21 +99,4 @@ impl Bluebottle {
             },
         }
     }
-}
-
-#[derive(Copy, Clone, Debug)]
-/// What UI screen the app should be displaying.
-enum ActiveScreen {
-    /// View an existing media library.
-    LibraryView,
-    /// The library being requested is still being prepared, show
-    /// the user a loading screen for now.
-    Loading,
-    /// The user has no libraries available, we should onboard
-    /// them with the setup screen.
-    Setup,
-    /// Select an existing media library (or add a new one.)
-    LibrarySelect,
-    /// View the app settings.
-    Settings,
 }

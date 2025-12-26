@@ -5,6 +5,7 @@ use rusqlite::params;
 use snafu::ResultExt;
 
 use crate::backends::BackendId;
+use crate::navigator::ActiveScreen;
 
 /// System state storage backed by an SQLite database.
 pub struct RelaxedStateStorage {
@@ -130,6 +131,47 @@ impl RelaxedStateStorage {
             .whatever_context("execute purge query")?;
 
         Ok(n)
+    }
+
+    /// Set a key value in the app state.
+    pub(crate) fn set_key_value(
+        &self,
+        key: &'static str,
+        value: &[u8],
+    ) -> Result<(), snafu::Whatever> {
+        let sql = r#"
+            INSERT INTO app_kv_state (k, v)
+            VALUES (?, ?)
+            ON CONFLICT (k)
+            DO UPDATE SET v = excluded.v;
+        "#;
+
+        let mut stmt = self
+            .conn
+            .prepare_cached(sql)
+            .whatever_context("prepared key value insert")?;
+
+        stmt.execute(params![key, value])
+            .whatever_context("execute key set query")?;
+
+        Ok(())
+    }
+
+    /// Get a key value in the app state.
+    pub(crate) fn get_key_value(
+        &self,
+        key: &'static str,
+    ) -> Result<Vec<u8>, snafu::Whatever> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT v FROM app_kv_state WHERE k = ?;")
+            .whatever_context("prepared key value select")?;
+
+        let value = stmt
+            .query_one(params![key], |r| r.get(0))
+            .whatever_context("execute key get query")?;
+
+        Ok(value)
     }
 }
 

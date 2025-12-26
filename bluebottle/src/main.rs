@@ -7,6 +7,7 @@ mod app;
 mod backends;
 mod components;
 mod models;
+mod navigator;
 mod screen;
 mod storage;
 mod view;

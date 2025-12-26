@@ -93,6 +93,24 @@ where
     rx.blocking_recv().expect("op panicked")
 }
 
+/// Gets a reference to the global relaxed app state without waiting for the op to complete.
+pub fn submit_relaxed_state<F>(op: F)
+where
+    F: for<'a> FnOnce(&'a RelaxedStateStorage) + Send + 'static,
+{
+    let op = move |state: &RelaxedStateStorage| {
+        op(state);
+    };
+
+    let sender = RELAXED_STATE
+        .get()
+        .expect("state actor should be initialised");
+
+    sender
+        .blocking_send(Box::new(op))
+        .expect("state actor shutdown panicked");
+}
+
 fn state_runner_thread<S>(mut ops: mpsc::Receiver<StateOp<S>>, state: S) {
     tracing::info!("state actor started");
 
