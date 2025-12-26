@@ -1,5 +1,5 @@
-use bluebottle_ui::{bar, text};
-use iced::widget::{column, container, row, space};
+use bluebottle_ui::text;
+use iced::widget::{column, container, row};
 use iced::{Center, Element, Length, padding, task};
 
 use crate::components::jellyfin_onboard::{JellyfinOnboard, JellyfinOnboardMsg};
@@ -14,6 +14,12 @@ pub enum SetupMsg {
     JellyfinOnboard(JellyfinOnboardMsg),
 }
 
+impl super::Screen<SetupMsg> for SetupScreen {
+    fn nav_descriptor(&self) -> &str {
+        "Setup"
+    }
+}
+
 impl view::View<SetupMsg> for SetupScreen {
     fn update(&mut self, message: SetupMsg) -> task::Task<SetupMsg> {
         match message {
@@ -26,7 +32,6 @@ impl view::View<SetupMsg> for SetupScreen {
 
     fn view(&self) -> Element<'_, SetupMsg> {
         column![
-            bar::top(space(), "Setup"),
             container(row![self.onboarding_menu()])
                 .width(Length::Fill)
                 .height(Length::Fill)

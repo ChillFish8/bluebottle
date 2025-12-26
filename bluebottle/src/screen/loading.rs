@@ -13,6 +13,12 @@ pub enum LoadingMsg {
     NavigateSettings,
 }
 
+impl super::Screen<LoadingMsg> for LoadingScreen {
+    fn nav_descriptor(&self) -> &str {
+        "Loading Library"
+    }
+}
+
 impl view::View<LoadingMsg> for LoadingScreen {
     fn update(&mut self, message: LoadingMsg) -> task::Task<LoadingMsg> {
         match message {
@@ -29,7 +35,6 @@ impl view::View<LoadingMsg> for LoadingScreen {
 
     fn view(&self) -> Element<'_, LoadingMsg> {
         column![
-            bar::top(space(), "Replace Me"), // TODO: Replace
             row![
                 bar::side(
                     space(),

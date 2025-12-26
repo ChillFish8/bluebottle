@@ -1,10 +1,11 @@
-use bluebottle_ui::{color, font};
+use bluebottle_ui::{bar, color, font};
+use iced::widget::column;
 use iced::{Element, Settings, task};
 use snafu::ResultExt;
 
 use crate::navigator;
 use crate::navigator::ActiveScreen;
-use crate::screen::{library_select, library_view, loading, settings, setup};
+use crate::screen::{Screen, library_select, library_view, loading, settings, setup};
 use crate::view::View;
 
 /// Run the Bluebottle UI iced application.
@@ -81,6 +82,41 @@ impl Bluebottle {
     }
 
     fn view(&self) -> Element<'_, GlobalMessage> {
+        column![self.render_topbar(), self.render_screen(),].into()
+    }
+
+    fn render_topbar(&self) -> Element<'_, GlobalMessage> {
+        match navigator::active() {
+            ActiveScreen::LibraryView => bar::top(
+                self.library_view_screen
+                    .nav_center()
+                    .map(GlobalMessage::LibraryView),
+                self.library_view_screen.nav_descriptor(),
+            ),
+            ActiveScreen::Loading => bar::top(
+                self.loading_screen.nav_center().map(GlobalMessage::Loading),
+                self.loading_screen.nav_descriptor(),
+            ),
+            ActiveScreen::Setup => bar::top(
+                self.setup_screen.nav_center().map(GlobalMessage::Setup),
+                self.setup_screen.nav_descriptor(),
+            ),
+            ActiveScreen::LibrarySelect => bar::top(
+                self.library_select_screen
+                    .nav_center()
+                    .map(GlobalMessage::LibrarySelect),
+                self.library_select_screen.nav_descriptor(),
+            ),
+            ActiveScreen::Settings => bar::top(
+                self.settings_screen
+                    .nav_center()
+                    .map(GlobalMessage::Settings),
+                self.settings_screen.nav_descriptor(),
+            ),
+        }
+    }
+
+    fn render_screen(&self) -> Element<'_, GlobalMessage> {
         match navigator::active() {
             ActiveScreen::LibraryView => self
                 .library_view_screen

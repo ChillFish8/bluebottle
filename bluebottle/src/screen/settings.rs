@@ -1,5 +1,3 @@
-use bluebottle_ui::bar;
-use iced::widget::space;
 use iced::{Element, task};
 
 use crate::view;
@@ -9,12 +7,18 @@ pub struct SettingsScreen {}
 
 pub enum SettingsMsg {}
 
+impl super::Screen<SettingsMsg> for SettingsScreen {
+    fn nav_descriptor(&self) -> &str {
+        "Settings"
+    }
+}
+
 impl view::View<SettingsMsg> for SettingsScreen {
     fn update(&mut self, _message: SettingsMsg) -> task::Task<SettingsMsg> {
         task::Task::none()
     }
 
     fn view(&self) -> Element<'_, SettingsMsg> {
-        iced::widget::column![bar::top(space(), "Settings"),].into()
+        iced::widget::column![].into()
     }
 }
