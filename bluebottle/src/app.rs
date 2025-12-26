@@ -1,5 +1,4 @@
 use bluebottle_ui::{bar, button, color, font};
-use iced::advanced::graphics::text::cosmic_text::Align;
 use iced::widget::{column, row, space};
 use iced::{Center, Element, Settings, task};
 use snafu::ResultExt;
@@ -136,7 +135,7 @@ impl Bluebottle {
             button::nav("Anime", "draw", false, GlobalMessage::Null),
             button::nav("TV Shows", "tv", false, GlobalMessage::Null),
             button::nav("Movies", "movie", false, GlobalMessage::Null),
-            button::nav("Anime Movies", "movie", false, GlobalMessage::Null,),
+            button::nav("Anime Movies", "palette", false, GlobalMessage::Null,),
             button::nav("Music", "library_music", false, GlobalMessage::Null,),
         ]
         .spacing(4)

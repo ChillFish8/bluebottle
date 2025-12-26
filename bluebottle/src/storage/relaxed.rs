@@ -5,7 +5,6 @@ use rusqlite::params;
 use snafu::ResultExt;
 
 use crate::backends::BackendId;
-use crate::navigator::ActiveScreen;
 
 /// System state storage backed by an SQLite database.
 pub struct RelaxedStateStorage {
