@@ -17,11 +17,11 @@ where
     Message: Clone + 'a,
 {
     let nav_icon = |is_hovered: bool| -> Element<'a, Message> {
-        container(container(icon::filled(icon)).padding([2, 16]))
+        container(container(icon::filled(icon)).padding([4, 16]))
             .style(move |_theme: &Theme| container::Style {
                 background: is_hovered
-                    .then(|| Background::Color(color::HOVER_HIGHLIGHT)),
-                text_color: selected.then(|| color::PRIMARY),
+                    .then_some(Background::Color(color::HOVER_HIGHLIGHT)),
+                text_color: selected.then_some(color::PRIMARY),
                 border: border::rounded(28),
                 ..Default::default()
             })
@@ -67,7 +67,7 @@ where
     if selected {
         hovered_button.into()
     } else {
-        hover(base_button, hovered_button).into()
+        hover(base_button, hovered_button)
     }
 }
 

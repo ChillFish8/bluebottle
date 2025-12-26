@@ -40,10 +40,6 @@ where
 {
     column![top.into(), space().height(Length::Fill), bottom.into()]
         .align_x(Center)
-        .padding(
-            padding::Padding::default()
-                .horizontal(4)
-                .vertical(8)
-        )
+        .padding(padding::Padding::default().horizontal(4).vertical(8))
         .into()
 }
