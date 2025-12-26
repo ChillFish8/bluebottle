@@ -2,6 +2,7 @@ pub mod bar;
 pub mod button;
 pub mod card;
 pub mod carousel_navigator;
+pub mod debug;
 pub mod ellipsis_text;
 pub mod image;
 pub mod input;
