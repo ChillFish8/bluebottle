@@ -4,7 +4,7 @@ use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
-use snafu::{ResultExt, whatever};
+use snafu::ResultExt;
 
 static POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg")
@@ -103,6 +103,24 @@ fn text_fonts() -> Element<'static, Message> {
             text("The quick brown fox jumps over the lazy dog").size(14),
             text("The quick brown fox jumps over the lazy dog").size(16),
         ]
+        .spacing(4)
+        .padding(padding::left(16)),
+        text("Text Paragraphs").font(font::bold()),
+        column![bluebottle_ui::text::paragraph(
+            "The quick brown fox jumps over the lazy dog"
+        ),]
+        .spacing(4)
+        .padding(padding::left(16)),
+        text("Text Subheading").font(font::bold()),
+        column![bluebottle_ui::text::subheading(
+            "The quick brown fox jumps over the lazy dog"
+        ),]
+        .spacing(4)
+        .padding(padding::left(16)),
+        text("Text Label").font(font::bold()),
+        column![bluebottle_ui::text::label(
+            "The quick brown fox jumps over the lazy dog"
+        ),]
         .spacing(4)
         .padding(padding::left(16)),
     ]
@@ -570,8 +588,8 @@ fn rating() -> Element<'static, Message> {
 fn titles() -> Element<'static, Message> {
     column![
         text("Titles").font(font::bold()),
-        bluebottle_ui::title::title(Some("local_fire_department"), "New releases"),
-        bluebottle_ui::title::title(None, "Setting option A"),
+        bluebottle_ui::text::title(Some("local_fire_department"), "New releases"),
+        bluebottle_ui::text::title(None, "Setting option A"),
     ]
     .spacing(8)
     .into()

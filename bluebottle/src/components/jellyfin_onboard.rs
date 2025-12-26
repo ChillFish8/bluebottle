@@ -2,9 +2,8 @@
 
 use std::time::Duration;
 
-use bluebottle_ui::{button, color, font, input, separator, spinner, title};
-use iced::widget::text::IntoFragment;
-use iced::widget::{Text, column, container, row, space, text};
+use bluebottle_ui::{button, input, separator, spinner, text};
+use iced::widget::{column, container, row, space};
 use iced::{Center, Element, Length, padding, task};
 
 use crate::view;
@@ -299,20 +298,13 @@ fn connector_line<'a>(disabled: bool) -> Element<'a, JellyfinOnboardMsg> {
 }
 
 fn form_label(label: &str) -> Element<'_, JellyfinOnboardMsg> {
-    let label = text(label)
-        .size(12)
-        .font(font::semibold())
-        .color(color::TEXT_SECONDARY);
+    let label = text::label(label);
     container(label).padding(padding::horizontal(16)).into()
-}
-
-fn info_message<'a>(info: impl IntoFragment<'a>) -> Text<'a> {
-    text(info).color(color::TEXT_SECONDARY)
 }
 
 fn test_in_progress(address: &str) -> Element<'_, JellyfinOnboardMsg> {
     column![
-        info_message(format!("Logging in to {address}")),
+        text::paragraph(format!("Logging in to {address}")),
         spinner::linear(),
     ]
     .spacing(8)
@@ -321,9 +313,9 @@ fn test_in_progress(address: &str) -> Element<'_, JellyfinOnboardMsg> {
 
 fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
     let description = column![
-        info_message("Bluebottle couldn't authenticate with the server."),
-        info_message(format!("Reason: {reason}")),
-        info_message("Please double check the server address and user info."),
+        text::paragraph("Bluebottle couldn't authenticate with the server."),
+        text::paragraph(format!("Reason: {reason}")),
+        text::paragraph("Please double check the server address and user info."),
         button::standard(
             "Retry",
             Some("refresh"),
@@ -336,7 +328,7 @@ fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
     .padding(padding::horizontal(2));
 
     column![
-        title::title(Some("error"), "Something went wrong..."),
+        text::title(Some("error"), "Something went wrong..."),
         description,
     ]
     .spacing(8)
@@ -345,8 +337,8 @@ fn test_failed(reason: &str) -> Element<'_, JellyfinOnboardMsg> {
 
 fn test_success() -> Element<'static, JellyfinOnboardMsg> {
     column![
-        title::title(Some("check_circle"), "Success!"),
-        container(info_message(
+        text::title(Some("check_circle"), "Success!"),
+        container(text::paragraph(
             "You're logged in, now we can setup your library."
         ))
         .padding(padding::horizontal(2)),

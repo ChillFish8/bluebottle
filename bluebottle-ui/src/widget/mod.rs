@@ -13,4 +13,4 @@ pub mod search;
 pub mod separator;
 pub mod skeleton;
 pub mod spinner;
-pub mod title;
+pub mod text;

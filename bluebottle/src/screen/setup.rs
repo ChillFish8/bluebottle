@@ -1,5 +1,5 @@
-use bluebottle_ui::{bar, font, title};
-use iced::widget::{column, container, row, space, text};
+use bluebottle_ui::{bar, text};
+use iced::widget::{column, container, row, space};
 use iced::{Center, Element, Length, padding, task};
 
 use crate::components::jellyfin_onboard::{JellyfinOnboard, JellyfinOnboardMsg};
@@ -44,8 +44,10 @@ impl SetupScreen {
         use view::View;
 
         let message = column![
-            title::title(Some("waving_hand"), "Welcome to Bluebottle"),
-            add_library_message(),
+            text::title(Some("waving_hand"), "Welcome to Bluebottle"),
+            text::subheading(
+                "It looks like you haven't got any media libraries. Let's add one!"
+            ),
         ]
         .spacing(8)
         .padding(padding::horizontal(8));
@@ -58,11 +60,4 @@ impl SetupScreen {
         .spacing(16)
         .into()
     }
-}
-
-fn add_library_message() -> Element<'static, SetupMsg> {
-    text("It looks like you haven't got any media libraries. Let's add one!")
-        .font(font::regular())
-        .size(18)
-        .into()
 }
