@@ -1,6 +1,7 @@
-use bluebottle_ui::{bar, color, font};
-use iced::widget::column;
-use iced::{Element, Settings, task};
+use bluebottle_ui::{bar, button, color, font};
+use iced::advanced::graphics::text::cosmic_text::Align;
+use iced::widget::{column, row, space};
+use iced::{Center, Element, Settings, task};
 use snafu::ResultExt;
 
 use crate::navigator;
@@ -39,12 +40,14 @@ struct Bluebottle {
     loading_screen: loading::LoadingScreen,
 }
 
+#[derive(Clone)]
 enum GlobalMessage {
     LibraryView(library_view::LibraryViewMsg),
     Loading(loading::LoadingMsg),
     Setup(setup::SetupMsg),
     LibrarySelect(library_select::LibrarySelectMsg),
     Settings(settings::SettingsMsg),
+    Null,
 }
 
 impl Bluebottle {
@@ -78,11 +81,16 @@ impl Bluebottle {
                 .settings_screen
                 .update(msg)
                 .map(GlobalMessage::Settings),
+            GlobalMessage::Null => task::Task::none(),
         }
     }
 
     fn view(&self) -> Element<'_, GlobalMessage> {
-        column![self.render_topbar(), self.render_screen(),].into()
+        column![
+            self.render_topbar(),
+            row![self.render_sidebar(), self.render_screen()],
+        ]
+        .into()
     }
 
     fn render_topbar(&self) -> Element<'_, GlobalMessage> {
@@ -116,6 +124,34 @@ impl Bluebottle {
         }
     }
 
+    fn render_sidebar(&self) -> Element<'_, GlobalMessage> {
+        if self.should_hide_sidebar() {
+            return space().into();
+        }
+
+        let upper = column![
+            button::nav("Home", "home", false, GlobalMessage::Null,),
+            button::nav("Search", "search", false, GlobalMessage::Null,),
+            button::nav("Favorites", "favorite", false, GlobalMessage::Null,),
+            button::nav("Anime", "draw", false, GlobalMessage::Null),
+            button::nav("TV Shows", "tv", false, GlobalMessage::Null),
+            button::nav("Movies", "movie", false, GlobalMessage::Null),
+            button::nav("Anime Movies", "movie", false, GlobalMessage::Null,),
+            button::nav("Music", "library_music", false, GlobalMessage::Null,),
+        ]
+        .spacing(4)
+        .align_x(Center);
+
+        let lower = column![
+            button::nav("Library", "apps", false, GlobalMessage::Null,),
+            button::nav("Settings", "settings", true, GlobalMessage::Null,),
+        ]
+        .spacing(4)
+        .align_x(Center);
+
+        bar::side(upper, lower)
+    }
+
     fn render_screen(&self) -> Element<'_, GlobalMessage> {
         match navigator::active() {
             ActiveScreen::LibraryView => self
@@ -133,6 +169,18 @@ impl Bluebottle {
             ActiveScreen::Settings => {
                 self.settings_screen.view().map(GlobalMessage::Settings)
             },
+        }
+    }
+
+    fn should_hide_sidebar(&self) -> bool {
+        match navigator::active() {
+            ActiveScreen::LibraryView => library_view::LibraryViewScreen::HIDE_SIDEBAR,
+            ActiveScreen::Loading => loading::LoadingScreen::HIDE_SIDEBAR,
+            ActiveScreen::Setup => setup::SetupScreen::HIDE_SIDEBAR,
+            ActiveScreen::LibrarySelect => {
+                library_select::LibrarySelectScreen::HIDE_SIDEBAR
+            },
+            ActiveScreen::Settings => settings::SettingsScreen::HIDE_SIDEBAR,
         }
     }
 }

@@ -42,27 +42,24 @@ where
         }
     }
 
+    fn label_text(label: &str) -> Text<'_> {
+        text(label)
+            .size(12)
+            .align_x(Center)
+            .style(text_forced_default)
+    }
+
     let message = (!selected).then_some(message);
 
-    let base_button = button(
-        column![
-            nav_icon(false),
-            text(label).size(12).style(text_forced_default)
-        ]
-        .align_x(Center),
-    )
-    .style(style)
-    .on_press_maybe(message.clone());
+    let base_button =
+        button(column![nav_icon(false), label_text(label),].align_x(Center))
+            .style(style)
+            .on_press_maybe(message.clone());
 
-    let hovered_button = button(
-        column![
-            nav_icon(true),
-            text(label).size(12).style(text_forced_default)
-        ]
-        .align_x(Center),
-    )
-    .style(style)
-    .on_press_maybe(message);
+    let hovered_button =
+        button(column![nav_icon(true), label_text(label),].align_x(Center))
+            .style(style)
+            .on_press_maybe(message);
 
     if selected {
         hovered_button.into()

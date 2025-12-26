@@ -7,6 +7,7 @@ use crate::view;
 #[derive(Default)]
 pub struct LibraryViewScreen {}
 
+#[derive(Clone)]
 pub enum LibraryViewMsg {}
 
 impl super::Screen<LibraryViewMsg> for LibraryViewScreen {

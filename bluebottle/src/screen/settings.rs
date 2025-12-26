@@ -5,6 +5,7 @@ use crate::view;
 #[derive(Default)]
 pub struct SettingsScreen {}
 
+#[derive(Clone)]
 pub enum SettingsMsg {}
 
 impl super::Screen<SettingsMsg> for SettingsScreen {

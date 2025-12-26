@@ -10,11 +10,14 @@ pub struct SetupScreen {
     jellyfin_onboard: JellyfinOnboard,
 }
 
+#[derive(Clone)]
 pub enum SetupMsg {
     JellyfinOnboard(JellyfinOnboardMsg),
 }
 
 impl super::Screen<SetupMsg> for SetupScreen {
+    const HIDE_SIDEBAR: bool = true;
+
     fn nav_descriptor(&self) -> &str {
         "Setup"
     }

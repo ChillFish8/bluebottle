@@ -39,6 +39,7 @@ where
     Message: 'a,
 {
     column![top.into(), space().height(Length::Fill), bottom.into()]
+        .width(96)
         .align_x(Center)
         .padding(padding::Padding::default().horizontal(4).vertical(8))
         .into()
