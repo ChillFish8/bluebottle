@@ -1,6 +1,6 @@
 use bluebottle_ui::{bar, button, color, font};
 use iced::widget::{column, row, space};
-use iced::{Center, Element, Settings, task};
+use iced::{Center, Element, Program, Settings, task};
 use snafu::ResultExt;
 
 use crate::navigator;
@@ -25,6 +25,7 @@ pub fn run_app() -> Result<(), snafu::Whatever> {
         .title("Bluebottle")
         .theme(color::theme())
         .settings(settings)
+        .scale_factor(|state| state.settings_screen.scale_factor())
         .run()
         .whatever_context("run Bluebottle main app")?;
 

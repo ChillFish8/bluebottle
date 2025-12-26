@@ -24,7 +24,7 @@ where
         space().width(Length::Fill),
         active_library
     ]
-    .height(32)
+    .height(40)
     .padding(padding::Padding::default().vertical(4).horizontal(8))
     .align_y(Center)
     .into()

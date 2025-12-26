@@ -1,10 +1,14 @@
+use iced::widget::text::IntoFragment;
 use iced::widget::{Button, button, container, row, text};
 use iced::{Background, Border, Center, Element, Padding, Theme};
 
 use crate::{color, font, icon};
 
 /// Create a new regular pill which can act as a button.
-pub fn small<'a, Message>(label: &'a str, icon: Option<&'a str>) -> Button<'a, Message>
+pub fn small<'a, Message>(
+    label: impl IntoFragment<'a>,
+    icon: Option<&'a str>,
+) -> Button<'a, Message>
 where
     Message: 'a,
 {
@@ -14,7 +18,10 @@ where
 }
 
 /// Create a new regular pill which can act as a button.
-pub fn regular<'a, Message>(label: &'a str, icon: Option<&'a str>) -> Button<'a, Message>
+pub fn regular<'a, Message>(
+    label: impl IntoFragment<'a>,
+    icon: Option<&'a str>,
+) -> Button<'a, Message>
 where
     Message: 'a,
 {

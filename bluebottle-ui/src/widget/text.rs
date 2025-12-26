@@ -16,7 +16,7 @@ where
 
     if let Some(icon) = icon {
         let icon = icon::filled(icon);
-        row![icon, title].spacing(4).align_y(Center).into()
+        row![icon, title].spacing(8).align_y(Center).into()
     } else {
         title.into()
     }
