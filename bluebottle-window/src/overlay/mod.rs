@@ -1,3 +1,5 @@
+pub(crate) mod input;
+
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
@@ -5,7 +7,17 @@ use iced::Program;
 use iced_graphics::compositor::{self, Compositor};
 use iced_graphics::{Settings, Shell, Viewport};
 use iced_program::Instance;
-use iced_runtime::core::{Color, Size, mouse, renderer, theme, window};
+use iced_runtime::core::{
+    Color,
+    Event,
+    Point,
+    Size,
+    clipboard,
+    mouse,
+    renderer,
+    theme,
+    window,
+};
 use iced_runtime::user_interface::{Cache, UserInterface};
 use raw_window_handle::{
     DisplayHandle,
@@ -35,7 +47,13 @@ pub(crate) trait Overlay {
     /// Resize the surface and viewport to `width`x`height` physical pixels.
     fn resize(&mut self, width: u32, height: u32, scale: f64);
 
-    /// Render the current Iced UI into the overlay surface.
+    /// Queue an input event to be processed on the next [`Overlay::draw`].
+    fn queue_event(&mut self, event: Event);
+
+    /// Update the cursor position (in logical coordinates), or clear it.
+    fn set_cursor(&mut self, position: Option<Point>);
+
+    /// Process queued events and render the current Iced UI into the surface.
     fn draw(&mut self);
 }
 
@@ -80,6 +98,8 @@ pub(crate) struct IcedOverlay<P: Program> {
     width: u32,
     height: u32,
     scale: f64,
+    events: Vec<Event>,
+    cursor: mouse::Cursor,
 }
 
 impl<P: Program> IcedOverlay<P> {
@@ -127,6 +147,8 @@ impl<P: Program> IcedOverlay<P> {
             width,
             height,
             scale,
+            events: Vec::new(),
+            cursor: mouse::Cursor::Unavailable,
         })
     }
 }
@@ -149,26 +171,63 @@ impl<P: Program> Overlay for IcedOverlay<P> {
         );
     }
 
+    fn queue_event(&mut self, event: Event) {
+        self.events.push(event);
+    }
+
+    fn set_cursor(&mut self, position: Option<Point>) {
+        self.cursor = match position {
+            Some(position) => mouse::Cursor::Available(position),
+            None => mouse::Cursor::Unavailable,
+        };
+    }
+
     fn draw(&mut self) {
+        let bounds = self.viewport.logical_size();
+        let mut cache = self.cache.take().unwrap_or_default();
+
+        // Process queued input events; apply any resulting messages to the
+        // program state. TODO(phase 5): drive the returned `Task`s through the
+        // Iced runtime instead of dropping them.
+        let events = std::mem::take(&mut self.events);
+        if !events.is_empty() {
+            let mut messages = Vec::new();
+            let mut clipboard = clipboard::Null;
+            let mut ui = UserInterface::build(
+                self.instance.view(self.window_id),
+                bounds,
+                cache,
+                &mut self.renderer,
+            );
+            let _ = ui.update(
+                &events,
+                self.cursor,
+                &mut self.renderer,
+                &mut clipboard,
+                &mut messages,
+            );
+            cache = ui.into_cache();
+
+            for message in messages {
+                let _task = self.instance.update(message);
+            }
+        }
+
         let theme = self.instance.theme(self.window_id);
         let theme = theme.as_ref().unwrap_or(&self.default_theme);
         let text_color = self.instance.style(theme).text_color;
 
-        let cache = self.cache.take().unwrap_or_default();
-        let view = self.instance.view(self.window_id);
         let mut ui = UserInterface::build(
-            view,
-            self.viewport.logical_size(),
+            self.instance.view(self.window_id),
+            bounds,
             cache,
             &mut self.renderer,
         );
-
-        // TODO(phase 4): feed queued input events through `ui.update` here.
         ui.draw(
             &mut self.renderer,
             theme,
             &renderer::Style { text_color },
-            mouse::Cursor::Unavailable,
+            self.cursor,
         );
 
         self.cache = Some(ui.into_cache());

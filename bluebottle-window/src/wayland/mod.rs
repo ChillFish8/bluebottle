@@ -15,6 +15,7 @@ use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::reexports::client::globals::registry_queue_init;
 use smithay_client_toolkit::reexports::client::{Connection, Proxy};
 use smithay_client_toolkit::registry::RegistryState;
+use smithay_client_toolkit::seat::SeatState;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgShell;
 use smithay_client_toolkit::shell::xdg::window::WindowDecorations;
@@ -96,6 +97,7 @@ where
         event_loop
             .dispatch(DISPATCH_TIMEOUT, &mut state)
             .context(EventLoopSnafu)?;
+        state.redraw_if_needed();
     }
 
     Ok(())
@@ -183,6 +185,7 @@ where
     let state = State {
         registry_state: RegistryState::new(&globals),
         output_state: OutputState::new(&globals, &qh),
+        seat_state: SeatState::new(&globals, &qh),
         shm,
         pool,
         window,
@@ -195,6 +198,10 @@ where
         scale: 1,
         configured: false,
         exit: false,
+        needs_redraw: false,
+        pointer: None,
+        keyboard: None,
+        modifiers: iced::keyboard::Modifiers::empty(),
         shared,
         init_tx: Some(tx),
     };

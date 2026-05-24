@@ -1,16 +1,32 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc};
 
+use iced_runtime::core::{Event, Point, keyboard, mouse};
 use smithay_client_toolkit::compositor::CompositorHandler;
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::reexports::client::protocol::{
+    wl_keyboard,
     wl_output,
+    wl_pointer,
+    wl_seat,
     wl_shm,
     wl_subsurface,
     wl_surface,
 };
 use smithay_client_toolkit::reexports::client::{Connection, QueueHandle};
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
+use smithay_client_toolkit::seat::keyboard::{
+    KeyEvent,
+    KeyboardHandler,
+    Modifiers as SctkModifiers,
+    RawModifiers,
+};
+use smithay_client_toolkit::seat::pointer::{
+    PointerEvent,
+    PointerEventKind,
+    PointerHandler,
+};
+use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
 use smithay_client_toolkit::shell::xdg::window::{
     Window,
     WindowConfigure,
@@ -20,8 +36,11 @@ use smithay_client_toolkit::shm::slot::SlotPool;
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use smithay_client_toolkit::{
     delegate_compositor,
+    delegate_keyboard,
     delegate_output,
+    delegate_pointer,
     delegate_registry,
+    delegate_seat,
     delegate_shm,
     delegate_subcompositor,
     delegate_xdg_shell,
@@ -32,7 +51,7 @@ use snafu::ResultExt;
 
 use crate::error::{BufferSnafu, Error};
 use crate::handle::Shared;
-use crate::overlay::Overlay;
+use crate::overlay::{Overlay, input};
 
 /// The opaque fill used for the main surface as a stand-in for caller content.
 ///
@@ -44,6 +63,7 @@ const MAIN_FILL: [u8; 4] = [0x20, 0x20, 0x20, 0xFF];
 pub(crate) struct State {
     pub registry_state: RegistryState,
     pub output_state: OutputState,
+    pub seat_state: SeatState,
     pub shm: Shm,
 
     pub pool: SlotPool,
@@ -64,6 +84,11 @@ pub(crate) struct State {
 
     pub configured: bool,
     pub exit: bool,
+    pub needs_redraw: bool,
+
+    pub pointer: Option<wl_pointer::WlPointer>,
+    pub keyboard: Option<wl_keyboard::WlKeyboard>,
+    pub modifiers: keyboard::Modifiers,
 
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
@@ -261,7 +286,7 @@ impl ProvidesRegistryState for State {
         &mut self.registry_state
     }
 
-    registry_handlers![OutputState];
+    registry_handlers![OutputState, SeatState];
 }
 
 impl State {
@@ -269,11 +294,254 @@ impl State {
     pub fn should_exit(&self) -> bool {
         self.exit || self.shared.close_requested.load(Ordering::Acquire)
     }
+
+    /// Re-render the overlay if input or animation has marked it dirty.
+    ///
+    /// Only the overlay surface is redrawn; the main surface is owned by the
+    /// caller and is left untouched here.
+    pub fn redraw_if_needed(&mut self) {
+        if std::mem::take(&mut self.needs_redraw) {
+            self.overlay.draw();
+        }
+    }
+}
+
+impl SeatHandler for State {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+    ) {
+    }
+
+    fn new_capability(
+        &mut self,
+        _conn: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        match capability {
+            Capability::Pointer if self.pointer.is_none() => {
+                if let Ok(pointer) = self.seat_state.get_pointer(qh, &seat) {
+                    self.pointer = Some(pointer);
+                }
+            },
+            Capability::Keyboard if self.keyboard.is_none() => {
+                match self
+                    .seat_state
+                    .get_keyboard::<State, State>(qh, &seat, None)
+                {
+                    Ok(keyboard) => self.keyboard = Some(keyboard),
+                    Err(err) => tracing::warn!("failed to get keyboard: {err}"),
+                }
+            },
+            _ => {},
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        match capability {
+            Capability::Pointer => {
+                if let Some(pointer) = self.pointer.take() {
+                    pointer.release();
+                }
+            },
+            Capability::Keyboard => {
+                if let Some(keyboard) = self.keyboard.take() {
+                    keyboard.release();
+                }
+            },
+            _ => {},
+        }
+    }
+
+    fn remove_seat(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _seat: wl_seat::WlSeat,
+    ) {
+    }
+}
+
+impl PointerHandler for State {
+    fn pointer_frame(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _pointer: &wl_pointer::WlPointer,
+        events: &[PointerEvent],
+    ) {
+        for event in events {
+            let position = Point::new(event.position.0 as f32, event.position.1 as f32);
+
+            match &event.kind {
+                PointerEventKind::Enter { .. } => {
+                    self.overlay.set_cursor(Some(position));
+                    self.overlay
+                        .queue_event(Event::Mouse(mouse::Event::CursorEntered));
+                    self.overlay
+                        .queue_event(Event::Mouse(mouse::Event::CursorMoved {
+                            position,
+                        }));
+                },
+                PointerEventKind::Leave { .. } => {
+                    self.overlay.set_cursor(None);
+                    self.overlay
+                        .queue_event(Event::Mouse(mouse::Event::CursorLeft));
+                },
+                PointerEventKind::Motion { .. } => {
+                    self.overlay.set_cursor(Some(position));
+                    self.overlay
+                        .queue_event(Event::Mouse(mouse::Event::CursorMoved {
+                            position,
+                        }));
+                },
+                PointerEventKind::Press { button, .. } => {
+                    self.overlay
+                        .queue_event(Event::Mouse(mouse::Event::ButtonPressed(
+                            input::mouse_button(*button),
+                        )));
+                },
+                PointerEventKind::Release { button, .. } => {
+                    self.overlay.queue_event(Event::Mouse(
+                        mouse::Event::ButtonReleased(input::mouse_button(*button)),
+                    ));
+                },
+                PointerEventKind::Axis {
+                    horizontal,
+                    vertical,
+                    ..
+                } => {
+                    let delta = mouse::ScrollDelta::Pixels {
+                        x: -horizontal.absolute as f32,
+                        y: -vertical.absolute as f32,
+                    };
+                    self.overlay.queue_event(Event::Mouse(
+                        mouse::Event::WheelScrolled { delta },
+                    ));
+                },
+            }
+
+            self.needs_redraw = true;
+        }
+    }
+}
+
+impl KeyboardHandler for State {
+    fn enter(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _surface: &wl_surface::WlSurface,
+        _serial: u32,
+        _raw: &[u32],
+        _keysyms: &[smithay_client_toolkit::seat::keyboard::Keysym],
+    ) {
+    }
+
+    fn leave(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _surface: &wl_surface::WlSurface,
+        _serial: u32,
+    ) {
+    }
+
+    fn press_key(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: KeyEvent,
+    ) {
+        self.overlay.queue_event(Event::Keyboard(input::key_event(
+            event.keysym,
+            event.utf8,
+            self.modifiers,
+            true,
+            false,
+        )));
+        self.needs_redraw = true;
+    }
+
+    fn repeat_key(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: KeyEvent,
+    ) {
+        self.overlay.queue_event(Event::Keyboard(input::key_event(
+            event.keysym,
+            event.utf8,
+            self.modifiers,
+            true,
+            true,
+        )));
+        self.needs_redraw = true;
+    }
+
+    fn release_key(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        event: KeyEvent,
+    ) {
+        self.overlay.queue_event(Event::Keyboard(input::key_event(
+            event.keysym,
+            event.utf8,
+            self.modifiers,
+            false,
+            false,
+        )));
+        self.needs_redraw = true;
+    }
+
+    fn update_modifiers(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _keyboard: &wl_keyboard::WlKeyboard,
+        _serial: u32,
+        modifiers: SctkModifiers,
+        _raw_modifiers: RawModifiers,
+        _layout: u32,
+    ) {
+        self.modifiers = input::modifiers(modifiers);
+        self.overlay
+            .queue_event(Event::Keyboard(keyboard::Event::ModifiersChanged(
+                self.modifiers,
+            )));
+        self.needs_redraw = true;
+    }
 }
 
 delegate_compositor!(State);
 delegate_subcompositor!(State);
 delegate_output!(State);
+delegate_seat!(State);
+delegate_pointer!(State);
+delegate_keyboard!(State);
 delegate_shm!(State);
 delegate_xdg_shell!(State);
 delegate_xdg_window!(State);
