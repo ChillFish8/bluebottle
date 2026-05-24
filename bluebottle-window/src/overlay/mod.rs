@@ -4,9 +4,12 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use iced::Program;
+use iced_futures::futures::channel::mpsc;
+use iced_futures::{Executor as _, Runtime, subscription};
 use iced_graphics::compositor::{self, Compositor};
 use iced_graphics::{Settings, Shell, Viewport};
 use iced_program::Instance;
+use iced_runtime::core::time::Instant;
 use iced_runtime::core::{
     Color,
     Event,
@@ -18,7 +21,8 @@ use iced_runtime::core::{
     theme,
     window,
 };
-use iced_runtime::user_interface::{Cache, UserInterface};
+use iced_runtime::user_interface::{self, Cache, UserInterface};
+use iced_runtime::{Action, task};
 use raw_window_handle::{
     DisplayHandle,
     HandleError,
@@ -39,6 +43,13 @@ type CompositorOf<P> = <<P as Program>::Renderer as compositor::Default>::Compos
 /// The surface type produced by that compositor.
 type SurfaceOf<P> = <CompositorOf<P> as Compositor>::Surface;
 
+/// The runtime action type produced by a program's messages.
+type ActionOf<P> = Action<<P as Program>::Message>;
+
+/// The Iced runtime specialised for a program, sending actions over an mpsc channel.
+type RuntimeOf<P> =
+    Runtime<<P as Program>::Executor, mpsc::UnboundedSender<ActionOf<P>>, ActionOf<P>>;
+
 /// A renderable overlay decoupled from the concrete program type.
 ///
 /// [`crate::wayland`] holds this as a trait object so its `State` can stay
@@ -52,6 +63,16 @@ pub(crate) trait Overlay {
 
     /// Update the cursor position (in logical coordinates), or clear it.
     fn set_cursor(&mut self, position: Option<Point>);
+
+    /// Drain async runtime actions (task/subscription output), applying any
+    /// produced messages. Returns whether a redraw is needed as a result.
+    fn pump(&mut self) -> bool;
+
+    /// Whether the UI has an outstanding animation redraw request that is due.
+    fn wants_redraw(&self) -> bool;
+
+    /// Whether the program has requested the runtime to exit.
+    fn should_exit(&self) -> bool;
 
     /// Process queued events and render the current Iced UI into the surface.
     fn draw(&mut self);
@@ -100,6 +121,10 @@ pub(crate) struct IcedOverlay<P: Program> {
     scale: f64,
     events: Vec<Event>,
     cursor: mouse::Cursor,
+    runtime: RuntimeOf<P>,
+    receiver: mpsc::UnboundedReceiver<ActionOf<P>>,
+    redraw_request: window::RedrawRequest,
+    exit: bool,
 }
 
 impl<P: Program> IcedOverlay<P> {
@@ -127,15 +152,22 @@ impl<P: Program> IcedOverlay<P> {
         let renderer = compositor.create_renderer();
         let surface = compositor.create_surface(raw, width.max(1), height.max(1));
 
-        let (instance, _boot_task) = Instance::new(program);
+        let executor =
+            P::Executor::new().map_err(|source| Error::Executor { source })?;
+        let (sender, receiver) = mpsc::unbounded();
+        let mut runtime = RuntimeOf::<P>::new(executor, sender);
+
+        let (instance, boot_task) = Instance::new(program);
         let window_id = window::Id::unique();
         let default_theme = <P::Theme as theme::Base>::default(theme::Mode::default());
         let viewport =
             Viewport::with_physical_size(Size::new(width, height), scale as f32);
 
-        // TODO(phase 5): drive `_boot_task` through the Iced runtime.
+        if let Some(stream) = task::into_stream(boot_task) {
+            runtime.run(stream);
+        }
 
-        Ok(Self {
+        let mut overlay = Self {
             instance,
             window_id,
             compositor,
@@ -149,7 +181,33 @@ impl<P: Program> IcedOverlay<P> {
             scale,
             events: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
-        })
+            runtime,
+            receiver,
+            redraw_request: window::RedrawRequest::Wait,
+            exit: false,
+        };
+
+        overlay.sync_subscriptions();
+        Ok(overlay)
+    }
+
+    /// Apply a message to the program state, running any resulting [`Task`].
+    ///
+    /// [`Task`]: iced_runtime::Task
+    fn apply_message(&mut self, message: P::Message) {
+        let task = self.instance.update(message);
+        if let Some(stream) = task::into_stream(task) {
+            self.runtime.run(stream);
+        }
+    }
+
+    /// Recompute the program's [`Subscription`] and reconcile it in the runtime.
+    ///
+    /// [`Subscription`]: iced_futures::Subscription
+    fn sync_subscriptions(&mut self) {
+        let subscription = self.runtime.enter(|| self.instance.subscription());
+        self.runtime
+            .track(subscription::into_recipes(subscription.map(Action::Output)));
     }
 }
 
@@ -182,16 +240,50 @@ impl<P: Program> Overlay for IcedOverlay<P> {
         };
     }
 
+    fn pump(&mut self) -> bool {
+        let mut applied = false;
+
+        while let Ok(Some(action)) = self.receiver.try_next() {
+            match action {
+                Action::Output(message) => {
+                    self.apply_message(message);
+                    applied = true;
+                },
+                Action::Exit => self.exit = true,
+                // Clipboard, widget operations, window/system actions, etc. are
+                // not yet supported for an overlay; ignore them for now.
+                _ => {},
+            }
+        }
+
+        if applied {
+            self.sync_subscriptions();
+        }
+
+        applied
+    }
+
+    fn wants_redraw(&self) -> bool {
+        match self.redraw_request {
+            window::RedrawRequest::NextFrame => true,
+            window::RedrawRequest::At(instant) => Instant::now() >= instant,
+            window::RedrawRequest::Wait => false,
+        }
+    }
+
+    fn should_exit(&self) -> bool {
+        self.exit
+    }
+
     fn draw(&mut self) {
         let bounds = self.viewport.logical_size();
         let mut cache = self.cache.take().unwrap_or_default();
 
-        // Process queued input events; apply any resulting messages to the
-        // program state. TODO(phase 5): drive the returned `Task`s through the
-        // Iced runtime instead of dropping them.
+        // Run the update pass (even with no input events) so animation redraw
+        // requests are refreshed, then apply any produced messages.
         let events = std::mem::take(&mut self.events);
-        if !events.is_empty() {
-            let mut messages = Vec::new();
+        let mut messages = Vec::new();
+        {
             let mut clipboard = clipboard::Null;
             let mut ui = UserInterface::build(
                 self.instance.view(self.window_id),
@@ -199,18 +291,26 @@ impl<P: Program> Overlay for IcedOverlay<P> {
                 cache,
                 &mut self.renderer,
             );
-            let _ = ui.update(
+            let (state, _statuses) = ui.update(
                 &events,
                 self.cursor,
                 &mut self.renderer,
                 &mut clipboard,
                 &mut messages,
             );
+            self.redraw_request = match state {
+                user_interface::State::Updated { redraw_request, .. } => redraw_request,
+                user_interface::State::Outdated => window::RedrawRequest::NextFrame,
+            };
             cache = ui.into_cache();
+        }
 
-            for message in messages {
-                let _task = self.instance.update(message);
-            }
+        let applied = !messages.is_empty();
+        for message in messages {
+            self.apply_message(message);
+        }
+        if applied {
+            self.sync_subscriptions();
         }
 
         let theme = self.instance.theme(self.window_id);

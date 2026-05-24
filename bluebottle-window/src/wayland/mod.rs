@@ -97,7 +97,7 @@ where
         event_loop
             .dispatch(DISPATCH_TIMEOUT, &mut state)
             .context(EventLoopSnafu)?;
-        state.redraw_if_needed();
+        state.tick();
     }
 
     Ok(())

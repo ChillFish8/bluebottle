@@ -295,12 +295,22 @@ impl State {
         self.exit || self.shared.close_requested.load(Ordering::Acquire)
     }
 
-    /// Re-render the overlay if input or animation has marked it dirty.
+    /// Advance the overlay once per event-loop turn.
     ///
-    /// Only the overlay surface is redrawn; the main surface is owned by the
-    /// caller and is left untouched here.
-    pub fn redraw_if_needed(&mut self) {
-        if std::mem::take(&mut self.needs_redraw) {
+    /// Drains async runtime output, honours a program-requested exit, and
+    /// redraws the overlay if input, async messages, or a pending animation
+    /// frame requires it. The main surface is owned by the caller and is left
+    /// untouched here.
+    pub fn tick(&mut self) {
+        let async_dirty = self.overlay.pump();
+
+        if self.overlay.should_exit() {
+            self.exit = true;
+            return;
+        }
+
+        let had_input = std::mem::take(&mut self.needs_redraw);
+        if had_input || async_dirty || self.overlay.wants_redraw() {
             self.overlay.draw();
         }
     }

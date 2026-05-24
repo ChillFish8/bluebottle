@@ -51,4 +51,8 @@ pub enum Error {
     /// The Iced renderer/compositor could not be initialised on the surface.
     #[snafu(display("failed to initialise the Iced renderer: {message}"))]
     RendererInit { message: String },
+
+    /// The async executor backing the Iced runtime could not be created.
+    #[snafu(display("failed to create the Iced async executor"))]
+    Executor { source: std::io::Error },
 }
