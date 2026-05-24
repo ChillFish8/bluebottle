@@ -18,6 +18,7 @@ use iced_runtime::core::{
     mouse,
     renderer,
     theme,
+    widget,
     window,
 };
 use iced_runtime::user_interface::{self, Cache, UserInterface};
@@ -298,6 +299,7 @@ impl<P: Program> IcedOverlay<P> {
 
     fn pump(&mut self) -> bool {
         let mut applied = false;
+        let mut redraw = false;
 
         while let Ok(Some(action)) = self.receiver.try_next() {
             match action {
@@ -305,9 +307,18 @@ impl<P: Program> IcedOverlay<P> {
                     self.apply_message(message);
                     applied = true;
                 },
+                Action::LoadFont { bytes, channel } => {
+                    self.compositor.load_font(bytes);
+                    let _ = channel.send(Ok(()));
+                    redraw = true;
+                },
+                Action::Widget(operation) => {
+                    self.apply_operation(operation);
+                    redraw = true;
+                },
                 Action::Exit => self.exit = true,
-                // Clipboard, widget operations, window/system actions, etc. are
-                // not yet supported for an overlay; ignore them for now.
+                // Clipboard, image, window/system actions, etc. are not yet
+                // supported for an overlay; ignore them for now.
                 _ => {},
             }
         }
@@ -316,7 +327,38 @@ impl<P: Program> IcedOverlay<P> {
             self.sync_subscriptions();
         }
 
-        applied
+        applied || redraw
+    }
+
+    /// Apply a widget [`Operation`] (focus, scroll-to, queries, ...) to the UI.
+    ///
+    /// Operations run against a freshly built interface so they see current
+    /// widget state, and the resulting cache is kept for the next draw so focus
+    /// and similar state persist. Chained operations are followed to completion.
+    ///
+    /// [`Operation`]: widget::Operation
+    fn apply_operation(&mut self, operation: Box<dyn widget::Operation>) {
+        let bounds = self.viewport.logical_size();
+        let mut cache = self.cache.take().unwrap_or_default();
+        let mut current = Some(operation);
+
+        while let Some(mut operation) = current.take() {
+            let mut ui = UserInterface::build(
+                self.instance.view(self.window_id),
+                bounds,
+                cache,
+                &mut self.renderer,
+            );
+            ui.operate(&self.renderer, operation.as_mut());
+            cache = ui.into_cache();
+
+            current = match operation.finish() {
+                widget::operation::Outcome::Chain(next) => Some(next),
+                _ => None,
+            };
+        }
+
+        self.cache = Some(cache);
     }
 
     fn wants_redraw(&self) -> bool {
@@ -335,11 +377,16 @@ impl<P: Program> IcedOverlay<P> {
         let bounds = self.viewport.logical_size();
         let mut cache = self.cache.take().unwrap_or_default();
 
-        // Run the update pass (even with no input events) so animation redraw
-        // requests are refreshed, then apply any produced messages.
-        let events = std::mem::take(&mut self.events);
+        // A redraw-request event is delivered every frame (matching iced_winit)
+        // so time-based animations and the `window::frames()` subscription keep
+        // advancing without input; queued input events follow it. Running the
+        // update pass also refreshes the animation redraw request.
+        let redraw_event = Event::Window(window::Event::RedrawRequested(Instant::now()));
+        let mut events = vec![redraw_event];
+        events.append(&mut self.events);
+
         let mut messages = Vec::new();
-        {
+        let statuses = {
             let mut clipboard = clipboard::Null;
             let mut ui = UserInterface::build(
                 self.instance.view(self.window_id),
@@ -347,7 +394,7 @@ impl<P: Program> IcedOverlay<P> {
                 cache,
                 &mut self.renderer,
             );
-            let (state, _statuses) = ui.update(
+            let (state, statuses) = ui.update(
                 &events,
                 self.cursor,
                 &mut self.renderer,
@@ -359,6 +406,17 @@ impl<P: Program> IcedOverlay<P> {
                 user_interface::State::Outdated => window::RedrawRequest::NextFrame,
             };
             cache = ui.into_cache();
+            statuses
+        };
+
+        // Forward every processed event (the redraw tick plus inputs) to the
+        // runtime so event-listening and redraw-driven subscriptions fire.
+        for (event, status) in events.into_iter().zip(statuses) {
+            self.runtime.broadcast(subscription::Event::Interaction {
+                window: self.window_id,
+                event,
+                status,
+            });
         }
 
         let applied = !messages.is_empty();

@@ -11,7 +11,7 @@
 
 use std::time::{Duration, Instant};
 
-use iced::widget::{button, column, text};
+use iced::widget::{button, column, text, text_input};
 
 /// How long the demo runs before closing itself.
 const RUN_FOR: Duration = Duration::from_secs(30);
@@ -21,10 +21,14 @@ fn clamp_dimension(value: u32) -> u32 {
     value.clamp(1, 8192)
 }
 
+/// Identifies the text input so a [`Message::FocusInput`] can target it.
+const INPUT_ID: &str = "demo-input";
+
 #[derive(Debug, Default)]
 struct App {
     count: u32,
     ticks: u32,
+    input: String,
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +36,8 @@ enum Message {
     Increment,
     Pinged,
     Tick,
+    InputChanged(String),
+    FocusInput,
 }
 
 fn update(state: &mut App, message: Message) -> iced::Task<Message> {
@@ -45,6 +51,9 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
         },
         Message::Pinged => tracing::info!("async ping completed"),
         Message::Tick => state.ticks += 1,
+        Message::InputChanged(value) => state.input = value,
+        // Exercises a widget operation: focus is driven by a Task, not input.
+        Message::FocusInput => return iced::widget::operation::focus(INPUT_ID),
     }
     iced::Task::none()
 }
@@ -54,6 +63,10 @@ fn view(state: &App) -> iced::Element<'_, Message> {
         text(format!("count: {}", state.count)).size(32),
         text(format!("ticks: {}", state.ticks)).size(20),
         button("increment").on_press(Message::Increment),
+        text_input("type here…", &state.input)
+            .id(INPUT_ID)
+            .on_input(Message::InputChanged),
+        button("focus input").on_press(Message::FocusInput),
     ]
     .spacing(16)
     .padding(24)
