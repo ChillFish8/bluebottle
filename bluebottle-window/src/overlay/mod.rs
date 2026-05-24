@@ -2,6 +2,9 @@ pub(crate) mod input;
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, mpsc as sync_chan};
+use std::time::Duration;
 
 use iced::Program;
 use iced_futures::futures::channel::mpsc;
@@ -36,6 +39,109 @@ use raw_window_handle::{
 };
 
 use crate::error::Error;
+use crate::handle::Shared;
+
+/// How long the render thread waits for a command before re-checking for async
+/// runtime output and pending animation frames.
+const REDRAW_INTERVAL: Duration = Duration::from_millis(16);
+
+/// A message from the Wayland event loop to the overlay render thread.
+pub(crate) enum Command {
+    /// An input event to feed to the Iced UI.
+    Event(Event),
+    /// The cursor moved to a logical position, or left the surface (`None`).
+    Cursor(Option<Point>),
+    /// The window's logical size and/or integer scale changed.
+    Resize { width: u32, height: u32, scale: f64 },
+}
+
+/// Build the overlay on this (render) thread and drive it until close.
+///
+/// The Iced program and wgpu renderer are not `Send`, so they are built here
+/// rather than moved across threads; only the `build` closure crosses the
+/// boundary. The build result is reported through `ready` so the spawning
+/// thread can fail fast. Running the renderer on its own thread lets it block
+/// on surface presentation without stalling the Wayland event loop (which must
+/// keep dispatching for the caller to map the main surface).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run<P, F>(
+    build: F,
+    display: NonNull<c_void>,
+    surface: NonNull<c_void>,
+    size: (u32, u32),
+    scale: f64,
+    commands: sync_chan::Receiver<Command>,
+    shared: Arc<Shared>,
+    ready: sync_chan::Sender<Result<(), Error>>,
+) where
+    F: FnOnce() -> P,
+    P: Program,
+{
+    let overlay =
+        match IcedOverlay::new(build(), display, surface, size.0, size.1, scale) {
+            Ok(overlay) => {
+                let _ = ready.send(Ok(()));
+                overlay
+            },
+            Err(error) => {
+                let _ = ready.send(Err(error));
+                return;
+            },
+        };
+
+    render_loop(overlay, commands, shared);
+}
+
+/// Drive the overlay: apply commands, pump the runtime, and redraw as needed.
+fn render_loop<P: Program>(
+    mut overlay: IcedOverlay<P>,
+    commands: sync_chan::Receiver<Command>,
+    shared: Arc<Shared>,
+) {
+    while !shared.close_requested.load(Ordering::Acquire) {
+        let mut dirty = match commands.recv_timeout(REDRAW_INTERVAL) {
+            Ok(command) => apply_command(&mut overlay, command),
+            Err(sync_chan::RecvTimeoutError::Timeout) => false,
+            Err(sync_chan::RecvTimeoutError::Disconnected) => break,
+        };
+        while let Ok(command) = commands.try_recv() {
+            dirty |= apply_command(&mut overlay, command);
+        }
+
+        dirty |= overlay.pump();
+
+        if overlay.should_exit() {
+            shared.close_requested.store(true, Ordering::Release);
+            break;
+        }
+
+        if dirty || overlay.wants_redraw() {
+            overlay.draw();
+        }
+    }
+}
+
+/// Apply a single [`Command`], returning whether it requires a redraw.
+fn apply_command<P: Program>(overlay: &mut IcedOverlay<P>, command: Command) -> bool {
+    match command {
+        Command::Event(event) => {
+            overlay.queue_event(event);
+            true
+        },
+        Command::Cursor(position) => {
+            overlay.set_cursor(position);
+            false
+        },
+        Command::Resize {
+            width,
+            height,
+            scale,
+        } => {
+            overlay.resize(width, height, scale);
+            true
+        },
+    }
+}
 
 /// The compositor type associated with a program's renderer.
 type CompositorOf<P> = <<P as Program>::Renderer as compositor::Default>::Compositor;
@@ -43,11 +149,23 @@ type CompositorOf<P> = <<P as Program>::Renderer as compositor::Default>::Compos
 /// The surface type produced by that compositor.
 type SurfaceOf<P> = <CompositorOf<P> as Compositor>::Surface;
 
-/// Convert a logical size at a given scale to a physical pixel size (min 1x1).
+/// Upper bound on a surface dimension, clamped to stay within GPU texture limits.
+///
+/// iced creates the wgpu device with wgpu's default limits, whose
+/// `max_texture_dimension_2d` is 8192 regardless of the hardware maximum.
+const MAX_SURFACE_DIMENSION: u32 = 8192;
+
+/// Convert a logical size at a given scale to a physical pixel size.
+///
+/// Clamped to `[1, MAX_SURFACE_DIMENSION]` so an oversized window cannot exceed
+/// the renderer's maximum texture dimension.
 fn physical_size(logical_width: u32, logical_height: u32, scale: f64) -> (u32, u32) {
-    let width = ((logical_width as f64) * scale).round().max(1.0) as u32;
-    let height = ((logical_height as f64) * scale).round().max(1.0) as u32;
-    (width, height)
+    let to_physical = |logical: u32| {
+        ((logical as f64) * scale)
+            .round()
+            .clamp(1.0, MAX_SURFACE_DIMENSION as f64) as u32
+    };
+    (to_physical(logical_width), to_physical(logical_height))
 }
 
 /// The runtime action type produced by a program's messages.
@@ -56,37 +174,6 @@ type ActionOf<P> = Action<<P as Program>::Message>;
 /// The Iced runtime specialised for a program, sending actions over an mpsc channel.
 type RuntimeOf<P> =
     Runtime<<P as Program>::Executor, mpsc::UnboundedSender<ActionOf<P>>, ActionOf<P>>;
-
-/// A renderable overlay decoupled from the concrete program type.
-///
-/// [`crate::wayland`] holds this as a trait object so its `State` can stay
-/// non-generic while the Iced program type is erased behind the boundary.
-pub(crate) trait Overlay {
-    /// Resize to a logical `width`x`height` at the given integer `scale`.
-    ///
-    /// The backing surface and viewport are sized in physical pixels
-    /// (`logical * scale`) so the UI renders crisply on HiDPI outputs.
-    fn resize(&mut self, width: u32, height: u32, scale: f64);
-
-    /// Queue an input event to be processed on the next [`Overlay::draw`].
-    fn queue_event(&mut self, event: Event);
-
-    /// Update the cursor position (in logical coordinates), or clear it.
-    fn set_cursor(&mut self, position: Option<Point>);
-
-    /// Drain async runtime actions (task/subscription output), applying any
-    /// produced messages. Returns whether a redraw is needed as a result.
-    fn pump(&mut self) -> bool;
-
-    /// Whether the UI has an outstanding animation redraw request that is due.
-    fn wants_redraw(&self) -> bool;
-
-    /// Whether the program has requested the runtime to exit.
-    fn should_exit(&self) -> bool;
-
-    /// Process queued events and render the current Iced UI into the surface.
-    fn draw(&mut self);
-}
 
 /// Raw Wayland handles for the overlay surface, in `raw-window-handle` form.
 #[derive(Clone, Copy)]
@@ -224,7 +311,7 @@ impl<P: Program> IcedOverlay<P> {
     }
 }
 
-impl<P: Program> Overlay for IcedOverlay<P> {
+impl<P: Program> IcedOverlay<P> {
     fn resize(&mut self, logical_width: u32, logical_height: u32, scale: f64) {
         let (width, height) = physical_size(logical_width, logical_height, scale);
         if self.width == width && self.height == height && self.scale == scale {
@@ -357,6 +444,10 @@ impl<P: Program> Overlay for IcedOverlay<P> {
                     self.width.max(1),
                     self.height.max(1),
                 );
+                // The frame we tried to present was dropped; ask the loop to
+                // repaint so the overlay does not stay blank until the next
+                // input or animation frame happens to arrive.
+                self.redraw_request = window::RedrawRequest::NextFrame;
             },
             Err(err) => {
                 tracing::warn!("overlay present failed: {err}");

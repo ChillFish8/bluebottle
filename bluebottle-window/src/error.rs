@@ -1,8 +1,6 @@
 use smithay_client_toolkit::reexports::calloop;
 use smithay_client_toolkit::reexports::client::ConnectError;
 use smithay_client_toolkit::reexports::client::globals::{BindError, GlobalError};
-use smithay_client_toolkit::shm::CreatePoolError;
-use smithay_client_toolkit::shm::slot::CreateBufferError;
 use snafu::Snafu;
 
 /// An error that can occur while creating or running an overlay window.
@@ -31,14 +29,6 @@ pub enum Error {
         what: &'static str,
         source: BindError,
     },
-
-    /// The shared-memory pool backing the overlay could not be created.
-    #[snafu(display("failed to create the shared-memory pool"))]
-    Pool { source: CreatePoolError },
-
-    /// A shared-memory buffer could not be created.
-    #[snafu(display("failed to create a shared-memory buffer"))]
-    Buffer { source: CreateBufferError },
 
     /// The calloop event loop could not be created or failed while running.
     #[snafu(display("the overlay event loop failed"))]

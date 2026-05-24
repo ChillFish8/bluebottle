@@ -50,5 +50,8 @@ raw-window-handle = "0.6"
 smithay-client-toolkit = "0.20"
 pollster = "0.4"
 
+# Used by examples to render the caller-owned main surface.
+wgpu = "27"
+
 # Dev dependencies
 rstest = "0.26"

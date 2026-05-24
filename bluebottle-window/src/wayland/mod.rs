@@ -2,7 +2,7 @@ mod state;
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
@@ -19,8 +19,6 @@ use smithay_client_toolkit::seat::SeatState;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgShell;
 use smithay_client_toolkit::shell::xdg::window::WindowDecorations;
-use smithay_client_toolkit::shm::Shm;
-use smithay_client_toolkit::shm::slot::SlotPool;
 use smithay_client_toolkit::subcompositor::SubcompositorState;
 use snafu::ResultExt;
 use state::State;
@@ -30,12 +28,21 @@ use crate::error::{
     Error,
     EventLoopSnafu,
     MissingGlobalSnafu,
-    PoolSnafu,
     RegistrySnafu,
     SpawnThreadSnafu,
 };
 use crate::handle::{RawHandles, Shared, Window};
-use crate::overlay::IcedOverlay;
+use crate::overlay;
+
+/// Raw overlay-surface pointers, wrapped so they can move to the render thread.
+struct OverlayPtrs {
+    display: NonNull<c_void>,
+    surface: NonNull<c_void>,
+}
+
+// SAFETY: the pointers reference long-lived `wl_display`/`wl_surface` objects;
+// libwayland access is internally synchronised.
+unsafe impl Send for OverlayPtrs {}
 
 /// The readiness message sent from the loop thread once the main surface exists.
 type InitResult = Result<Arc<Shared>, Error>;
@@ -78,10 +85,11 @@ where
 /// The body of the background thread: drive Wayland and render the overlay.
 fn event_loop<P, F>(build: F, tx: mpsc::Sender<InitResult>) -> Result<(), Error>
 where
-    F: FnOnce() -> P + 'static,
+    F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    let (conn, mut event_loop, mut state) = match setup(build, tx.clone()) {
+    let (conn, mut event_loop, mut state, render_thread) = match setup(build, tx.clone())
+    {
         Ok(parts) => parts,
         Err(err) => {
             let _ = tx.send(Err(err));
@@ -89,18 +97,33 @@ where
         },
     };
 
-    let _ = conn;
-
-    // Readiness has already been reported, so any failure here surfaces only
-    // through the thread's return value (observable via `Window::join`).
+    // Rendering happens on the overlay thread; here we only dispatch Wayland
+    // events (input, configure) and forward them. Keeping this loop dispatching
+    // is what lets the caller map the main surface.
+    //
+    // A dispatch error must still fall through to the shutdown below rather than
+    // returning early: the render thread holds a wgpu context referencing the
+    // `wl_display`, so the connection must not be dropped until that thread has
+    // joined. We capture the error and report it after tearing down cleanly.
+    let mut result = Ok(());
     while !state.should_exit() {
-        event_loop
-            .dispatch(DISPATCH_TIMEOUT, &mut state)
-            .context(EventLoopSnafu)?;
-        state.tick();
+        if let Err(err) = event_loop.dispatch(DISPATCH_TIMEOUT, &mut state) {
+            result = Err(err).context(EventLoopSnafu);
+            break;
+        }
     }
 
-    Ok(())
+    // Make the shutdown observable to the render thread and the caller, whether
+    // the exit came from `request_close`, a compositor close request, or a
+    // dispatch error.
+    state.shared.close_requested.store(true, Ordering::Release);
+
+    // Join the render thread before the connection drops: its wgpu resources
+    // reference the `wl_display`, which is disconnected once `conn` is dropped.
+    let _ = render_thread.join();
+    drop(conn);
+
+    result
 }
 
 /// Connect to the compositor and build all Wayland state.
@@ -108,9 +131,17 @@ where
 fn setup<P, F>(
     build: F,
     tx: mpsc::Sender<InitResult>,
-) -> Result<(Connection, EventLoop<'static, State>, State), Error>
+) -> Result<
+    (
+        Connection,
+        EventLoop<'static, State>,
+        State,
+        thread::JoinHandle<()>,
+    ),
+    Error,
+>
 where
-    F: FnOnce() -> P + 'static,
+    F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
     let conn = Connection::connect_to_env().context(ConnectSnafu)?;
@@ -130,11 +161,8 @@ where
     let xdg_shell = XdgShell::bind(&globals, &qh).context(MissingGlobalSnafu {
         what: "xdg_wm_base",
     })?;
-    let shm = Shm::bind(&globals, &qh).context(MissingGlobalSnafu { what: "wl_shm" })?;
 
     let (width, height) = DEFAULT_SIZE;
-    let pool_len = (width * height * 4 * 2) as usize;
-    let pool = SlotPool::new(pool_len, &shm).context(PoolSnafu)?;
 
     // The main surface is the xdg toplevel surface, the subsurface parent, and
     // the surface handed back to the caller to render into.
@@ -162,18 +190,8 @@ where
             .expect("wl_surface pointer is never null"),
     };
 
-    // Build the Iced program and its renderer on this thread (the high-level
-    // builder is not Send), targeting the overlay subsurface.
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
         .expect("wl_surface pointer is never null");
-    let overlay = Box::new(IcedOverlay::new(
-        build(),
-        display_ptr,
-        overlay_surface_ptr,
-        width,
-        height,
-        1.0,
-    )?);
 
     let shared = Arc::new(Shared {
         handles,
@@ -182,23 +200,58 @@ where
         close_requested: AtomicBool::new(false),
     });
 
+    // Spawn the render thread. It builds the Iced overlay (neither the program
+    // nor the wgpu renderer is Send) and renders there, so blocking on surface
+    // presentation never stalls this event loop. We wait for it to finish
+    // building before continuing, so renderer errors are reported eagerly.
+    let (commands_tx, commands_rx) = mpsc::channel::<overlay::Command>();
+    let (ready_tx, ready_rx) = mpsc::channel::<Result<(), Error>>();
+    let ptrs = OverlayPtrs {
+        display: display_ptr,
+        surface: overlay_surface_ptr,
+    };
+    let render_shared = Arc::clone(&shared);
+    let render_thread = thread::Builder::new()
+        .name("bluebottle-overlay".to_owned())
+        .spawn(move || {
+            // Rebind the whole wrapper so the closure captures the (Send)
+            // `OverlayPtrs` as a unit rather than its individual `!Send`
+            // pointer fields (Rust 2021 precise capture).
+            let ptrs = ptrs;
+            overlay::run(
+                build,
+                ptrs.display,
+                ptrs.surface,
+                (width, height),
+                1.0,
+                commands_rx,
+                render_shared,
+                ready_tx,
+            );
+        })
+        .context(SpawnThreadSnafu)?;
+
+    match ready_rx.recv() {
+        Ok(Ok(())) => {},
+        Ok(Err(err)) => return Err(err),
+        Err(_) => return Err(Error::LoopExited),
+    }
+
     let state = State {
         registry_state: RegistryState::new(&globals),
         output_state: OutputState::new(&globals, &qh),
         seat_state: SeatState::new(&globals, &qh),
-        shm,
-        pool,
         window,
         main_surface,
         overlay_surface,
         overlay_subsurface,
-        overlay,
+        commands: commands_tx,
         width,
         height,
         scale: 1,
         configured: false,
         exit: false,
-        needs_redraw: false,
+        resizing: false,
         pointer: None,
         keyboard: None,
         modifiers: iced::keyboard::Modifiers::empty(),
@@ -214,5 +267,5 @@ where
             message: err.to_string(),
         })?;
 
-    Ok((conn, event_loop, state))
+    Ok((conn, event_loop, state, render_thread))
 }

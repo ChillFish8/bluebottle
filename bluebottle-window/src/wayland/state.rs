@@ -9,7 +9,6 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_output,
     wl_pointer,
     wl_seat,
-    wl_shm,
     wl_subsurface,
     wl_surface,
 };
@@ -32,8 +31,6 @@ use smithay_client_toolkit::shell::xdg::window::{
     WindowConfigure,
     WindowHandler,
 };
-use smithay_client_toolkit::shm::slot::SlotPool;
-use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use smithay_client_toolkit::{
     delegate_compositor,
     delegate_keyboard,
@@ -41,42 +38,35 @@ use smithay_client_toolkit::{
     delegate_pointer,
     delegate_registry,
     delegate_seat,
-    delegate_shm,
     delegate_subcompositor,
     delegate_xdg_shell,
     delegate_xdg_window,
     registry_handlers,
 };
-use snafu::ResultExt;
 
-use crate::error::{BufferSnafu, Error};
+use crate::error::Error;
 use crate::handle::Shared;
-use crate::overlay::{Overlay, input};
-
-/// The opaque fill used for the main surface as a stand-in for caller content.
-///
-/// Stored as little-endian `Argb8888`, i.e. `[B, G, R, A]`. Real callers draw
-/// the main surface themselves (e.g. video); this only proves compositing.
-const MAIN_FILL: [u8; 4] = [0x20, 0x20, 0x20, 0xFF];
+use crate::overlay::{Command, input};
 
 /// All Wayland state owned by the event loop thread.
+///
+/// Rendering lives on a separate thread (see [`crate::overlay::run`]); this
+/// state forwards input and layout changes to it over [`State::commands`] so
+/// the event loop never blocks on surface presentation.
 pub(crate) struct State {
     pub registry_state: RegistryState,
     pub output_state: OutputState,
     pub seat_state: SeatState,
-    pub shm: Shm,
 
-    pub pool: SlotPool,
     // Retained to own the underlying Wayland objects; dropping these would
-    // destroy the toplevel/subsurface. Read from Phase 6 (resize handling).
+    // destroy the toplevel/subsurface.
     #[allow(dead_code)]
     pub window: Window,
     pub main_surface: wl_surface::WlSurface,
-    #[allow(dead_code)]
     pub overlay_surface: wl_surface::WlSurface,
     #[allow(dead_code)]
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
-    pub overlay: Box<dyn Overlay>,
+    pub commands: mpsc::Sender<Command>,
 
     pub width: u32,
     pub height: u32,
@@ -84,7 +74,7 @@ pub(crate) struct State {
 
     pub configured: bool,
     pub exit: bool,
-    pub needs_redraw: bool,
+    pub resizing: bool,
 
     pub pointer: Option<wl_pointer::WlPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
@@ -95,42 +85,25 @@ pub(crate) struct State {
 }
 
 impl State {
-    /// The current size of the surfaces in physical pixels.
-    fn physical_size(&self) -> (u32, u32) {
-        let scale = self.scale.max(1) as u32;
-        ((self.width * scale).max(1), (self.height * scale).max(1))
+    /// Send a [`Command`] to the render thread, ignoring a closed channel.
+    fn send(&self, command: Command) {
+        let _ = self.commands.send(command);
     }
 
     /// Apply the current logical size and scale to both surfaces.
     ///
-    /// Sets the buffer scale so physical-pixel buffers map to the logical
-    /// window size, and resizes the overlay's wgpu surface and viewport.
+    /// Sets the buffer scale on each surface so the physical-pixel buffers the
+    /// caller and the renderer produce (`logical * scale`) map to the logical
+    /// window size, and tells the render thread to resize the overlay.
     fn apply_layout(&mut self) {
         let scale = self.scale.max(1);
         self.main_surface.set_buffer_scale(scale);
         self.overlay_surface.set_buffer_scale(scale);
-        self.overlay.resize(self.width, self.height, scale as f64);
-    }
-
-    /// Render the Iced overlay and refresh the main-surface stand-in.
-    ///
-    /// The overlay presents its own (transparent) surface via wgpu; committing
-    /// the parent afterwards latches the subsurface into place.
-    pub fn draw(&mut self) -> Result<(), Error> {
-        let (width, height) = self.physical_size();
-        let stride = width as i32 * 4;
-
-        self.overlay.draw();
-        paint(
-            &mut self.pool,
-            &self.main_surface,
-            width,
-            height,
-            stride,
-            MAIN_FILL,
-        )?;
-
-        Ok(())
+        self.send(Command::Resize {
+            width: self.width,
+            height: self.height,
+            scale: scale as f64,
+        });
     }
 
     /// Report readiness to [`crate::create_overlay`] exactly once.
@@ -142,35 +115,6 @@ impl State {
             let _ = tx.send(Ok(Arc::clone(&self.shared)));
         }
     }
-}
-
-/// Fill `surface` with a solid colour from a freshly created shm buffer.
-fn paint(
-    pool: &mut SlotPool,
-    surface: &wl_surface::WlSurface,
-    width: u32,
-    height: u32,
-    stride: i32,
-    fill: [u8; 4],
-) -> Result<(), Error> {
-    let (buffer, canvas) = pool
-        .create_buffer(
-            width as i32,
-            height as i32,
-            stride,
-            wl_shm::Format::Argb8888,
-        )
-        .context(BufferSnafu)?;
-
-    for pixel in canvas.chunks_exact_mut(4) {
-        pixel.copy_from_slice(&fill);
-    }
-
-    buffer.attach_to(surface).expect("attach buffer to surface");
-    surface.damage_buffer(0, 0, width as i32, height as i32);
-    surface.commit();
-
-    Ok(())
 }
 
 impl CompositorHandler for State {
@@ -186,7 +130,6 @@ impl CompositorHandler for State {
 
         if self.configured {
             self.apply_layout();
-            let _ = self.draw();
         }
     }
 
@@ -246,6 +189,19 @@ impl WindowHandler for State {
         configure: WindowConfigure,
         _serial: u32,
     ) {
+        // The overlay normally runs desync so its UI can repaint independently
+        // of the caller's frames. During an interactive resize, switch it to
+        // sync so its new size is applied atomically with the parent's commit
+        // rather than racing ahead of (or behind) it.
+        if configure.is_resizing() != self.resizing {
+            self.resizing = configure.is_resizing();
+            if self.resizing {
+                self.overlay_subsurface.set_sync();
+            } else {
+                self.overlay_subsurface.set_desync();
+            }
+        }
+
         if let Some(width) = configure.new_size.0 {
             self.width = width.get();
         }
@@ -257,7 +213,6 @@ impl WindowHandler for State {
             (self.width, self.height);
 
         self.apply_layout();
-        let _ = self.draw();
         self.configured = true;
         self.announce_ready();
     }
@@ -293,12 +248,6 @@ impl OutputHandler for State {
     }
 }
 
-impl ShmHandler for State {
-    fn shm_state(&mut self) -> &mut Shm {
-        &mut self.shm
-    }
-}
-
 impl ProvidesRegistryState for State {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
@@ -311,26 +260,6 @@ impl State {
     /// Whether the event loop should stop on the next turn.
     pub fn should_exit(&self) -> bool {
         self.exit || self.shared.close_requested.load(Ordering::Acquire)
-    }
-
-    /// Advance the overlay once per event-loop turn.
-    ///
-    /// Drains async runtime output, honours a program-requested exit, and
-    /// redraws the overlay if input, async messages, or a pending animation
-    /// frame requires it. The main surface is owned by the caller and is left
-    /// untouched here.
-    pub fn tick(&mut self) {
-        let async_dirty = self.overlay.pump();
-
-        if self.overlay.should_exit() {
-            self.exit = true;
-            return;
-        }
-
-        let had_input = std::mem::take(&mut self.needs_redraw);
-        if had_input || async_dirty || self.overlay.wants_redraw() {
-            self.overlay.draw();
-        }
     }
 }
 
@@ -417,36 +346,31 @@ impl PointerHandler for State {
 
             match &event.kind {
                 PointerEventKind::Enter { .. } => {
-                    self.overlay.set_cursor(Some(position));
-                    self.overlay
-                        .queue_event(Event::Mouse(mouse::Event::CursorEntered));
-                    self.overlay
-                        .queue_event(Event::Mouse(mouse::Event::CursorMoved {
-                            position,
-                        }));
+                    self.send(Command::Cursor(Some(position)));
+                    self.send(Command::Event(Event::Mouse(mouse::Event::CursorEntered)));
+                    self.send(Command::Event(Event::Mouse(mouse::Event::CursorMoved {
+                        position,
+                    })));
                 },
                 PointerEventKind::Leave { .. } => {
-                    self.overlay.set_cursor(None);
-                    self.overlay
-                        .queue_event(Event::Mouse(mouse::Event::CursorLeft));
+                    self.send(Command::Cursor(None));
+                    self.send(Command::Event(Event::Mouse(mouse::Event::CursorLeft)));
                 },
                 PointerEventKind::Motion { .. } => {
-                    self.overlay.set_cursor(Some(position));
-                    self.overlay
-                        .queue_event(Event::Mouse(mouse::Event::CursorMoved {
-                            position,
-                        }));
+                    self.send(Command::Cursor(Some(position)));
+                    self.send(Command::Event(Event::Mouse(mouse::Event::CursorMoved {
+                        position,
+                    })));
                 },
                 PointerEventKind::Press { button, .. } => {
-                    self.overlay
-                        .queue_event(Event::Mouse(mouse::Event::ButtonPressed(
-                            input::mouse_button(*button),
-                        )));
+                    self.send(Command::Event(Event::Mouse(
+                        mouse::Event::ButtonPressed(input::mouse_button(*button)),
+                    )));
                 },
                 PointerEventKind::Release { button, .. } => {
-                    self.overlay.queue_event(Event::Mouse(
+                    self.send(Command::Event(Event::Mouse(
                         mouse::Event::ButtonReleased(input::mouse_button(*button)),
-                    ));
+                    )));
                 },
                 PointerEventKind::Axis {
                     horizontal,
@@ -457,13 +381,11 @@ impl PointerHandler for State {
                         x: -horizontal.absolute as f32,
                         y: -vertical.absolute as f32,
                     };
-                    self.overlay.queue_event(Event::Mouse(
+                    self.send(Command::Event(Event::Mouse(
                         mouse::Event::WheelScrolled { delta },
-                    ));
+                    )));
                 },
             }
-
-            self.needs_redraw = true;
         }
     }
 }
@@ -499,14 +421,13 @@ impl KeyboardHandler for State {
         _serial: u32,
         event: KeyEvent,
     ) {
-        self.overlay.queue_event(Event::Keyboard(input::key_event(
+        self.send(Command::Event(Event::Keyboard(input::key_event(
             event.keysym,
             event.utf8,
             self.modifiers,
             true,
             false,
-        )));
-        self.needs_redraw = true;
+        ))));
     }
 
     fn repeat_key(
@@ -517,14 +438,13 @@ impl KeyboardHandler for State {
         _serial: u32,
         event: KeyEvent,
     ) {
-        self.overlay.queue_event(Event::Keyboard(input::key_event(
+        self.send(Command::Event(Event::Keyboard(input::key_event(
             event.keysym,
             event.utf8,
             self.modifiers,
             true,
             true,
-        )));
-        self.needs_redraw = true;
+        ))));
     }
 
     fn release_key(
@@ -535,14 +455,13 @@ impl KeyboardHandler for State {
         _serial: u32,
         event: KeyEvent,
     ) {
-        self.overlay.queue_event(Event::Keyboard(input::key_event(
+        self.send(Command::Event(Event::Keyboard(input::key_event(
             event.keysym,
             event.utf8,
             self.modifiers,
             false,
             false,
-        )));
-        self.needs_redraw = true;
+        ))));
     }
 
     fn update_modifiers(
@@ -556,11 +475,9 @@ impl KeyboardHandler for State {
         _layout: u32,
     ) {
         self.modifiers = input::modifiers(modifiers);
-        self.overlay
-            .queue_event(Event::Keyboard(keyboard::Event::ModifiersChanged(
-                self.modifiers,
-            )));
-        self.needs_redraw = true;
+        self.send(Command::Event(Event::Keyboard(
+            keyboard::Event::ModifiersChanged(self.modifiers),
+        )));
     }
 }
 
@@ -570,7 +487,6 @@ delegate_output!(State);
 delegate_seat!(State);
 delegate_pointer!(State);
 delegate_keyboard!(State);
-delegate_shm!(State);
 delegate_xdg_shell!(State);
 delegate_xdg_window!(State);
 delegate_registry!(State);

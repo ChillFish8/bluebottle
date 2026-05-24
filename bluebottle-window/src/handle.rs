@@ -100,6 +100,14 @@ impl Window {
         *self.shared.scale.lock().expect("scale mutex poisoned")
     }
 
+    /// Returns whether the window is still open.
+    ///
+    /// Becomes `false` after [`Window::request_close`] or once the compositor
+    /// asks the window to close; callers can poll this to stop rendering.
+    pub fn is_open(&self) -> bool {
+        !self.shared.close_requested.load(Ordering::Acquire)
+    }
+
     /// Requests that the overlay window close and the event loop exit.
     pub fn request_close(&self) {
         self.shared.close_requested.store(true, Ordering::Release);

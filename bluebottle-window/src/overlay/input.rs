@@ -75,6 +75,15 @@ fn key(keysym: Keysym, utf8: Option<&str>) -> Key {
         return Key::Named(named);
     }
 
+    // Prefer the character the keysym itself denotes. With a modifier such as
+    // Ctrl held, the produced text is an unprintable control code (so `utf8`
+    // below is filtered out), yet the keysym still resolves to its base letter
+    // — this is what lets shortcuts like Ctrl+A reach the application as a
+    // `Character` key rather than `Unidentified`.
+    if let Some(ch) = keysym.key_char().filter(|ch| !ch.is_control()) {
+        return Key::Character(ch.to_string().into());
+    }
+
     match utf8 {
         Some(text) if !text.is_empty() && !is_control(text) => {
             Key::Character(text.into())

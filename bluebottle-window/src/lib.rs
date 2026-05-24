@@ -37,5 +37,15 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
+    // Render with Vulkan. The wgpu GLES/EGL backend drives the Wayland
+    // display's default event queue, which deadlocks against the connection we
+    // own on the loop thread; Vulkan WSI uses its own queue and composes
+    // cleanly. iced only exposes the backend choice via this env var, which we
+    // set if the caller has not already chosen one.
+    if std::env::var_os("WGPU_BACKEND").is_none() {
+        // SAFETY: set before any wgpu or thread initialisation in this call.
+        unsafe { std::env::set_var("WGPU_BACKEND", "vulkan") };
+    }
+
     wayland::run(build)
 }
