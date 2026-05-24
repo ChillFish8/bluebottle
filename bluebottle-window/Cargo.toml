@@ -12,6 +12,7 @@ iced_program = { workspace = true }
 iced_runtime = { workspace = true }
 
 raw-window-handle = { workspace = true }
+window_clipboard = { workspace = true }
 pollster = { workspace = true }
 
 tokio = { workspace = true }

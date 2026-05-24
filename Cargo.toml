@@ -50,6 +50,9 @@ raw-window-handle = "0.6"
 smithay-client-toolkit = "0.20"
 pollster = "0.4"
 
+# Cross-platform clipboard access (uses smithay-clipboard on Wayland).
+window_clipboard = "0.5"
+
 # Used by examples to render the caller-owned main surface.
 wgpu = "27"
 

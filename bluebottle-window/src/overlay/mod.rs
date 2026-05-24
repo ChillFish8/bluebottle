@@ -8,13 +8,14 @@ use iced_futures::{Executor as _, Runtime, subscription};
 use iced_graphics::compositor::{self, Compositor};
 use iced_graphics::{Settings, Shell, Viewport};
 use iced_program::Instance;
+use iced_runtime::clipboard::Action as ClipboardAction;
+use iced_runtime::core::clipboard::{Clipboard, Kind};
 use iced_runtime::core::time::Instant;
 use iced_runtime::core::{
     Color,
     Event,
     Point,
     Size,
-    clipboard,
     mouse,
     renderer,
     theme,
@@ -23,6 +24,7 @@ use iced_runtime::core::{
 };
 use iced_runtime::user_interface::{self, Cache, UserInterface};
 use iced_runtime::{Action, task};
+use raw_window_handle::HasDisplayHandle;
 
 use crate::error::Error;
 use crate::handle::Shared;
@@ -162,6 +164,46 @@ type ActionOf<P> = Action<<P as Program>::Message>;
 type RuntimeOf<P> =
     Runtime<<P as Program>::Executor, mpsc::UnboundedSender<ActionOf<P>>, ActionOf<P>>;
 
+/// Bridges iced's [`clipboard::Clipboard`] to the platform clipboard.
+///
+/// `window_clipboard` selects the backend per platform (smithay-clipboard on
+/// Wayland). Connecting can fail (e.g. no seat / headless); a clipboard that
+/// failed to connect reads empty and silently drops writes.
+struct OverlayClipboard {
+    inner: Option<window_clipboard::Clipboard>,
+}
+
+impl OverlayClipboard {
+    /// Connect to the platform clipboard via the surface's display handle.
+    fn connect<W: HasDisplayHandle>(target: &W) -> Self {
+        // SAFETY: the display handle stays valid for the clipboard's lifetime —
+        // the overlay that owns this clipboard is dropped before the Wayland
+        // connection is torn down on the event-loop thread.
+        let inner = unsafe { window_clipboard::Clipboard::connect(target) }.ok();
+        Self { inner }
+    }
+}
+
+impl Clipboard for OverlayClipboard {
+    fn read(&self, kind: Kind) -> Option<String> {
+        let clipboard = self.inner.as_ref()?;
+        match kind {
+            Kind::Standard => clipboard.read().ok(),
+            Kind::Primary => clipboard.read_primary().and_then(Result::ok),
+        }
+    }
+
+    fn write(&mut self, kind: Kind, contents: String) {
+        let Some(clipboard) = self.inner.as_mut() else {
+            return;
+        };
+        let _ = match kind {
+            Kind::Standard => clipboard.write(contents),
+            Kind::Primary => clipboard.write_primary(contents).unwrap_or(Ok(())),
+        };
+    }
+}
+
 /// An Iced program rendered into a platform surface via its wgpu compositor.
 pub(crate) struct IcedOverlay<P: Program> {
     instance: Instance<P>,
@@ -169,6 +211,7 @@ pub(crate) struct IcedOverlay<P: Program> {
     compositor: CompositorOf<P>,
     renderer: P::Renderer,
     surface: SurfaceOf<P>,
+    clipboard: OverlayClipboard,
     default_theme: P::Theme,
     cache: Option<Cache>,
     viewport: Viewport,
@@ -195,6 +238,8 @@ impl<P: Program> IcedOverlay<P> {
     where
         W: compositor::Window + Clone,
     {
+        let clipboard = OverlayClipboard::connect(&target);
+
         let mut compositor = pollster::block_on(CompositorOf::<P>::new(
             Settings::default(),
             target.clone(),
@@ -232,6 +277,7 @@ impl<P: Program> IcedOverlay<P> {
             compositor,
             renderer,
             surface,
+            clipboard,
             default_theme,
             cache: Some(Cache::default()),
             viewport,
@@ -316,9 +362,15 @@ impl<P: Program> IcedOverlay<P> {
                     self.apply_operation(operation);
                     redraw = true;
                 },
+                Action::Clipboard(ClipboardAction::Read { target, channel }) => {
+                    let _ = channel.send(self.clipboard.read(target));
+                },
+                Action::Clipboard(ClipboardAction::Write { target, contents }) => {
+                    self.clipboard.write(target, contents);
+                },
                 Action::Exit => self.exit = true,
-                // Clipboard, image, window/system actions, etc. are not yet
-                // supported for an overlay; ignore them for now.
+                // Image and window/system actions are not yet supported for an
+                // overlay; ignore them for now.
                 _ => {},
             }
         }
@@ -387,7 +439,6 @@ impl<P: Program> IcedOverlay<P> {
 
         let mut messages = Vec::new();
         let statuses = {
-            let mut clipboard = clipboard::Null;
             let mut ui = UserInterface::build(
                 self.instance.view(self.window_id),
                 bounds,
@@ -398,7 +449,7 @@ impl<P: Program> IcedOverlay<P> {
                 &events,
                 self.cursor,
                 &mut self.renderer,
-                &mut clipboard,
+                &mut self.clipboard,
                 &mut messages,
             );
             self.redraw_request = match state {
