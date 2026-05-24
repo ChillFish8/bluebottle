@@ -95,12 +95,29 @@ pub(crate) struct State {
 }
 
 impl State {
+    /// The current size of the surfaces in physical pixels.
+    fn physical_size(&self) -> (u32, u32) {
+        let scale = self.scale.max(1) as u32;
+        ((self.width * scale).max(1), (self.height * scale).max(1))
+    }
+
+    /// Apply the current logical size and scale to both surfaces.
+    ///
+    /// Sets the buffer scale so physical-pixel buffers map to the logical
+    /// window size, and resizes the overlay's wgpu surface and viewport.
+    fn apply_layout(&mut self) {
+        let scale = self.scale.max(1);
+        self.main_surface.set_buffer_scale(scale);
+        self.overlay_surface.set_buffer_scale(scale);
+        self.overlay.resize(self.width, self.height, scale as f64);
+    }
+
     /// Render the Iced overlay and refresh the main-surface stand-in.
     ///
     /// The overlay presents its own (transparent) surface via wgpu; committing
     /// the parent afterwards latches the subsurface into place.
     pub fn draw(&mut self) -> Result<(), Error> {
-        let (width, height) = (self.width.max(1), self.height.max(1));
+        let (width, height) = self.physical_size();
         let stride = width as i32 * 4;
 
         self.overlay.draw();
@@ -168,8 +185,7 @@ impl CompositorHandler for State {
         *self.shared.scale.lock().expect("scale mutex poisoned") = new_factor as f64;
 
         if self.configured {
-            self.overlay
-                .resize(self.width, self.height, new_factor as f64);
+            self.apply_layout();
             let _ = self.draw();
         }
     }
@@ -237,8 +253,10 @@ impl WindowHandler for State {
             self.height = height.get();
         }
 
-        self.overlay
-            .resize(self.width, self.height, self.scale as f64);
+        *self.shared.size.lock().expect("size mutex poisoned") =
+            (self.width, self.height);
+
+        self.apply_layout();
         let _ = self.draw();
         self.configured = true;
         self.announce_ready();

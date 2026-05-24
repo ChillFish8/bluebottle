@@ -43,6 +43,13 @@ type CompositorOf<P> = <<P as Program>::Renderer as compositor::Default>::Compos
 /// The surface type produced by that compositor.
 type SurfaceOf<P> = <CompositorOf<P> as Compositor>::Surface;
 
+/// Convert a logical size at a given scale to a physical pixel size (min 1x1).
+fn physical_size(logical_width: u32, logical_height: u32, scale: f64) -> (u32, u32) {
+    let width = ((logical_width as f64) * scale).round().max(1.0) as u32;
+    let height = ((logical_height as f64) * scale).round().max(1.0) as u32;
+    (width, height)
+}
+
 /// The runtime action type produced by a program's messages.
 type ActionOf<P> = Action<<P as Program>::Message>;
 
@@ -55,7 +62,10 @@ type RuntimeOf<P> =
 /// [`crate::wayland`] holds this as a trait object so its `State` can stay
 /// non-generic while the Iced program type is erased behind the boundary.
 pub(crate) trait Overlay {
-    /// Resize the surface and viewport to `width`x`height` physical pixels.
+    /// Resize to a logical `width`x`height` at the given integer `scale`.
+    ///
+    /// The backing surface and viewport are sized in physical pixels
+    /// (`logical * scale`) so the UI renders crisply on HiDPI outputs.
     fn resize(&mut self, width: u32, height: u32, scale: f64);
 
     /// Queue an input event to be processed on the next [`Overlay::draw`].
@@ -149,8 +159,9 @@ impl<P: Program> IcedOverlay<P> {
             message: err.to_string(),
         })?;
 
+        let (physical_width, physical_height) = physical_size(width, height, scale);
         let renderer = compositor.create_renderer();
-        let surface = compositor.create_surface(raw, width.max(1), height.max(1));
+        let surface = compositor.create_surface(raw, physical_width, physical_height);
 
         let executor =
             P::Executor::new().map_err(|source| Error::Executor { source })?;
@@ -160,8 +171,10 @@ impl<P: Program> IcedOverlay<P> {
         let (instance, boot_task) = Instance::new(program);
         let window_id = window::Id::unique();
         let default_theme = <P::Theme as theme::Base>::default(theme::Mode::default());
-        let viewport =
-            Viewport::with_physical_size(Size::new(width, height), scale as f32);
+        let viewport = Viewport::with_physical_size(
+            Size::new(physical_width, physical_height),
+            scale as f32,
+        );
 
         if let Some(stream) = task::into_stream(boot_task) {
             runtime.run(stream);
@@ -176,8 +189,8 @@ impl<P: Program> IcedOverlay<P> {
             default_theme,
             cache: Some(Cache::default()),
             viewport,
-            width,
-            height,
+            width: physical_width,
+            height: physical_height,
             scale,
             events: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
@@ -212,7 +225,8 @@ impl<P: Program> IcedOverlay<P> {
 }
 
 impl<P: Program> Overlay for IcedOverlay<P> {
-    fn resize(&mut self, width: u32, height: u32, scale: f64) {
+    fn resize(&mut self, logical_width: u32, logical_height: u32, scale: f64) {
+        let (width, height) = physical_size(logical_width, logical_height, scale);
         if self.width == width && self.height == height && self.scale == scale {
             return;
         }
@@ -222,11 +236,8 @@ impl<P: Program> Overlay for IcedOverlay<P> {
         self.scale = scale;
         self.viewport =
             Viewport::with_physical_size(Size::new(width, height), scale as f32);
-        self.compositor.configure_surface(
-            &mut self.surface,
-            width.max(1),
-            height.max(1),
-        );
+        self.compositor
+            .configure_surface(&mut self.surface, width, height);
     }
 
     fn queue_event(&mut self, event: Event) {

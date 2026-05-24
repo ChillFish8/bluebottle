@@ -78,9 +78,21 @@ impl Window {
         WaylandDisplayHandle::new(self.shared.handles.display)
     }
 
-    /// Returns the current size of the window in physical pixels.
+    /// Returns the current size of the window in logical pixels.
     pub fn size(&self) -> (u32, u32) {
         *self.shared.size.lock().expect("size mutex poisoned")
+    }
+
+    /// Returns the current size of the window in physical pixels.
+    ///
+    /// This is the buffer size the caller should render the main surface at.
+    pub fn physical_size(&self) -> (u32, u32) {
+        let (width, height) = self.size();
+        let scale = self.scale_factor();
+        (
+            ((width as f64) * scale).round() as u32,
+            ((height as f64) * scale).round() as u32,
+        )
     }
 
     /// Returns the current scale factor reported by the compositor.
