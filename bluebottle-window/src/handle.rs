@@ -1,26 +1,33 @@
-use std::ffi::c_void;
-use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-use raw_window_handle::{WaylandDisplayHandle, WaylandWindowHandle};
+use raw_window_handle::{
+    DisplayHandle,
+    HandleError,
+    HasDisplayHandle,
+    HasWindowHandle,
+    RawDisplayHandle,
+    RawWindowHandle,
+    WindowHandle,
+};
 
 use crate::error::Error;
 
-/// Raw pointers to the main (parent) Wayland objects.
+/// Raw handles to the main (parent) window objects, in platform-neutral form.
 ///
 /// These are created on the event loop thread but handed to the caller, so the
-/// wrapper is explicitly marked `Send`/`Sync`; the pointers themselves are only
-/// dereferenced through the (thread-safe) Wayland C library.
+/// wrapper is explicitly marked `Send`/`Sync`; the handles themselves are only
+/// dereferenced through the (thread-safe) native windowing library.
 #[derive(Clone, Copy)]
 pub(crate) struct RawHandles {
-    pub display: NonNull<c_void>,
-    pub surface: NonNull<c_void>,
+    pub window: RawWindowHandle,
+    pub display: RawDisplayHandle,
 }
 
-// SAFETY: the pointers reference `wl_display`/`wl_surface` objects owned for the
-// lifetime of the loop thread; libwayland access is internally synchronised.
+// SAFETY: the handles reference native window/display objects owned for the
+// lifetime of the loop thread; access goes through libraries that synchronise
+// internally (e.g. libwayland).
 unsafe impl Send for RawHandles {}
 unsafe impl Sync for RawHandles {}
 
@@ -54,28 +61,22 @@ impl Window {
         }
     }
 
-    /// Returns a pointer to the main surface's `wl_display`.
-    pub fn wl_display_ptr(&self) -> *mut c_void {
-        self.shared.handles.display.as_ptr()
-    }
-
-    /// Returns a pointer to the main `wl_surface`.
-    pub fn main_surface_ptr(&self) -> *mut c_void {
-        self.shared.handles.surface.as_ptr()
-    }
-
-    /// Returns a `raw-window-handle` handle for the main surface.
+    /// Returns the raw window handle for the main (parent) surface.
     ///
     /// Use this together with [`Window::raw_display_handle`] to build a graphics
     /// context (wgpu, EGL, libmpv's render API, ...) that draws into the main
-    /// surface, beneath the overlay.
-    pub fn raw_window_handle(&self) -> WaylandWindowHandle {
-        WaylandWindowHandle::new(self.shared.handles.surface)
+    /// surface, beneath the overlay. [`Window`] also implements
+    /// [`HasWindowHandle`]/[`HasDisplayHandle`], so it can be passed directly to
+    /// APIs that accept those. For platform-specific handles (e.g. the raw
+    /// `wl_display`/`wl_surface` pointers) use the extension traits in
+    /// [`crate::platform`].
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        self.shared.handles.window
     }
 
-    /// Returns a `raw-window-handle` handle for the Wayland display.
-    pub fn raw_display_handle(&self) -> WaylandDisplayHandle {
-        WaylandDisplayHandle::new(self.shared.handles.display)
+    /// Returns the raw display handle for the main (parent) surface.
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.shared.handles.display
     }
 
     /// Returns the current size of the window in logical pixels.
@@ -119,6 +120,21 @@ impl Window {
             Some(thread) => thread.join().unwrap_or(Ok(())),
             None => Ok(()),
         }
+    }
+}
+
+impl HasWindowHandle for Window {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        // SAFETY: the handle references the main surface, which the loop thread
+        // keeps alive for at least as long as this `Window`.
+        Ok(unsafe { WindowHandle::borrow_raw(self.shared.handles.window) })
+    }
+}
+
+impl HasDisplayHandle for Window {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        // SAFETY: the display outlives every handle borrowed from it.
+        Ok(unsafe { DisplayHandle::borrow_raw(self.shared.handles.display) })
     }
 }
 

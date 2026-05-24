@@ -44,9 +44,10 @@ use smithay_client_toolkit::{
     registry_handlers,
 };
 
+use super::input;
 use crate::error::Error;
 use crate::handle::Shared;
-use crate::overlay::{Command, input};
+use crate::overlay::Command;
 
 /// All Wayland state owned by the event loop thread.
 ///

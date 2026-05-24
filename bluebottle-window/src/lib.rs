@@ -13,7 +13,7 @@
 mod error;
 mod handle;
 mod overlay;
-mod wayland;
+pub mod platform;
 
 pub use error::Error;
 pub use handle::Window;
@@ -47,5 +47,5 @@ where
         unsafe { std::env::set_var("WGPU_BACKEND", "vulkan") };
     }
 
-    wayland::run(build)
+    platform::run(build)
 }

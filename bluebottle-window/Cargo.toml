@@ -12,15 +12,18 @@ iced_program = { workspace = true }
 iced_runtime = { workspace = true }
 
 raw-window-handle = { workspace = true }
-smithay-client-toolkit = { workspace = true }
 pollster = { workspace = true }
 
 tokio = { workspace = true }
 snafu = { workspace = true }
 tracing = { workspace = true }
 
+# Wayland backend (the only platform supported for now). Windows/macOS backends
+# would add their own native-windowing deps under their respective targets.
+[target.'cfg(target_os = "linux")'.dependencies]
+smithay-client-toolkit = { workspace = true }
+
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
 wgpu = { workspace = true }
 pollster = { workspace = true }
-raw-window-handle = { workspace = true }

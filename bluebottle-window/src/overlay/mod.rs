@@ -1,7 +1,3 @@
-pub(crate) mod input;
-
-use std::ffi::c_void;
-use std::ptr::NonNull;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc as sync_chan};
 use std::time::Duration;
@@ -26,17 +22,6 @@ use iced_runtime::core::{
 };
 use iced_runtime::user_interface::{self, Cache, UserInterface};
 use iced_runtime::{Action, task};
-use raw_window_handle::{
-    DisplayHandle,
-    HandleError,
-    HasDisplayHandle,
-    HasWindowHandle,
-    RawDisplayHandle,
-    RawWindowHandle,
-    WaylandDisplayHandle,
-    WaylandWindowHandle,
-    WindowHandle,
-};
 
 use crate::error::Error;
 use crate::handle::Shared;
@@ -57,17 +42,18 @@ pub(crate) enum Command {
 
 /// Build the overlay on this (render) thread and drive it until close.
 ///
-/// The Iced program and wgpu renderer are not `Send`, so they are built here
-/// rather than moved across threads; only the `build` closure crosses the
-/// boundary. The build result is reported through `ready` so the spawning
-/// thread can fail fast. Running the renderer on its own thread lets it block
-/// on surface presentation without stalling the Wayland event loop (which must
-/// keep dispatching for the caller to map the main surface).
+/// `target` provides the raw window/display handles of the overlay surface the
+/// platform backend created; the renderer is built against it here. The Iced
+/// program and wgpu renderer are not `Send`, so they are built on this thread
+/// rather than moved across threads; only the `build` closure and the (`Send`)
+/// `target` cross the boundary. The build result is reported through `ready` so
+/// the spawning thread can fail fast. Running the renderer on its own thread
+/// lets it block on surface presentation without stalling the platform event
+/// loop (which must keep dispatching for the caller to map the main surface).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn run<P, F>(
+pub(crate) fn run<P, F, W>(
     build: F,
-    display: NonNull<c_void>,
-    surface: NonNull<c_void>,
+    target: W,
     size: (u32, u32),
     scale: f64,
     commands: sync_chan::Receiver<Command>,
@@ -76,18 +62,18 @@ pub(crate) fn run<P, F>(
 ) where
     F: FnOnce() -> P,
     P: Program,
+    W: compositor::Window + Clone,
 {
-    let overlay =
-        match IcedOverlay::new(build(), display, surface, size.0, size.1, scale) {
-            Ok(overlay) => {
-                let _ = ready.send(Ok(()));
-                overlay
-            },
-            Err(error) => {
-                let _ = ready.send(Err(error));
-                return;
-            },
-        };
+    let overlay = match IcedOverlay::new(build(), target, size.0, size.1, scale) {
+        Ok(overlay) => {
+            let _ = ready.send(Ok(()));
+            overlay
+        },
+        Err(error) => {
+            let _ = ready.send(Err(error));
+            return;
+        },
+    };
 
     render_loop(overlay, commands, shared);
 }
@@ -175,35 +161,7 @@ type ActionOf<P> = Action<<P as Program>::Message>;
 type RuntimeOf<P> =
     Runtime<<P as Program>::Executor, mpsc::UnboundedSender<ActionOf<P>>, ActionOf<P>>;
 
-/// Raw Wayland handles for the overlay surface, in `raw-window-handle` form.
-#[derive(Clone, Copy)]
-struct RawSurface {
-    display: NonNull<c_void>,
-    surface: NonNull<c_void>,
-}
-
-// SAFETY: the pointers reference long-lived `wl_display`/`wl_surface` objects;
-// libwayland access is internally synchronised.
-unsafe impl Send for RawSurface {}
-unsafe impl Sync for RawSurface {}
-
-impl HasDisplayHandle for RawSurface {
-    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        let raw = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(self.display));
-        // SAFETY: the display outlives every handle borrowed from it.
-        Ok(unsafe { DisplayHandle::borrow_raw(raw) })
-    }
-}
-
-impl HasWindowHandle for RawSurface {
-    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
-        let raw = RawWindowHandle::Wayland(WaylandWindowHandle::new(self.surface));
-        // SAFETY: the surface outlives every handle borrowed from it.
-        Ok(unsafe { WindowHandle::borrow_raw(raw) })
-    }
-}
-
-/// An Iced program rendered into a Wayland surface via its wgpu compositor.
+/// An Iced program rendered into a platform surface via its wgpu compositor.
 pub(crate) struct IcedOverlay<P: Program> {
     instance: Instance<P>,
     window_id: window::Id,
@@ -226,20 +184,20 @@ pub(crate) struct IcedOverlay<P: Program> {
 
 impl<P: Program> IcedOverlay<P> {
     /// Build the renderer/compositor for `program` on the given overlay surface.
-    pub(crate) fn new(
+    pub(crate) fn new<W>(
         program: P,
-        display: NonNull<c_void>,
-        surface: NonNull<c_void>,
+        target: W,
         width: u32,
         height: u32,
         scale: f64,
-    ) -> Result<Self, Error> {
-        let raw = RawSurface { display, surface };
-
+    ) -> Result<Self, Error>
+    where
+        W: compositor::Window + Clone,
+    {
         let mut compositor = pollster::block_on(CompositorOf::<P>::new(
             Settings::default(),
-            raw,
-            raw,
+            target.clone(),
+            target.clone(),
             Shell::headless(),
         ))
         .map_err(|err| Error::RendererInit {
@@ -248,7 +206,7 @@ impl<P: Program> IcedOverlay<P> {
 
         let (physical_width, physical_height) = physical_size(width, height, scale);
         let renderer = compositor.create_renderer();
-        let surface = compositor.create_surface(raw, physical_width, physical_height);
+        let surface = compositor.create_surface(target, physical_width, physical_height);
 
         let executor =
             P::Executor::new().map_err(|source| Error::Executor { source })?;

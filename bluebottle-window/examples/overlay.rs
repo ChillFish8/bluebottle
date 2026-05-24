@@ -12,7 +12,6 @@
 use std::time::{Duration, Instant};
 
 use iced::widget::{button, column, text};
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 /// How long the demo runs before closing itself.
 const RUN_FOR: Duration = Duration::from_secs(30);
@@ -93,8 +92,8 @@ fn render_main_surface(window: &bluebottle_window::Window) {
     });
     let surface = unsafe {
         instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-            raw_display_handle: RawDisplayHandle::Wayland(window.raw_display_handle()),
-            raw_window_handle: RawWindowHandle::Wayland(window.raw_window_handle()),
+            raw_display_handle: window.raw_display_handle(),
+            raw_window_handle: window.raw_window_handle(),
         })
     }
     .expect("create main surface");

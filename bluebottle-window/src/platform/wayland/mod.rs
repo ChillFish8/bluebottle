@@ -1,3 +1,4 @@
+mod input;
 mod state;
 
 use std::ffi::c_void;
@@ -8,6 +9,17 @@ use std::thread;
 use std::time::Duration;
 
 use iced::Program;
+use raw_window_handle::{
+    DisplayHandle,
+    HandleError,
+    HasDisplayHandle,
+    HasWindowHandle,
+    RawDisplayHandle,
+    RawWindowHandle,
+    WaylandDisplayHandle,
+    WaylandWindowHandle,
+    WindowHandle,
+};
 use smithay_client_toolkit::compositor::CompositorState;
 use smithay_client_toolkit::output::OutputState;
 use smithay_client_toolkit::reexports::calloop::EventLoop;
@@ -34,15 +46,65 @@ use crate::error::{
 use crate::handle::{RawHandles, Shared, Window};
 use crate::overlay;
 
-/// Raw overlay-surface pointers, wrapped so they can move to the render thread.
-struct OverlayPtrs {
+/// Wayland-specific extensions to [`Window`].
+///
+/// Mirrors `winit::platform::wayland::WindowExtWayland`: it exposes the raw
+/// `wl_display`/`wl_surface` pointers of the main (parent) surface for APIs that
+/// want them directly (for example libmpv's render API).
+pub trait WindowExtWayland {
+    /// Returns a pointer to the main surface's `wl_display`.
+    fn wl_display_ptr(&self) -> *mut c_void;
+
+    /// Returns a pointer to the main `wl_surface`.
+    fn wl_surface_ptr(&self) -> *mut c_void;
+}
+
+impl WindowExtWayland for Window {
+    fn wl_display_ptr(&self) -> *mut c_void {
+        match self.raw_display_handle() {
+            RawDisplayHandle::Wayland(handle) => handle.display.as_ptr(),
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    fn wl_surface_ptr(&self) -> *mut c_void {
+        match self.raw_window_handle() {
+            RawWindowHandle::Wayland(handle) => handle.surface.as_ptr(),
+            _ => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// Raw Wayland handles for the overlay surface, in `raw-window-handle` form.
+///
+/// Wrapped so the (otherwise `!Send`) pointers can move to the render thread and
+/// satisfy the renderer's `HasWindowHandle`/`HasDisplayHandle` requirement.
+#[derive(Clone, Copy)]
+struct RawSurface {
     display: NonNull<c_void>,
     surface: NonNull<c_void>,
 }
 
 // SAFETY: the pointers reference long-lived `wl_display`/`wl_surface` objects;
 // libwayland access is internally synchronised.
-unsafe impl Send for OverlayPtrs {}
+unsafe impl Send for RawSurface {}
+unsafe impl Sync for RawSurface {}
+
+impl HasDisplayHandle for RawSurface {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        let raw = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(self.display));
+        // SAFETY: the display outlives every handle borrowed from it.
+        Ok(unsafe { DisplayHandle::borrow_raw(raw) })
+    }
+}
+
+impl HasWindowHandle for RawSurface {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        let raw = RawWindowHandle::Wayland(WaylandWindowHandle::new(self.surface));
+        // SAFETY: the surface outlives every handle borrowed from it.
+        Ok(unsafe { WindowHandle::borrow_raw(raw) })
+    }
+}
 
 /// The readiness message sent from the loop thread once the main surface exists.
 type InitResult = Result<Arc<Shared>, Error>;
@@ -184,10 +246,11 @@ where
 
     let display_ptr = NonNull::new(conn.backend().display_ptr() as *mut c_void)
         .expect("wl_display pointer is never null");
+    let main_surface_ptr = NonNull::new(main_surface.id().as_ptr() as *mut c_void)
+        .expect("wl_surface pointer is never null");
     let handles = RawHandles {
-        display: display_ptr,
-        surface: NonNull::new(main_surface.id().as_ptr() as *mut c_void)
-            .expect("wl_surface pointer is never null"),
+        window: RawWindowHandle::Wayland(WaylandWindowHandle::new(main_surface_ptr)),
+        display: RawDisplayHandle::Wayland(WaylandDisplayHandle::new(display_ptr)),
     };
 
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
@@ -206,7 +269,7 @@ where
     // building before continuing, so renderer errors are reported eagerly.
     let (commands_tx, commands_rx) = mpsc::channel::<overlay::Command>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), Error>>();
-    let ptrs = OverlayPtrs {
+    let overlay_target = RawSurface {
         display: display_ptr,
         surface: overlay_surface_ptr,
     };
@@ -214,14 +277,13 @@ where
     let render_thread = thread::Builder::new()
         .name("bluebottle-overlay".to_owned())
         .spawn(move || {
-            // Rebind the whole wrapper so the closure captures the (Send)
-            // `OverlayPtrs` as a unit rather than its individual `!Send`
-            // pointer fields (Rust 2021 precise capture).
-            let ptrs = ptrs;
+            // Rebind so the closure captures the (`Send`) `RawSurface` as a unit
+            // rather than its individual `!Send` pointer fields (Rust 2021
+            // precise capture).
+            let overlay_target = overlay_target;
             overlay::run(
                 build,
-                ptrs.display,
-                ptrs.surface,
+                overlay_target,
                 (width, height),
                 1.0,
                 commands_rx,
