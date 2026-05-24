@@ -1,16 +1,6 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use snafu::ResultExt;
-
-mod app;
-mod backends;
-mod components;
-mod models;
-mod navigator;
-mod screen;
-mod storage;
-mod view;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -44,12 +34,7 @@ fn main() -> Result<(), snafu::Whatever> {
 
     tracing_subscriber::fmt::init();
 
-    storage::init_storage(args.storage_path)
-        .whatever_context("failed to init app storage")?;
-
     tracing::info!("starting Bluebottle");
-
-    app::run_app()?;
 
     tracing::info!("system exit complete");
 

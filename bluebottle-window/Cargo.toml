@@ -1,0 +1,23 @@
+[package]
+name = "bluebottle-window"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { workspace = true }
+iced_core = { workspace = true }
+iced_futures = { workspace = true }
+iced_graphics = { workspace = true }
+iced_program = { workspace = true }
+iced_runtime = { workspace = true }
+
+raw-window-handle = { workspace = true }
+smithay-client-toolkit = { workspace = true }
+pollster = { workspace = true }
+
+tokio = { workspace = true }
+snafu = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
