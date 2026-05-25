@@ -1,11 +1,12 @@
 mod input;
 mod state;
 mod text_input;
+mod viewport;
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
 
@@ -32,6 +33,7 @@ use smithay_client_toolkit::reexports::client::globals::registry_queue_init;
 use smithay_client_toolkit::reexports::client::protocol::wl_shm;
 use smithay_client_toolkit::reexports::client::{Connection, Proxy};
 use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
+use smithay_client_toolkit::reexports::protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 use smithay_client_toolkit::registry::RegistryState;
 use smithay_client_toolkit::seat::SeatState;
 use smithay_client_toolkit::shell::WaylandSurface;
@@ -220,6 +222,13 @@ where
     // Join the render thread before the connection drops: its wgpu resources
     // reference the `wl_display`, which is disconnected once `conn` is dropped.
     let _ = render_thread.join();
+
+    // Wait until the caller permits teardown (via `Window::join`/drop), which it
+    // does only after stopping anything that references the `wl_display` — e.g. a
+    // video sink. Disconnecting the display while such a sink is still presenting
+    // deadlocks libwayland. On a compositor-initiated close this parks here until
+    // the caller has torn down; on a caller-initiated close it returns at once.
+    state.shared.wait_for_teardown();
     drop(conn);
 
     result
@@ -266,6 +275,12 @@ where
     // Text input (IME) is optional: absent on compositors without the protocol.
     let text_input_manager = globals
         .bind::<ZwpTextInputManagerV3, _, _>(&qh, 1..=1, GlobalData)
+        .ok();
+
+    // Viewporter scales the 1×1 video-mode backdrop to the window (see
+    // `viewport`); optional, though near-universally supported.
+    let viewporter = globals
+        .bind::<WpViewporter, _, _>(&qh, 1..=1, GlobalData)
         .ok();
 
     // A dedicated surface the themed pointer presents cursor images on.
@@ -334,6 +349,16 @@ where
             (None, None, None, None, None)
         };
 
+    // In video mode, scale the main surface's 1×1 backdrop to the window with a
+    // viewport so resizes need no shm reallocation.
+    let viewport = if video {
+        viewporter
+            .as_ref()
+            .map(|vp| vp.get_viewport(&main_surface, &qh, GlobalData))
+    } else {
+        None
+    };
+
     let (overlay_subsurface, overlay_surface) =
         subcompositor.create_subsurface(main_surface.clone(), &qh);
     overlay_subsurface.set_position(0, 0);
@@ -383,6 +408,7 @@ where
                 let _ = wake_tick.send(overlay::Tick::Wake);
             }
         }),
+        teardown_permitted: (Mutex::new(false), Condvar::new()),
     });
 
     // Spawn the render thread. It builds the Iced overlay (neither the program
@@ -466,6 +492,7 @@ where
         pointer_on_surface: false,
         applied_cursor: None,
         pending_video_resize: None,
+        viewport,
         shared,
         init_tx: Some(tx),
     };

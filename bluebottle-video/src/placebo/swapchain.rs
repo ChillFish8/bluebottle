@@ -15,8 +15,12 @@ impl Swapchain {
     pub fn new(device: &Device, surface: pl::VkSurfaceKHR) -> Result<Self, Error> {
         let params = pl::pl_vulkan_swapchain_params {
             surface,
-            // Zero-init would select IMMEDIATE; FIFO is the safe vsync default.
-            present_mode: pl::VkPresentModeKHR_VK_PRESENT_MODE_FIFO_KHR,
+            // MAILBOX is vsync'd (tear-free) but latest-wins: it discards stale
+            // queued frames instead of draining them one-per-refresh, so a burst
+            // of resizes snaps to the final size rather than playing out every
+            // intermediate one. libplacebo falls back to FIFO if it is
+            // unsupported. (Zero-init would mean IMMEDIATE, which tears.)
+            present_mode: pl::VkPresentModeKHR_VK_PRESENT_MODE_MAILBOX_KHR,
             ..Default::default()
         };
 

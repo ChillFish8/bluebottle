@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
 use iced_runtime::core::input_method::InputMethod;
@@ -66,12 +66,35 @@ pub(crate) struct Shared {
     /// the change is not observed until the next unrelated Wayland event. On
     /// Wayland this signals a calloop ping registered with the loop.
     pub wake: Arc<dyn Fn() + Send + Sync>,
+    /// Gates the event-loop thread's teardown of the Wayland connection. After
+    /// the loop exits it waits here until the caller permits teardown (via
+    /// [`Window::join`] or drop), which the caller does only after stopping
+    /// anything that still references the `wl_display` — e.g. a video sink whose
+    /// Vulkan surface is destroyed in its own teardown. Disconnecting the display
+    /// out from under such a sink deadlocks libwayland.
+    pub teardown_permitted: (Mutex<bool>, Condvar),
 }
 
 impl Shared {
     /// Wake the event-loop thread to re-check cross-thread state.
     pub fn wake(&self) {
         (self.wake)();
+    }
+
+    /// Permit the event-loop thread to tear down the Wayland connection.
+    pub fn permit_teardown(&self) {
+        let (lock, cvar) = &self.teardown_permitted;
+        *lock.lock().expect("teardown mutex poisoned") = true;
+        cvar.notify_all();
+    }
+
+    /// Block until [`Shared::permit_teardown`] has been called.
+    pub fn wait_for_teardown(&self) {
+        let (lock, cvar) = &self.teardown_permitted;
+        let mut permitted = lock.lock().expect("teardown mutex poisoned");
+        while !*permitted {
+            permitted = cvar.wait(permitted).expect("teardown mutex poisoned");
+        }
     }
 }
 
@@ -174,7 +197,13 @@ impl Window {
     }
 
     /// Blocks until the event loop has exited, returning its result.
+    ///
+    /// Permits the event-loop thread to tear down the Wayland connection first
+    /// (see [`Shared::teardown_permitted`]); call this only after stopping
+    /// anything that draws into the surfaces (e.g. a video sink), so the display
+    /// is not disconnected while still in use.
     pub fn join(mut self) -> Result<(), Error> {
+        self.shared.permit_teardown();
         match self.thread.take() {
             Some(thread) => thread.join().unwrap_or(Ok(())),
             None => Ok(()),
@@ -200,5 +229,8 @@ impl HasDisplayHandle for Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.request_close();
+        // Let the loop thread finish even if the window was dropped without
+        // `join` (otherwise it would park forever waiting for teardown).
+        self.shared.permit_teardown();
     }
 }

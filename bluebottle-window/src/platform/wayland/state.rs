@@ -16,6 +16,7 @@ use smithay_client_toolkit::reexports::client::protocol::{
 use smithay_client_toolkit::reexports::client::{Connection, Proxy, QueueHandle};
 use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
+use smithay_client_toolkit::reexports::protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
@@ -142,6 +143,10 @@ pub(crate) struct State {
     // `apply_pending_resize`).
     pub pending_video_resize: Option<(u32, u32)>,
 
+    // Viewport scaling the main surface's 1×1 backdrop to the window (video
+    // mode); `None` outside video mode or if the compositor lacks viewporter.
+    pub viewport: Option<WpViewport>,
+
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
 }
@@ -164,7 +169,12 @@ impl State {
     /// window size, and tells the render thread to resize the overlay.
     fn apply_layout(&mut self) {
         let scale = self.scale.max(1);
-        self.main_surface.set_buffer_scale(scale);
+        // In video mode the main surface is a 1×1 buffer stretched by a viewport,
+        // so its buffer scale must stay 1 (a 1px buffer is not divisible by a
+        // larger scale, which the compositor would reject).
+        if self.video_pool.is_none() {
+            self.main_surface.set_buffer_scale(scale);
+        }
         self.overlay_surface.set_buffer_scale(scale);
         self.send(Command::Resize {
             width: self.width,
@@ -177,52 +187,53 @@ impl State {
         self.update_main_buffer();
     }
 
-    /// Attach an opaque black backdrop to the main surface (video mode only).
+    /// Size the opaque black backdrop on the main surface (video mode only).
     ///
-    /// The caller does not render the main surface in video mode, so the library
-    /// gives it a buffer itself: an opaque black fill at the physical size, which
-    /// doubles as the letterbox background behind the video. Re-created on each
-    /// layout change to track size and scale; a no-op outside video mode.
+    /// The caller does not render the main surface in video mode; the library
+    /// gives it a 1×1 opaque-black buffer (attached once) and stretches it to the
+    /// window with a [viewport](WpViewport), so a resize is just a
+    /// `set_destination` + geometry update — no shm reallocation. (Reallocating a
+    /// full-window buffer per resize grew the slot pool until the compositor
+    /// rejected it.) A no-op outside video mode.
     fn update_main_buffer(&mut self) {
-        let scale = self.scale.max(1);
-        let width = self.width as i32 * scale;
-        let height = self.height as i32 * scale;
         let Some(pool) = self.video_pool.as_mut() else {
             return;
         };
-        if width <= 0 || height <= 0 {
-            return;
+        let (width, height) = (self.width.max(1), self.height.max(1));
+
+        // Attach the 1×1 backdrop once; thereafter only the viewport changes.
+        if self.main_buffer.is_none() {
+            match pool.create_buffer(1, 1, 4, wl_shm::Format::Xrgb8888) {
+                // Xrgb8888: a zeroed canvas is opaque black.
+                Ok((buffer, canvas)) => {
+                    canvas.fill(0);
+                    match buffer.attach_to(&self.main_surface) {
+                        Ok(()) => self.main_buffer = Some(buffer),
+                        Err(err) => {
+                            tracing::warn!("failed to attach main backdrop: {err}")
+                        },
+                    }
+                },
+                Err(err) => {
+                    tracing::warn!("failed to allocate main backdrop: {err}");
+                    return;
+                },
+            }
         }
 
-        // Pin the toplevel geometry to the logical size so the compositor's
-        // notion of the window size stays authoritative during a resize. Without
-        // it the size is inferred from the surface tree, where the full-window
-        // content subsurface can momentarily exceed the parent — making the
-        // window snap to a stale size when the drag is released.
-        self.window
-            .set_window_geometry(0, 0, self.width, self.height);
-
-        let stride = width * 4;
-        match pool.create_buffer(width, height, stride, wl_shm::Format::Xrgb8888) {
-            // Xrgb8888: a zeroed canvas is opaque black.
-            Ok((buffer, canvas)) => {
-                canvas.fill(0);
-                match buffer.attach_to(&self.main_surface) {
-                    Ok(()) => {
-                        self.main_surface.damage_buffer(0, 0, width, height);
-                        self.main_buffer = Some(buffer);
-                    },
-                    Err(err) => {
-                        tracing::warn!("failed to attach main backdrop buffer: {err}")
-                    },
-                }
-            },
-            Err(err) => tracing::warn!("failed to allocate main backdrop buffer: {err}"),
+        // Stretch the 1×1 backdrop to the window. Without viewporter it stays 1×1,
+        // which is fine: the content subsurface covers the window opaquely.
+        if let Some(viewport) = &self.viewport {
+            viewport.set_destination(width as i32, height as i32);
         }
 
-        // Commit even when the backdrop (re)allocation failed, so the geometry
-        // set above is still applied; a stale-sized backdrop is hidden behind the
-        // content subsurface anyway.
+        // Pin the toplevel geometry to the logical size so the window size stays
+        // authoritative during a resize, rather than being inferred from the
+        // surface tree (where the full-window content subsurface can momentarily
+        // exceed the parent and make the window snap to a stale size on release).
+        self.window.set_window_geometry(0, 0, width, height);
+
+        self.main_surface.damage_buffer(0, 0, 1, 1);
         self.main_surface.commit();
     }
 
