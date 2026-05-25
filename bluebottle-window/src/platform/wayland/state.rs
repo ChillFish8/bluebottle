@@ -33,6 +33,7 @@ use smithay_client_toolkit::seat::pointer::{
 };
 use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
 use smithay_client_toolkit::shell::xdg::window::{
+    DecorationMode,
     Window,
     WindowConfigure,
     WindowHandler,
@@ -92,6 +93,10 @@ pub(crate) struct State {
     pub resizing: bool,
     pub focused: bool,
     pub maximized: bool,
+    pub fullscreen: bool,
+    pub decorated: bool,
+    // The output the main surface is currently on, for monitor-size queries.
+    pub current_output: Option<wl_output::WlOutput>,
 
     pub themed_pointer: Option<ThemedPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
@@ -214,7 +219,53 @@ impl State {
                     self.window.resize(&seat, serial, resize_edge(direction));
                 }
             },
+            WindowRequest::SetMinSize(size) => self.window.set_min_size(size),
+            WindowRequest::SetMaxSize(size) => self.window.set_max_size(size),
+            WindowRequest::ShowSystemMenu => {
+                if let Some((seat, serial)) = self.pointer_grab() {
+                    self.window.show_window_menu(&seat, serial, (0, 0));
+                }
+            },
+            WindowRequest::ToggleDecorations => {
+                self.decorated = !self.decorated;
+                let mode = if self.decorated {
+                    DecorationMode::Server
+                } else {
+                    DecorationMode::Client
+                };
+                self.window.request_decoration_mode(Some(mode));
+            },
+            WindowRequest::GetMaximized(channel) => {
+                let _ = channel.send(self.maximized);
+            },
+            WindowRequest::GetMode(channel) => {
+                let mode = if self.fullscreen {
+                    window::Mode::Fullscreen
+                } else {
+                    window::Mode::Windowed
+                };
+                let _ = channel.send(mode);
+            },
+            WindowRequest::GetMonitorSize(channel) => {
+                let _ = channel.send(self.monitor_size());
+            },
+            WindowRequest::GetRawId(channel) => {
+                let _ = channel.send(self.main_surface.id().protocol_id() as u64);
+            },
         }
+    }
+
+    /// The logical size of the monitor the window is on, if known.
+    fn monitor_size(&self) -> Option<Size> {
+        let output = self.current_output.as_ref()?;
+        let info = self.output_state.info(output)?;
+        let (width, height) = info.logical_size.or_else(|| {
+            info.modes
+                .iter()
+                .find(|mode| mode.current)
+                .map(|mode| mode.dimensions)
+        })?;
+        Some(Size::new(width as f32, height as f32))
     }
 
     /// The seat and latest button serial for an interactive move/resize grab.
@@ -290,18 +341,26 @@ impl CompositorHandler for State {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _output: &wl_output::WlOutput,
+        surface: &wl_surface::WlSurface,
+        output: &wl_output::WlOutput,
     ) {
+        // Track which output the window is on, for monitor-size queries.
+        if surface == &self.main_surface {
+            self.current_output = Some(output.clone());
+        }
     }
 
     fn surface_leave(
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
-        _output: &wl_output::WlOutput,
+        surface: &wl_surface::WlSurface,
+        output: &wl_output::WlOutput,
     ) {
+        if surface == &self.main_surface && self.current_output.as_ref() == Some(output)
+        {
+            self.current_output = None;
+        }
     }
 }
 
@@ -340,6 +399,7 @@ impl WindowHandler for State {
         }
 
         self.maximized = configure.is_maximized();
+        self.fullscreen = configure.is_fullscreen();
 
         let was_configured = self.configured;
         let old_size = (self.width, self.height);

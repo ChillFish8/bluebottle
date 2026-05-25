@@ -3,7 +3,7 @@ use std::sync::{Arc, mpsc as sync_chan};
 use std::time::Duration;
 
 use iced::Program;
-use iced_futures::futures::channel::mpsc;
+use iced_futures::futures::channel::{mpsc, oneshot};
 use iced_futures::{Executor as _, Runtime, subscription};
 use iced_graphics::compositor::{self, Compositor};
 use iced_graphics::{Settings, Shell, Viewport};
@@ -65,6 +65,22 @@ pub(crate) enum WindowRequest {
     Drag,
     /// Begin an interactive resize from the given edge/corner.
     DragResize(window::Direction),
+    /// Set the minimum size hint (physical-independent logical pixels).
+    SetMinSize(Option<(u32, u32)>),
+    /// Set the maximum size hint.
+    SetMaxSize(Option<(u32, u32)>),
+    /// Show the compositor's window menu at the pointer.
+    ShowSystemMenu,
+    /// Toggle server-side decorations.
+    ToggleDecorations,
+    /// Report whether the window is maximized.
+    GetMaximized(oneshot::Sender<bool>),
+    /// Report the current window mode (windowed/fullscreen).
+    GetMode(oneshot::Sender<window::Mode>),
+    /// Report the size of the monitor the window is on, if known.
+    GetMonitorSize(oneshot::Sender<Option<Size>>),
+    /// Report a raw identifier for the window (the `wl_surface` protocol id).
+    GetRawId(oneshot::Sender<u64>),
 }
 
 /// Build the overlay on this (render) thread and drive it until close.
@@ -204,6 +220,11 @@ fn physical_size(logical_width: u32, logical_height: u32, scale: f64) -> (u32, u
             .clamp(1.0, MAX_SURFACE_DIMENSION as f64) as u32
     };
     (to_physical(logical_width), to_physical(logical_height))
+}
+
+/// Convert an optional logical [`Size`] to integer dimensions for size hints.
+fn to_dimensions(size: Option<Size>) -> Option<(u32, u32)> {
+    size.map(|size| (size.width as u32, size.height as u32))
 }
 
 /// The runtime action type produced by a program's messages.
@@ -539,8 +560,38 @@ impl<P: Program> IcedOverlay<P> {
             WindowAction::RedrawAll | WindowAction::RelayoutAll => {
                 self.redraw_request = window::RedrawRequest::NextFrame;
             },
-            // Geometry/icon/etc. are compositor-owned on Wayland; remaining
-            // state queries are answered in a later pass. Ignore for now.
+            WindowAction::GetMinimized(_, channel) => {
+                // Wayland does not tell clients whether they are minimized.
+                let _ = channel.send(None);
+            },
+            WindowAction::SetMinSize(_, size) => {
+                self.request_window(WindowRequest::SetMinSize(to_dimensions(size)));
+            },
+            WindowAction::SetMaxSize(_, size) => {
+                self.request_window(WindowRequest::SetMaxSize(to_dimensions(size)));
+            },
+            WindowAction::ShowSystemMenu(_) => {
+                self.request_window(WindowRequest::ShowSystemMenu);
+            },
+            WindowAction::ToggleDecorations(_) => {
+                self.request_window(WindowRequest::ToggleDecorations);
+            },
+            // State queries the event-loop thread (which owns the toplevel)
+            // answers; the reply channel travels with the request.
+            WindowAction::GetMaximized(_, channel) => {
+                self.request_window(WindowRequest::GetMaximized(channel));
+            },
+            WindowAction::GetMode(_, channel) => {
+                self.request_window(WindowRequest::GetMode(channel));
+            },
+            WindowAction::GetMonitorSize(_, channel) => {
+                self.request_window(WindowRequest::GetMonitorSize(channel));
+            },
+            WindowAction::GetRawId(_, channel) => {
+                self.request_window(WindowRequest::GetRawId(channel));
+            },
+            // Geometry/position/icon/level/etc. are compositor-owned on Wayland
+            // (or have no equivalent); ignore them.
             _ => {},
         }
     }
