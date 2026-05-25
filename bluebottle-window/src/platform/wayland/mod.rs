@@ -324,6 +324,7 @@ where
         configured: false,
         exit: false,
         resizing: false,
+        focused: false,
         themed_pointer: None,
         keyboard: None,
         modifiers: iced::keyboard::Modifiers::empty(),

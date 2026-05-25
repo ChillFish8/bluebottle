@@ -38,6 +38,7 @@ enum Message {
     Tick,
     InputChanged(String),
     FocusInput,
+    WindowEvent(String),
 }
 
 fn update(state: &mut App, message: Message) -> iced::Task<Message> {
@@ -54,8 +55,32 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
         Message::InputChanged(value) => state.input = value,
         // Exercises a widget operation: focus is driven by a Task, not input.
         Message::FocusInput => return iced::widget::operation::focus(INPUT_ID),
+        Message::WindowEvent(label) => tracing::info!("window event: {label}"),
     }
+
     iced::Task::none()
+}
+
+/// Maps the window lifecycle events into loggable [`Message`]s.
+fn window_event(
+    event: iced::Event,
+    _status: iced::event::Status,
+    _id: iced::window::Id,
+) -> Option<Message> {
+    use iced::window::Event;
+
+    let label = match event {
+        iced::Event::Window(Event::Focused) => "focused".to_owned(),
+        iced::Event::Window(Event::Unfocused) => "unfocused".to_owned(),
+        iced::Event::Window(Event::Resized(size)) => {
+            format!("resized to {}x{}", size.width, size.height)
+        },
+        iced::Event::Window(Event::Rescaled(scale)) => format!("rescaled to {scale}"),
+        iced::Event::Window(Event::CloseRequested) => "close requested".to_owned(),
+        _ => return None,
+    };
+
+    Some(Message::WindowEvent(label))
 }
 
 fn view(state: &App) -> iced::Element<'_, Message> {
@@ -74,7 +99,10 @@ fn view(state: &App) -> iced::Element<'_, Message> {
 }
 
 fn subscription(_state: &App) -> iced::Subscription<Message> {
-    iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
+    iced::Subscription::batch([
+        iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
+        iced::event::listen_with(window_event),
+    ])
 }
 
 fn main() {

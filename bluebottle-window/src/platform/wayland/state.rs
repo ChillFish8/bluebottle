@@ -1,7 +1,7 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc};
 
-use iced_runtime::core::{Event, Point, keyboard, mouse};
+use iced_runtime::core::{Event, Point, Size, keyboard, mouse, window};
 use smithay_client_toolkit::compositor::CompositorHandler;
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::reexports::client::protocol::{
@@ -84,6 +84,7 @@ pub(crate) struct State {
     pub configured: bool,
     pub exit: bool,
     pub resizing: bool,
+    pub focused: bool,
 
     pub themed_pointer: Option<ThemedPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
@@ -102,6 +103,11 @@ impl State {
     /// Send a [`Command`] to the render thread, ignoring a closed channel.
     fn send(&self, command: Command) {
         let _ = self.commands.send(command);
+    }
+
+    /// Feed a window lifecycle event into the overlay UI.
+    fn send_window_event(&self, event: window::Event) {
+        self.send(Command::Event(Event::Window(event)));
     }
 
     /// Apply the current logical size and scale to both surfaces.
@@ -169,12 +175,13 @@ impl CompositorHandler for State {
     ) {
         // Other surfaces (e.g. the themed pointer's cursor surface) also report
         // scale; only the window's scale should drive the overlay.
-        if surface != &self.main_surface {
+        if surface != &self.main_surface || new_factor == self.scale {
             return;
         }
 
         self.scale = new_factor;
         *self.shared.scale.lock().expect("scale mutex poisoned") = new_factor as f64;
+        self.send_window_event(window::Event::Rescaled(new_factor as f32));
 
         if self.configured {
             self.apply_layout();
@@ -226,6 +233,9 @@ impl WindowHandler for State {
         _qh: &QueueHandle<Self>,
         _window: &Window,
     ) {
+        // Let the UI observe the request, then close. (iced's default is to
+        // close on request; intercepting it would need an opt-out flag.)
+        self.send_window_event(window::Event::CloseRequested);
         self.exit = true;
     }
 
@@ -250,18 +260,45 @@ impl WindowHandler for State {
             }
         }
 
+        let was_configured = self.configured;
+        let old_size = (self.width, self.height);
+
         if let Some(width) = configure.new_size.0 {
             self.width = width.get();
         }
         if let Some(height) = configure.new_size.1 {
             self.height = height.get();
         }
+        let size = Size::new(self.width as f32, self.height as f32);
 
         *self.shared.size.lock().expect("size mutex poisoned") =
             (self.width, self.height);
 
         self.apply_layout();
         self.configured = true;
+
+        // Window lifecycle events for the UI: first configure is the open; later
+        // ones may report a new size; activation maps to focus.
+        if !was_configured {
+            self.send_window_event(window::Event::Opened {
+                position: None,
+                size,
+            });
+        } else if (self.width, self.height) != old_size {
+            self.send_window_event(window::Event::Resized(size));
+        }
+
+        if configure.is_activated() != self.focused {
+            self.focused = configure.is_activated();
+            self.send_window_event(
+                if self.focused {
+                    window::Event::Focused
+                } else {
+                    window::Event::Unfocused
+                },
+            );
+        }
+
         self.announce_ready();
     }
 }
