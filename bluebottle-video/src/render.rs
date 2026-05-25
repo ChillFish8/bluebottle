@@ -185,8 +185,7 @@ impl RenderContext {
         render_result
     }
 
-    /// Upload each source plane from system memory and return the planes,
-    /// referencing this context's persistent upload textures.
+    /// Upload the source frame from system memory (the packed BGRA/RGBA path).
     fn upload_sysmem(
         &mut self,
         buffer: &gst::Buffer,
@@ -202,7 +201,6 @@ impl RenderContext {
                 message: format!("unsupported sysmem format {:?}", info.format()),
             })?;
 
-        // Single packed plane (BGRA/RGBA family).
         let pixels = frame.plane_data(0).map_err(|_| Error::UnsupportedFormat {
             message: "frame has no plane 0".into(),
         })?;
@@ -227,11 +225,10 @@ impl RenderContext {
         })
     }
 
-    /// Import a dmabuf frame zero-copy: each plane's DRM-fourcc'd buffer is
-    /// wrapped as a `pl_tex` with no CPU copy. Handles single-plane packed RGB
-    /// (e.g. from `vapostproc`) and 2-plane NV12/P010 (the typical VA-API
-    /// output). Returns the planes plus the imported textures, which the caller
-    /// keeps alive (along with the buffer) until the GPU is done.
+    /// Import a dmabuf frame zero-copy: each plane is wrapped as a `pl_tex` with
+    /// no CPU copy (packed RGB, or 2-plane NV12/P010). Returns the planes plus
+    /// the imported textures, which the caller keeps alive (with the buffer)
+    /// until the GPU is done.
     fn import_dmabuf(
         &mut self,
         buffer: &gst::Buffer,
@@ -248,12 +245,9 @@ impl RenderContext {
             }
         })?;
 
-        // Per-plane offsets/strides come from the buffer's VideoMeta when
-        // present (authoritative for imported buffers), else the negotiated
-        // VideoInfo's standard layout. VA exposes the planes either as one
-        // shared fd at different offsets (n_memory == 1) or one fd per plane.
-        // Ignore a VideoMeta that doesn't describe all of this layout's planes,
-        // so per-plane indexing below can never go out of bounds.
+        // Per-plane offsets/strides come from the VideoMeta when it describes
+        // all our planes, else the negotiated VideoInfo's standard layout. (VA
+        // exposes planes as one shared fd at offsets, or one fd per plane.)
         let meta = buffer
             .meta::<gst_video::VideoMeta>()
             .filter(|meta| meta.n_planes() as usize >= layout.planes.len());

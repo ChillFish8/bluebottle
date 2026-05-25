@@ -30,10 +30,10 @@ mod tests {
 
     use crate::placebo::{Device, Log, Renderer, SysmemUploader, packed8_plane_data};
 
-    /// M1 smoke test: on a headless GPU, upload a synthetic RGBA frame and run
-    /// it through the real renderer onto an offscreen target. Exercises the log,
-    /// device, renderer and system-memory import path end to end (the on-screen
-    /// swapchain path is exercised by the `player` example in M4).
+    /// Headless smoke test: upload a synthetic RGBA frame and render it onto an
+    /// offscreen target, exercising the device, renderer and sysmem upload path
+    /// end to end. (The on-screen swapchain path is covered by the `player`
+    /// example.)
     #[test]
     fn headless_render_pipeline() {
         let log = Log::new().expect("create log");
@@ -58,7 +58,6 @@ mod tests {
         let plane = uploader.upload(&data).expect("upload plane");
 
         // Offscreen render target: a renderable RGBA8 texture.
-        // SAFETY: `gpu` is valid; we look up a format then create one texture.
         let caps =
             pl::pl_fmt_caps_PL_FMT_CAP_RENDERABLE | pl::pl_fmt_caps_PL_FMT_CAP_BLITTABLE;
         let format = unsafe {
@@ -73,7 +72,6 @@ mod tests {
             blit_dst: true,
             ..Default::default()
         };
-        // SAFETY: `target_params` outlives the call.
         let mut target_tex = unsafe { pl::pl_tex_create(gpu.raw(), &target_params) };
         assert!(!target_tex.is_null(), "create target texture");
 

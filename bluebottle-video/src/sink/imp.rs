@@ -89,10 +89,8 @@ impl ElementImpl for PlaceboSink {
         static TEMPLATES: OnceLock<Vec<gst::PadTemplate>> = OnceLock::new();
         TEMPLATES
             .get_or_init(|| {
-                // Prefer zero-copy dmabuf (any DRM format; the single-plane
-                // packed subset is imported, others fall back). Then the
-                // system-memory packed formats the upload path handles —
-                // videoconvert can always produce BGRA.
+                // dmabuf first so it's preferred (zero-copy); unsupported dmabuf
+                // formats are rejected in `set_caps` and fall back to sysmem.
                 let dmabuf = gst::Caps::builder("video/x-raw")
                     .features(["memory:DMABuf"])
                     .field("format", "DMA_DRM")
@@ -222,10 +220,9 @@ impl VideoSinkImpl for PlaceboSink {
             state.applied_preset = Some(state.preset);
         }
 
-        // Apply any pending resize before rendering (same thread as the
-        // swapchain, avoiding cross-thread swapchain access). Only mark it
-        // applied if libplacebo actually adopted the size, so a resize made
-        // while the surface is unavailable is retried on a later frame.
+        // Resize on the streaming thread (never cross-thread). Mark it applied
+        // only if libplacebo adopted the size, so a resize during surface
+        // unavailability is retried on a later frame.
         if state.render_rect != state.applied_rect
             && let (Some((width, height)), Some(context)) =
                 (state.render_rect, state.render.as_ref())
@@ -234,7 +231,6 @@ impl VideoSinkImpl for PlaceboSink {
             state.applied_rect = state.render_rect;
         }
 
-        // Apply a preset change.
         if state.applied_preset != Some(state.preset) {
             let preset = state.preset;
             if let Some(context) = state.render.as_mut() {

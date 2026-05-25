@@ -59,10 +59,9 @@ impl Player {
         Ok(Self { pipeline, sink })
     }
 
-    /// Build a VA-API pipeline that produces real packed dmabuf frames into the
-    /// sink (`videotestsrc ! vapostproc ! placebosink`, forcing a single-plane
-    /// packed DRM format), exercising the zero-copy import path with no media
-    /// file or container demuxer.
+    /// Build a VA-API pipeline (`videotestsrc ! vapostproc ! placebosink`) that
+    /// feeds real dmabuf frames into the sink, exercising the zero-copy path
+    /// with no media file or container demuxer.
     pub fn test_pattern_dmabuf() -> Result<Self, Error> {
         Self::init()?;
         let sink = PlaceboSink::new();
