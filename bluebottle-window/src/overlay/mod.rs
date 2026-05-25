@@ -15,6 +15,7 @@ use iced_runtime::core::{
     Color,
     Event,
     Point,
+    Rectangle,
     Renderer,
     Size,
     input_method,
@@ -166,10 +167,12 @@ fn render_loop<P: Program>(
                 *shared.cursor.lock().expect("cursor mutex poisoned") = interaction;
             }
 
-            // Likewise publish the input-method state for the text input.
+            // Likewise publish the input-method state for the text input
+            // (with its cursor rect converted to surface-logical coordinates).
             if *overlay.input_method() != published_ime {
                 published_ime = overlay.input_method().clone();
-                *shared.ime.lock().expect("ime mutex poisoned") = published_ime.clone();
+                *shared.ime.lock().expect("ime mutex poisoned") =
+                    overlay.surface_input_method();
             }
         }
     }
@@ -291,8 +294,6 @@ pub(crate) struct IcedOverlay<P: Program> {
     // scale is the app's own zoom from `Instance::scale_factor`.
     width: u32,
     height: u32,
-    logical_width: u32,
-    logical_height: u32,
     compositor_scale: f64,
     program_scale: f64,
     last_title: String,
@@ -367,8 +368,6 @@ impl<P: Program> IcedOverlay<P> {
             viewport,
             width: physical_width,
             height: physical_height,
-            logical_width: width,
-            logical_height: height,
             compositor_scale: scale,
             program_scale,
             last_title: String::new(),
@@ -424,8 +423,6 @@ impl<P: Program> IcedOverlay<P> {
             return;
         }
 
-        self.logical_width = logical_width;
-        self.logical_height = logical_height;
         self.compositor_scale = scale;
         self.width = width;
         self.height = height;
@@ -445,14 +442,35 @@ impl<P: Program> IcedOverlay<P> {
     }
 
     fn queue_event(&mut self, event: Event) {
+        // Pointer coordinates arrive in surface-logical units; convert any
+        // position-bearing event into Iced's logical space (see
+        // [`Self::scale_to_logical`]).
+        let event = match event {
+            Event::Mouse(mouse::Event::CursorMoved { position }) => {
+                Event::Mouse(mouse::Event::CursorMoved {
+                    position: self.scale_to_logical(position),
+                })
+            },
+            other => other,
+        };
         self.events.push(event);
     }
 
     fn set_cursor(&mut self, position: Option<Point>) {
         self.cursor = match position {
-            Some(position) => mouse::Cursor::Available(position),
+            Some(position) => mouse::Cursor::Available(self.scale_to_logical(position)),
             None => mouse::Cursor::Unavailable,
         };
+    }
+
+    /// Convert a surface-logical point to Iced's logical space.
+    ///
+    /// Wayland reports input in surface-logical pixels, but Iced lays out in
+    /// `surface_logical / program_scale` units (the program scale is a UI zoom
+    /// folded into the viewport), so input must be divided by it to line up.
+    fn scale_to_logical(&self, point: Point) -> Point {
+        let scale = self.program_scale as f32;
+        Point::new(point.x / scale, point.y / scale)
     }
 
     fn pump(&mut self) -> bool {
@@ -642,6 +660,34 @@ impl<P: Program> IcedOverlay<P> {
         &self.input_method
     }
 
+    /// The desired input-method state with its cursor rectangle converted from
+    /// Iced's logical space to surface-logical space for the platform backend.
+    ///
+    /// This is the inverse of [`Self::scale_to_logical`]: the rect is multiplied
+    /// by the program scale so the IME popup lands at the right place.
+    fn surface_input_method(&self) -> input_method::InputMethod {
+        match &self.input_method {
+            input_method::InputMethod::Enabled {
+                cursor,
+                purpose,
+                preedit,
+            } => {
+                let scale = self.program_scale as f32;
+                input_method::InputMethod::Enabled {
+                    cursor: Rectangle {
+                        x: cursor.x * scale,
+                        y: cursor.y * scale,
+                        width: cursor.width * scale,
+                        height: cursor.height * scale,
+                    },
+                    purpose: *purpose,
+                    preedit: preedit.clone(),
+                }
+            },
+            input_method::InputMethod::Disabled => input_method::InputMethod::Disabled,
+        }
+    }
+
     fn wants_redraw(&self) -> bool {
         match self.redraw_request {
             window::RedrawRequest::NextFrame => true,
@@ -724,9 +770,11 @@ impl<P: Program> IcedOverlay<P> {
         }
         if applied {
             self.sync_subscriptions();
-            // The title may depend on state the messages just changed.
-            self.sync_title();
         }
+        // Re-sync unconditionally: the title may depend on state changed by an
+        // async `Task` or `Subscription` message (applied in `pump`), not just
+        // the messages produced here. `sync_title` no-ops when unchanged.
+        self.sync_title();
 
         let theme = self.instance.theme(self.window_id);
         let theme = theme.as_ref().unwrap_or(&self.default_theme);
