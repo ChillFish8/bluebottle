@@ -20,7 +20,7 @@ struct State {
     display: Option<usize>,
     /// `wl_surface` pointer to present onto.
     window_handle: Option<usize>,
-    /// Desired on-screen size in physical pixels (the window size).
+    /// Desired on-screen size in logical pixels (the window size).
     render_rect: Option<(u32, u32)>,
     /// Size last applied to the swapchain, to detect resizes.
     applied_rect: Option<(u32, u32)>,
@@ -136,6 +136,15 @@ impl BaseSinkImpl for PlaceboSink {
             let info = drm.to_video_info().map_err(|_| {
                 gst::loggable_error!(gst::CAT_RUST, "dmabuf caps without video info")
             })?;
+            // Reject dmabuf formats the import path can't handle, so negotiation
+            // falls back to a system-memory format instead of failing mid-stream.
+            if !crate::render::dmabuf_format_supported(info.format()) {
+                return Err(gst::loggable_error!(
+                    gst::CAT_RUST,
+                    "unsupported dmabuf format {:?}",
+                    info.format()
+                ));
+            }
             (info, Some((drm.fourcc(), drm.modifier())))
         } else {
             let info = gst_video::VideoInfo::from_caps(caps).map_err(|_| {
@@ -214,12 +223,14 @@ impl VideoSinkImpl for PlaceboSink {
         }
 
         // Apply any pending resize before rendering (same thread as the
-        // swapchain, avoiding cross-thread swapchain access).
+        // swapchain, avoiding cross-thread swapchain access). Only mark it
+        // applied if libplacebo actually adopted the size, so a resize made
+        // while the surface is unavailable is retried on a later frame.
         if state.render_rect != state.applied_rect
             && let (Some((width, height)), Some(context)) =
                 (state.render_rect, state.render.as_ref())
+            && context.resize(width, height)
         {
-            context.resize(width, height);
             state.applied_rect = state.render_rect;
         }
 

@@ -32,16 +32,16 @@ impl Swapchain {
         Ok(Self { raw })
     }
 
-    /// Resize the swapchain to `width`×`height` physical pixels.
+    /// Resize the swapchain to `width`×`height` pixels.
     ///
-    /// Returns the size libplacebo actually adopted (it may clamp). A `false`
-    /// return from libplacebo (surface not ready) leaves the size unchanged.
-    pub fn resize(&self, width: u32, height: u32) -> (u32, u32) {
+    /// Returns whether libplacebo adopted the request; it returns `false` when
+    /// the surface is currently unavailable, leaving the size unchanged (the
+    /// caller should retry on a later frame rather than assume success).
+    pub fn resize(&self, width: u32, height: u32) -> bool {
         let mut w = width as i32;
         let mut h = height as i32;
         // SAFETY: in/out pointers are valid for the call.
-        unsafe { pl::pl_swapchain_resize(self.raw, &mut w, &mut h) };
-        (w.max(0) as u32, h.max(0) as u32)
+        unsafe { pl::pl_swapchain_resize(self.raw, &mut w, &mut h) }
     }
 
     /// Begin a frame, yielding the framebuffer to render into, or `None` if the

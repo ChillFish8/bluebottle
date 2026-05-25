@@ -6,6 +6,7 @@
 //! libplacebo objects are not intrinsically thread-safe we mark the context
 //! `Send` (see the `unsafe impl` below) to satisfy glib's subclass bounds.
 
+use std::collections::VecDeque;
 use std::ffi::c_void;
 
 use gstreamer as gst;
@@ -29,6 +30,20 @@ use crate::placebo::{
 };
 use crate::platform::{self, Surface};
 
+/// Per-frame GPU resources retained until the GPU has finished with them: the
+/// dmabuf-imported textures and the source `gst::Buffer`. Holding the buffer
+/// keeps its dmabuf memory from being freed or recycled (overwritten) by the
+/// decoder pool while the GPU is still sampling the import.
+struct FrameHold {
+    _textures: Vec<Texture>,
+    _buffer: Option<gst::Buffer>,
+}
+
+/// How many recent frames' GPU resources to retain. The swapchain's default
+/// depth is 3 (up to 3 frames queued), so keeping the last 4 guarantees a
+/// frame's dmabuf is no longer in use by the time we release it.
+const MAX_IN_FLIGHT: usize = 4;
+
 /// libplacebo render engine bound to one presentation surface.
 ///
 /// Field order is the drop order and is load-bearing: GPU objects (renderer,
@@ -40,27 +55,29 @@ pub struct RenderContext {
     swapchain: Swapchain,
     /// One persistent upload texture per source plane (sysmem path).
     uploaders: Vec<SysmemUploader>,
-    /// dmabuf-imported textures for the in-flight frame, kept alive until the
-    /// next frame replaces them (the zero-copy path).
-    imported: Vec<Texture>,
+    /// Resources for frames still in flight on the GPU (zero-copy path); see
+    /// [`FrameHold`] and [`MAX_IN_FLIGHT`].
+    in_flight: VecDeque<FrameHold>,
     _surface: Surface,
     device: Device,
     _instance: Instance,
     _log: Log,
-    /// Tuned render parameters (scalers, colour management, dither). M3 will
-    /// expose these; for now the libplacebo defaults.
+    /// Tuned render parameters (scalers, colour management, dither), selected by
+    /// the active [`RenderPreset`].
     params: pl::pl_render_params,
 }
 
 // SAFETY: the contained libplacebo objects are only ever touched from the
-// GStreamer streaming thread, serialised by the sink's state mutex. We never
-// share a `RenderContext` across threads concurrently.
+// GStreamer streaming thread (the sink calls `render`/`resize`/`set_preset`
+// only from `show_frame`; the cross-thread setter methods on the sink mutate
+// plain request fields under the state mutex, never this context). We never
+// access a `RenderContext` from two threads concurrently.
 unsafe impl Send for RenderContext {}
 
 impl RenderContext {
     /// Build a render context presenting onto `(display, surface)` (native
-    /// `wl_display` / `wl_surface` pointers), sized to `width`×`height` physical
-    /// pixels.
+    /// `wl_display` / `wl_surface` pointers), sized to `width`×`height` logical
+    /// pixels (the bluebottle content surface stays at buffer scale 1).
     pub fn new(
         display: *mut c_void,
         surface_ptr: *mut c_void,
@@ -81,7 +98,7 @@ impl RenderContext {
             renderer,
             swapchain,
             uploaders: Vec::new(),
-            imported: Vec::new(),
+            in_flight: VecDeque::new(),
             _surface: surface,
             device,
             _instance: instance,
@@ -90,9 +107,11 @@ impl RenderContext {
         })
     }
 
-    /// Resize the swapchain to `width`×`height` physical pixels.
-    pub fn resize(&self, width: u32, height: u32) {
-        self.swapchain.resize(width, height);
+    /// Resize the swapchain to `width`×`height` logical pixels. Returns whether
+    /// libplacebo adopted the new size (it can refuse while the surface is
+    /// unavailable, in which case the caller should retry).
+    pub fn resize(&self, width: u32, height: u32) -> bool {
+        self.swapchain.resize(width, height)
     }
 
     /// Switch the render-quality preset; takes effect on the next frame.
@@ -114,18 +133,16 @@ impl RenderContext {
         info: &gst_video::VideoInfo,
         dma_drm: Option<(u32, u64)>,
     ) -> Result<(), Error> {
-        // Release the previous frame's imported textures.
-        self.imported.clear();
-
-        let frame = match dma_drm {
+        let (frame, textures) = match dma_drm {
             Some((fourcc, modifier)) => {
                 self.import_dmabuf(buffer, info, fourcc, modifier)?
             },
-            None => self.upload_sysmem(buffer, info)?,
+            None => (self.upload_sysmem(buffer, info)?, Vec::new()),
         };
 
         let Some(sw_frame) = self.swapchain.start_frame() else {
-            // Surface hidden/minimised: skip this frame, not an error.
+            // Surface hidden/minimised: skip this frame, not an error. The
+            // imported textures (and buffer) drop here, unused by the GPU.
             return Ok(());
         };
 
@@ -133,24 +150,39 @@ impl RenderContext {
         // SAFETY: `sw_frame` came from a successful `start_frame`.
         unsafe { pl::pl_frame_from_swapchain(&mut target, &sw_frame) };
 
+        // `pl_frame.planes` is a fixed array of `PL_MAX_PLANES`; never write past it.
+        let plane_count = frame.planes.len().min(pl::PL_MAX_PLANES as usize);
         let mut image = pl::pl_frame {
-            num_planes: frame.planes.len() as i32,
+            num_planes: plane_count as i32,
             repr: frame.repr,
             ..Default::default()
         };
-        for (index, plane) in frame.planes.iter().enumerate() {
-            image.planes[index] = *plane;
-        }
+        image.planes[..plane_count].copy_from_slice(&frame.planes[..plane_count]);
 
         // SAFETY: image/target frames and their textures belong to this
         // context's gpu and outlive the call; `params` is a valid
         // `pl_render_params`.
-        let result = unsafe { self.renderer.render(&image, &target, &self.params) };
-        if result.is_ok() {
-            self.swapchain.submit_frame();
+        let render_result =
+            unsafe { self.renderer.render(&image, &target, &self.params) };
+
+        // `start_frame` must be paired with `submit_frame` even when rendering
+        // failed, or the swapchain is left in an invalid state and wedges the
+        // next `start_frame`. Present only if submission succeeded.
+        if self.swapchain.submit_frame() {
             self.swapchain.swap_buffers();
         }
-        result
+
+        // Retain this frame's GPU resources for the in-flight window so the
+        // dmabuf import (and its backing buffer) is not freed/recycled mid-read.
+        self.in_flight.push_back(FrameHold {
+            _textures: textures,
+            _buffer: dma_drm.is_some().then(|| buffer.clone()),
+        });
+        while self.in_flight.len() > MAX_IN_FLIGHT {
+            self.in_flight.pop_front();
+        }
+
+        render_result
     }
 
     /// Upload each source plane from system memory and return the planes,
@@ -197,14 +229,16 @@ impl RenderContext {
 
     /// Import a dmabuf frame zero-copy: each plane's DRM-fourcc'd buffer is
     /// wrapped as a `pl_tex` with no CPU copy. Handles single-plane packed RGB
-    /// (e.g. from `vapostproc`) and 2-plane NV12 (the typical VA-API output).
+    /// (e.g. from `vapostproc`) and 2-plane NV12/P010 (the typical VA-API
+    /// output). Returns the planes plus the imported textures, which the caller
+    /// keeps alive (along with the buffer) until the GPU is done.
     fn import_dmabuf(
         &mut self,
         buffer: &gst::Buffer,
         info: &gst_video::VideoInfo,
         fourcc: u32,
         modifier: u64,
-    ) -> Result<ImagePlanes, Error> {
+    ) -> Result<(ImagePlanes, Vec<Texture>), Error> {
         let layout = dmabuf_layout(info.format(), fourcc).ok_or_else(|| {
             Error::UnsupportedFormat {
                 message: format!(
@@ -214,11 +248,18 @@ impl RenderContext {
             }
         })?;
 
-        // dmabuf fds and per-plane offsets/strides: VA exposes the planes as one
+        // Per-plane offsets/strides come from the buffer's VideoMeta when
+        // present (authoritative for imported buffers), else the negotiated
+        // VideoInfo's standard layout. VA exposes the planes either as one
         // shared fd at different offsets (n_memory == 1) or one fd per plane.
-        let meta = buffer.meta::<gst_video::VideoMeta>();
+        // Ignore a VideoMeta that doesn't describe all of this layout's planes,
+        // so per-plane indexing below can never go out of bounds.
+        let meta = buffer
+            .meta::<gst_video::VideoMeta>()
+            .filter(|meta| meta.n_planes() as usize >= layout.planes.len());
         let gpu = self.device.gpu();
         let mut planes = Vec::with_capacity(layout.planes.len());
+        let mut textures = Vec::with_capacity(layout.planes.len());
 
         for (index, spec) in layout.planes.iter().enumerate() {
             let memory_index = if buffer.n_memory() == 1 { 0 } else { index };
@@ -230,14 +271,18 @@ impl RenderContext {
                 })?;
             let (offset, stride) = match &meta {
                 Some(meta) => (meta.offset()[index], meta.stride()[index] as usize),
-                None => (0, info.stride()[index] as usize),
+                None => (info.offset()[index], info.stride()[index] as usize),
             };
             let texture = import_dmabuf(
                 gpu,
                 spec.fourcc,
                 modifier,
-                (info.width() as i32) >> spec.width_shift,
-                (info.height() as i32) >> spec.height_shift,
+                // Round up: subsampled chroma planes of odd-dimensioned frames
+                // need the ceiling, not the floor.
+                ((info.width() as i32) + (1 << spec.width_shift) - 1)
+                    >> spec.width_shift,
+                ((info.height() as i32) + (1 << spec.height_shift) - 1)
+                    >> spec.height_shift,
                 &DmabufPlane {
                     fd: dmabuf.fd(),
                     offset,
@@ -250,13 +295,16 @@ impl RenderContext {
                 component_mapping: spec.mapping,
                 ..Default::default()
             });
-            self.imported.push(texture);
+            textures.push(texture);
         }
 
-        Ok(ImagePlanes {
-            planes,
-            repr: layout.repr,
-        })
+        Ok((
+            ImagePlanes {
+                planes,
+                repr: layout.repr,
+            },
+            textures,
+        ))
     }
 }
 
@@ -288,6 +336,15 @@ const fn fourcc(code: &[u8; 4]) -> u32 {
         | (code[1] as u32) << 8
         | (code[2] as u32) << 16
         | (code[3] as u32) << 24
+}
+
+/// Whether the dmabuf import path can handle `format`.
+///
+/// Used by the sink to reject dmabuf caps it cannot import *during
+/// negotiation*, so upstream falls back to a system-memory format rather than
+/// failing on the first frame.
+pub(crate) fn dmabuf_format_supported(format: gst_video::VideoFormat) -> bool {
+    dmabuf_layout(format, 0).is_some()
 }
 
 /// Per-plane import layout for a dmabuf video format, or `None` if unsupported.

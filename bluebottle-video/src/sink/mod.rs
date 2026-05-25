@@ -49,7 +49,7 @@ impl PlaceboSink {
         self.imp().set_window_handle(handle);
     }
 
-    /// Set the on-screen render size in physical pixels. Safe to call at any
+    /// Set the on-screen render size in logical pixels. Safe to call at any
     /// time; a change resizes the swapchain before the next frame.
     pub fn set_render_rectangle(&self, width: u32, height: u32) {
         self.imp().set_render_rectangle(width, height);
