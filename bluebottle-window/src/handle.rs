@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use iced_runtime::core::input_method::InputMethod;
 use iced_runtime::core::mouse;
 use raw_window_handle::{
     DisplayHandle,
@@ -41,6 +42,9 @@ pub(crate) struct Shared {
     /// Cursor the overlay wants shown, published by the render thread and
     /// applied by the event-loop thread (which owns the pointer).
     pub cursor: Mutex<mouse::Interaction>,
+    /// Input-method state the overlay wants, published by the render thread and
+    /// applied by the event-loop thread (which owns the text input).
+    pub ime: Mutex<InputMethod>,
 }
 
 /// A handle to the main (parent) surface of an overlay window.

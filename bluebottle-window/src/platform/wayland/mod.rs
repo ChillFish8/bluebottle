@@ -1,5 +1,6 @@
 mod input;
 mod state;
+mod text_input;
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
@@ -9,6 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 use iced::Program;
+use iced_runtime::core::input_method::InputMethod;
 use raw_window_handle::{
     DisplayHandle,
     HandleError,
@@ -21,11 +23,13 @@ use raw_window_handle::{
     WindowHandle,
 };
 use smithay_client_toolkit::compositor::CompositorState;
+use smithay_client_toolkit::globals::GlobalData;
 use smithay_client_toolkit::output::OutputState;
 use smithay_client_toolkit::reexports::calloop::EventLoop;
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::reexports::client::globals::registry_queue_init;
 use smithay_client_toolkit::reexports::client::{Connection, Proxy};
+use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use smithay_client_toolkit::registry::RegistryState;
 use smithay_client_toolkit::seat::SeatState;
 use smithay_client_toolkit::shell::WaylandSurface;
@@ -174,9 +178,10 @@ where
             result = Err(err).context(EventLoopSnafu);
             break;
         }
-        // Apply anything the render thread asked of the toplevel/pointer.
+        // Apply anything the render thread asked of the toplevel/pointer/IME.
         state.apply_window_requests();
         state.sync_cursor(&conn);
+        state.sync_ime();
     }
 
     // Make the shutdown observable to the render thread and the caller, whether
@@ -229,6 +234,11 @@ where
     })?;
     let shm = Shm::bind(&globals, &qh).context(MissingGlobalSnafu { what: "wl_shm" })?;
 
+    // Text input (IME) is optional: absent on compositors without the protocol.
+    let text_input_manager = globals
+        .bind::<ZwpTextInputManagerV3, _, _>(&qh, 1..=1, GlobalData)
+        .ok();
+
     // A dedicated surface the themed pointer presents cursor images on.
     let cursor_surface = compositor.create_surface(&qh);
 
@@ -270,6 +280,7 @@ where
         scale: Mutex::new(1.0),
         close_requested: AtomicBool::new(false),
         cursor: Mutex::new(Default::default()),
+        ime: Mutex::new(InputMethod::Disabled),
     });
 
     // Spawn the render thread. It builds the Iced overlay (neither the program
@@ -288,8 +299,7 @@ where
         .name("bluebottle-overlay".to_owned())
         .spawn(move || {
             // Rebind so the closure captures the (`Send`) `RawSurface` as a unit
-            // rather than its individual `!Send` pointer fields (Rust 2021
-            // precise capture).
+            // rather than its individual `!Send` pointer fields (Rust 2021 precise capture).
             let overlay_target = overlay_target;
             overlay::run(
                 build,
@@ -333,6 +343,14 @@ where
         themed_pointer: None,
         keyboard: None,
         modifiers: iced::keyboard::Modifiers::empty(),
+        text_input_manager,
+        text_input: None,
+        ime_entered: false,
+        ime_enabled: false,
+        ime_serial: 0,
+        ime_preedit: None,
+        ime_commit: None,
+        ime_applied: InputMethod::Disabled,
         pointer_on_surface: false,
         applied_cursor: None,
         shared,

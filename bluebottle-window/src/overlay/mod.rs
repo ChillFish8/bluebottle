@@ -16,6 +16,7 @@ use iced_runtime::core::{
     Event,
     Point,
     Size,
+    input_method,
     mouse,
     renderer,
     theme,
@@ -115,6 +116,7 @@ fn render_loop<P: Program>(
     shared: Arc<Shared>,
 ) {
     let mut published_cursor = overlay.mouse_interaction();
+    let mut published_ime = overlay.input_method().clone();
 
     while !shared.close_requested.load(Ordering::Acquire) {
         let mut dirty = match commands.recv_timeout(REDRAW_INTERVAL) {
@@ -142,6 +144,12 @@ fn render_loop<P: Program>(
             if interaction != published_cursor {
                 published_cursor = interaction;
                 *shared.cursor.lock().expect("cursor mutex poisoned") = interaction;
+            }
+
+            // Likewise publish the input-method state for the text input.
+            if *overlay.input_method() != published_ime {
+                published_ime = overlay.input_method().clone();
+                *shared.ime.lock().expect("ime mutex poisoned") = published_ime.clone();
             }
         }
     }
@@ -258,6 +266,7 @@ pub(crate) struct IcedOverlay<P: Program> {
     events: Vec<Event>,
     cursor: mouse::Cursor,
     mouse_interaction: mouse::Interaction,
+    input_method: input_method::InputMethod,
     runtime: RuntimeOf<P>,
     receiver: mpsc::UnboundedReceiver<ActionOf<P>>,
     window_requests: sync_chan::Sender<WindowRequest>,
@@ -328,6 +337,7 @@ impl<P: Program> IcedOverlay<P> {
             events: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
             mouse_interaction: mouse::Interaction::None,
+            input_method: input_method::InputMethod::Disabled,
             runtime,
             receiver,
             redraw_request: window::RedrawRequest::Wait,
@@ -512,6 +522,11 @@ impl<P: Program> IcedOverlay<P> {
         self.mouse_interaction
     }
 
+    /// The input-method state the UI wants, as of the last [`Self::draw`].
+    fn input_method(&self) -> &input_method::InputMethod {
+        &self.input_method
+    }
+
     fn wants_redraw(&self) -> bool {
         match self.redraw_request {
             window::RedrawRequest::NextFrame => true,
@@ -555,10 +570,12 @@ impl<P: Program> IcedOverlay<P> {
                 user_interface::State::Updated {
                     redraw_request,
                     mouse_interaction,
+                    input_method,
                     ..
                 } => {
                     self.redraw_request = redraw_request;
                     self.mouse_interaction = mouse_interaction;
+                    self.input_method = input_method;
                 },
                 user_interface::State::Outdated => {
                     self.redraw_request = window::RedrawRequest::NextFrame;

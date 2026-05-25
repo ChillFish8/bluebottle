@@ -1,7 +1,7 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc};
 
-use iced_runtime::core::{Event, Point, Size, keyboard, mouse, window};
+use iced_runtime::core::{Event, Point, Size, input_method, keyboard, mouse, window};
 use smithay_client_toolkit::compositor::CompositorHandler;
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::reexports::client::protocol::{
@@ -13,6 +13,8 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_surface,
 };
 use smithay_client_toolkit::reexports::client::{Connection, Proxy, QueueHandle};
+use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
+use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
@@ -94,6 +96,17 @@ pub(crate) struct State {
     pub themed_pointer: Option<ThemedPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
     pub modifiers: keyboard::Modifiers,
+
+    // Text input (IME). The manager is bound once; the text input is created
+    // per seat. Preedit/commit are accumulated and applied on `done`.
+    pub text_input_manager: Option<ZwpTextInputManagerV3>,
+    pub text_input: Option<ZwpTextInputV3>,
+    pub ime_entered: bool,
+    pub ime_enabled: bool,
+    pub ime_serial: u32,
+    pub ime_preedit: Option<(String, i32, i32)>,
+    pub ime_commit: Option<String>,
+    pub ime_applied: input_method::InputMethod,
 
     // Cursor management: whether the pointer is over our surface, and the last
     // interaction we applied (so we only call `set_cursor` on changes).
@@ -456,6 +469,8 @@ impl SeatHandler for State {
                     Ok(keyboard) => self.keyboard = Some(keyboard),
                     Err(err) => tracing::warn!("failed to get keyboard: {err}"),
                 }
+                // IME pairs with keyboard focus; create the text input here.
+                self.ensure_text_input(&seat, qh);
             },
             _ => {},
         }
