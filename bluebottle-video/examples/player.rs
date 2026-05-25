@@ -35,6 +35,13 @@ fn main() {
 
     // Embed the sink in the content surface, then start playback.
     player.bind_window(&window);
+
+    // Resize the video surface straight from the window's resize (on the
+    // event-loop thread), so it tracks the window without the latency of routing
+    // the resize through the overlay UI.
+    let resize_player = Arc::clone(&player);
+    window.on_resize(move |width, height| resize_player.set_render_size(width, height));
+
     player.play().expect("start playback");
 
     run_bus(&player, &window);
@@ -145,7 +152,6 @@ enum Message {
     Scrub(f64),
     SeekCommit,
     Tick,
-    Resized(u32, u32),
     CyclePreset,
     ToggleStats,
 }
@@ -176,9 +182,6 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
             if state.show_stats {
                 state.stats = Some(state.player.media_stats());
             }
-        },
-        Message::Resized(width, height) => {
-            state.player.set_render_size(width, height);
         },
         Message::CyclePreset => {
             state.preset = match state.preset {
@@ -344,26 +347,7 @@ fn opt_bitrate(bits_per_second: Option<u32>) -> String {
 }
 
 fn subscription(_state: &App) -> iced::Subscription<Message> {
-    iced::Subscription::batch([
-        iced::time::every(Duration::from_millis(250)).map(|_| Message::Tick),
-        iced::event::listen_with(window_event),
-    ])
-}
-
-/// Map window open/resize events to [`Message::Resized`] so the sink's swapchain
-/// tracks the window size.
-fn window_event(
-    event: iced::Event,
-    _status: iced::event::Status,
-    _id: iced::window::Id,
-) -> Option<Message> {
-    use iced::window::Event;
-    match event {
-        iced::Event::Window(Event::Opened { size, .. } | Event::Resized(size)) => {
-            Some(Message::Resized(size.width as u32, size.height as u32))
-        },
-        _ => None,
-    }
+    iced::time::every(Duration::from_millis(250)).map(|_| Message::Tick)
 }
 
 /// Format a number of seconds as `m:ss`.

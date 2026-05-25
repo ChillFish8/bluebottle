@@ -202,7 +202,11 @@ where
             result = Err(err).context(EventLoopSnafu);
             break;
         }
-        // Apply anything the render thread asked of the toplevel/pointer/IME.
+        // Apply a pending window resize to the video surface, then anything the
+        // render thread asked of the toplevel/pointer/IME. Done here, after
+        // dispatch returns, rather than inside the `configure` callback — see
+        // `apply_pending_resize`.
+        state.apply_pending_resize();
         state.apply_window_requests();
         state.sync_cursor(&conn);
         state.sync_ime();
@@ -371,6 +375,7 @@ where
         close_requested: AtomicBool::new(false),
         cursor: Mutex::new(Default::default()),
         ime: Mutex::new(InputMethod::Disabled),
+        resize: Mutex::new(None),
         wake: Arc::new({
             let wake_tick = commands_tx.clone();
             move || {
@@ -460,6 +465,7 @@ where
         ime_applied: InputMethod::Disabled,
         pointer_on_surface: false,
         applied_cursor: None,
+        pending_video_resize: None,
         shared,
         init_tx: Some(tx),
     };

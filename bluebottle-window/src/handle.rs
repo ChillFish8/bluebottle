@@ -39,6 +39,10 @@ pub(crate) struct RawHandles {
 unsafe impl Send for RawHandles {}
 unsafe impl Sync for RawHandles {}
 
+/// Callback invoked with the new logical size when the window is resized; see
+/// [`Window::on_resize`].
+pub(crate) type ResizeCallback = Box<dyn Fn(u32, u32) + Send>;
+
 /// State shared between the caller's [`Window`] handle and the event loop.
 pub(crate) struct Shared {
     pub handles: RawHandles,
@@ -51,6 +55,11 @@ pub(crate) struct Shared {
     /// Input-method state the overlay wants, published by the render thread and
     /// applied by the event-loop thread (which owns the text input).
     pub ime: Mutex<InputMethod>,
+    /// Caller callback invoked on the event-loop thread when the window is
+    /// resized, with the new logical size. Lets a video sink resize its content
+    /// surface in step with the backdrop instead of waiting for the resize to
+    /// travel through the overlay UI. `None` until [`Window::on_resize`] sets it.
+    pub resize: Mutex<Option<ResizeCallback>>,
     /// Wakes the event-loop thread so it re-checks the cross-thread state above
     /// (and `close_requested`). The loop blocks indefinitely when idle, so any
     /// thread that mutates this state must call [`Shared::wake`] afterwards or
@@ -117,6 +126,18 @@ impl Window {
     /// Returns the current size of the window in logical pixels.
     pub fn size(&self) -> (u32, u32) {
         *self.shared.size.lock().expect("size mutex poisoned")
+    }
+
+    /// Register a callback invoked whenever the window is resized, with the new
+    /// logical size in pixels. Replaces any previously registered callback.
+    ///
+    /// The callback runs on the event-loop thread, in step with the window's own
+    /// resize, so a video sink can resize its content surface promptly rather
+    /// than waiting for the resize to propagate through the overlay UI. Keep it
+    /// short and non-blocking.
+    pub fn on_resize(&self, callback: impl Fn(u32, u32) + Send + 'static) {
+        *self.shared.resize.lock().expect("resize mutex poisoned") =
+            Some(Box::new(callback));
     }
 
     /// Returns the current size of the window in physical pixels.

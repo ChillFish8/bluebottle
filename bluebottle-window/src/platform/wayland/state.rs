@@ -33,6 +33,7 @@ use smithay_client_toolkit::seat::pointer::{
     ThemedPointer,
 };
 use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
+use smithay_client_toolkit::shell::xdg::XdgSurface;
 use smithay_client_toolkit::shell::xdg::window::{
     DecorationMode,
     Window,
@@ -136,6 +137,11 @@ pub(crate) struct State {
     pub pointer_on_surface: bool,
     pub applied_cursor: Option<mouse::Interaction>,
 
+    // A window resize awaiting application to the video content surface,
+    // coalesced from `configure` and applied at the top of the event loop (see
+    // `apply_pending_resize`).
+    pub pending_video_resize: Option<(u32, u32)>,
+
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
 }
@@ -178,30 +184,46 @@ impl State {
     /// doubles as the letterbox background behind the video. Re-created on each
     /// layout change to track size and scale; a no-op outside video mode.
     fn update_main_buffer(&mut self) {
-        let Some(pool) = self.video_pool.as_mut() else {
-            return;
-        };
         let scale = self.scale.max(1);
         let width = self.width as i32 * scale;
         let height = self.height as i32 * scale;
+        let Some(pool) = self.video_pool.as_mut() else {
+            return;
+        };
         if width <= 0 || height <= 0 {
             return;
         }
+
+        // Pin the toplevel geometry to the logical size so the compositor's
+        // notion of the window size stays authoritative during a resize. Without
+        // it the size is inferred from the surface tree, where the full-window
+        // content subsurface can momentarily exceed the parent — making the
+        // window snap to a stale size when the drag is released.
+        self.window
+            .set_window_geometry(0, 0, self.width, self.height);
+
         let stride = width * 4;
         match pool.create_buffer(width, height, stride, wl_shm::Format::Xrgb8888) {
+            // Xrgb8888: a zeroed canvas is opaque black.
             Ok((buffer, canvas)) => {
-                // Xrgb8888: a zeroed canvas is opaque black.
                 canvas.fill(0);
-                if let Err(err) = buffer.attach_to(&self.main_surface) {
-                    tracing::warn!("failed to attach main backdrop buffer: {err}");
-                    return;
+                match buffer.attach_to(&self.main_surface) {
+                    Ok(()) => {
+                        self.main_surface.damage_buffer(0, 0, width, height);
+                        self.main_buffer = Some(buffer);
+                    },
+                    Err(err) => {
+                        tracing::warn!("failed to attach main backdrop buffer: {err}")
+                    },
                 }
-                self.main_surface.damage_buffer(0, 0, width, height);
-                self.main_surface.commit();
-                self.main_buffer = Some(buffer);
             },
             Err(err) => tracing::warn!("failed to allocate main backdrop buffer: {err}"),
         }
+
+        // Commit even when the backdrop (re)allocation failed, so the geometry
+        // set above is still applied; a stale-sized backdrop is hidden behind the
+        // content subsurface anyway.
+        self.main_surface.commit();
     }
 
     /// Report readiness to [`crate::create_overlay`] exactly once.
@@ -239,6 +261,28 @@ impl State {
         };
         if result.is_ok() {
             self.applied_cursor = Some(desired);
+        }
+    }
+
+    /// Apply a window resize to the video content surface, coalesced from
+    /// `configure`.
+    ///
+    /// Runs at the top of the event loop, *outside* the Wayland dispatch
+    /// callbacks: the registered callback presents the sink's Vulkan surface,
+    /// which dispatches the connection, so invoking it re-entrantly from inside
+    /// a dispatch callback corrupts the protocol stream.
+    pub fn apply_pending_resize(&mut self) {
+        let Some((width, height)) = self.pending_video_resize.take() else {
+            return;
+        };
+        if let Some(resize) = self
+            .shared
+            .resize
+            .lock()
+            .expect("resize mutex poisoned")
+            .as_ref()
+        {
+            resize(width, height);
         }
     }
 
@@ -472,6 +516,15 @@ impl WindowHandler for State {
 
         self.apply_layout();
         self.configured = true;
+
+        // Note the new size for the video content surface, but apply it at the
+        // top of the event loop (see `apply_pending_resize`), not here: the
+        // registered callback presents the sink's Vulkan surface, which itself
+        // dispatches the Wayland connection. Doing that from inside this dispatch
+        // callback re-enters libwayland and corrupts the protocol stream.
+        if (self.width, self.height) != old_size {
+            self.pending_video_resize = Some((self.width, self.height));
+        }
 
         // Window lifecycle events for the UI: first configure is the open; later
         // ones may report a new size; activation maps to focus.

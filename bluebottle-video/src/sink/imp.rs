@@ -59,7 +59,25 @@ impl PlaceboSink {
     }
 
     pub(super) fn set_render_rectangle(&self, width: u32, height: u32) {
-        self.state.lock().unwrap().render_rect = Some((width, height));
+        let mut state = self.state.lock().unwrap();
+        state.render_rect = Some((width, height));
+
+        // Apply the resize and re-present the last frame now, so the video
+        // tracks the window even while paused (no new frames arriving) and
+        // without a one-frame lag while playing. Both this path and `show_frame`
+        // touch the render context only under this lock, never concurrently.
+        let pending = state.render_rect;
+        let applied = state.applied_rect;
+        let mut adopted = false;
+        if let Some(context) = state.render.as_mut() {
+            if pending != applied {
+                adopted = context.resize(width, height);
+            }
+            let _ = context.redraw();
+        }
+        if adopted {
+            state.applied_rect = pending;
+        }
     }
 
     pub(super) fn set_render_preset(&self, preset: RenderPreset) {

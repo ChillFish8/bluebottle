@@ -55,6 +55,16 @@ pub(crate) struct RenderRuntime {
     pub fps: f64,
 }
 
+/// The most recently rendered frame, retained so a resize — or a paused window,
+/// where no new frames arrive — can be re-presented without waiting for the
+/// pipeline to push another frame.
+#[derive(Clone)]
+struct LastFrame {
+    buffer: gst::Buffer,
+    info: gst_video::VideoInfo,
+    dma_drm: Option<(u32, u64)>,
+}
+
 /// libplacebo render engine bound to one presentation surface.
 ///
 /// Field order is the drop order and is load-bearing: GPU objects (renderer,
@@ -80,13 +90,15 @@ pub struct RenderContext {
     frames_skipped: u64,
     /// Recent present timestamps (most recent at the back), for the FPS estimate.
     present_times: VecDeque<Instant>,
+    /// The last frame rendered, for re-presenting on resize; see [`LastFrame`].
+    last_frame: Option<LastFrame>,
 }
 
-// SAFETY: the contained libplacebo objects are only ever touched from the
-// GStreamer streaming thread (the sink calls `render`/`resize`/`set_preset`
-// only from `show_frame`; the cross-thread setter methods on the sink mutate
-// plain request fields under the state mutex, never this context). We never
-// access a `RenderContext` from two threads concurrently.
+// SAFETY: the contained libplacebo objects are driven from two threads — the
+// GStreamer streaming thread (`render`/`resize`/`set_preset` via `show_frame`)
+// and the application thread (`resize`/`redraw` via the sink's
+// `set_render_rectangle`) — but every entry point holds the sink's state mutex,
+// so the context is never accessed from two threads concurrently.
 unsafe impl Send for RenderContext {}
 
 impl RenderContext {
@@ -107,7 +119,7 @@ impl RenderContext {
         let swapchain = Swapchain::new(&device, surface.handle())?;
         swapchain.resize(width, height);
         let renderer = Renderer::new(&log, device.gpu())?;
-        let params = preset.to_params();
+        let params = render_params(preset);
 
         Ok(Self {
             renderer,
@@ -122,6 +134,7 @@ impl RenderContext {
             frames_presented: 0,
             frames_skipped: 0,
             present_times: VecDeque::new(),
+            last_frame: None,
         })
     }
 
@@ -155,7 +168,18 @@ impl RenderContext {
 
     /// Switch the render-quality preset; takes effect on the next frame.
     pub fn set_preset(&mut self, preset: RenderPreset) {
-        self.params = preset.to_params();
+        self.params = render_params(preset);
+    }
+
+    /// Re-present the most recently rendered frame at the current swapchain
+    /// size, if there is one. Lets a resize take effect immediately — including
+    /// while paused, when no new frames arrive — instead of waiting for the
+    /// pipeline to push the next frame.
+    pub fn redraw(&mut self) -> Result<(), Error> {
+        let Some(last) = self.last_frame.clone() else {
+            return Ok(());
+        };
+        self.render(&last.buffer, &last.info, last.dma_drm)
     }
 
     /// Render one decoded frame to the swapchain and present it.
@@ -179,6 +203,14 @@ impl RenderContext {
             None => (self.upload_sysmem(buffer, info)?, Vec::new()),
         };
 
+        // Retain this frame so a resize can re-present it without waiting for the
+        // pipeline (see `redraw`). Stored even if presentation is skipped below.
+        self.last_frame = Some(LastFrame {
+            buffer: buffer.clone(),
+            info: info.clone(),
+            dma_drm,
+        });
+
         let Some(sw_frame) = self.swapchain.start_frame() else {
             // Surface hidden/minimised: skip this frame, not an error. The
             // imported textures (and buffer) drop here, unused by the GPU.
@@ -189,6 +221,24 @@ impl RenderContext {
         let mut target = pl::pl_frame::default();
         // SAFETY: `sw_frame` came from a successful `start_frame`.
         unsafe { pl::pl_frame_from_swapchain(&mut target, &sw_frame) };
+
+        // Fit the source into the framebuffer preserving aspect ratio; libplacebo
+        // fills the leftover border with opaque black (set in `render_params`),
+        // giving letterbox/pillarbox bars rather than a stretched picture.
+        // SAFETY: `fbo` is non-null and valid for a frame from `start_frame`.
+        let (fbo_w, fbo_h) =
+            unsafe { ((*sw_frame.fbo).params.w, (*sw_frame.fbo).params.h) };
+        if info.width() > 0 && info.height() > 0 && fbo_w > 0 && fbo_h > 0 {
+            let par = info.par();
+            let par = par.numer() as f64 / par.denom().max(1) as f64;
+            target.crop = fit_rect(
+                info.width() as f64,
+                info.height() as f64,
+                par,
+                fbo_w as f64,
+                fbo_h as f64,
+            );
+        }
 
         // `pl_frame.planes` is a fixed array of `PL_MAX_PLANES`; never write past it.
         let plane_count = frame.planes.len().min(pl::PL_MAX_PLANES as usize);
@@ -367,6 +417,38 @@ struct PlaneSpec {
 struct DmabufLayout {
     planes: Vec<PlaneSpec>,
     repr: pl::pl_color_repr,
+}
+
+/// The render parameters for `preset`, with the letterbox/pillarbox border
+/// forced to opaque black so the bars around an aspect-fit image are solid.
+fn render_params(preset: RenderPreset) -> pl::pl_render_params {
+    let mut params = preset.to_params();
+    params.background = pl::pl_clear_mode_PL_CLEAR_COLOR;
+    params.border = pl::pl_clear_mode_PL_CLEAR_COLOR;
+    params.background_color = [0.0, 0.0, 0.0];
+    params.background_transparency = 0.0;
+    params
+}
+
+/// The centred destination rectangle that fits a `src_w`×`src_h` source of
+/// pixel aspect ratio `par` inside a `dst_w`×`dst_h` target, preserving the
+/// display aspect ratio (the remaining space becomes letterbox/pillarbox bars).
+fn fit_rect(src_w: f64, src_h: f64, par: f64, dst_w: f64, dst_h: f64) -> pl::pl_rect2df {
+    let src_aspect = (src_w * par) / src_h;
+    let dst_aspect = dst_w / dst_h;
+    let (w, h) = if src_aspect > dst_aspect {
+        (dst_w, dst_w / src_aspect) // wider than target: bars top and bottom
+    } else {
+        (dst_h * src_aspect, dst_h) // taller than target: bars left and right
+    };
+    let x0 = ((dst_w - w) / 2.0) as f32;
+    let y0 = ((dst_h - h) / 2.0) as f32;
+    pl::pl_rect2df {
+        x0,
+        y0,
+        x1: x0 + w as f32,
+        y1: y0 + h as f32,
+    }
 }
 
 /// `fourcc_code(a, b, c, d)` — assemble a little-endian DRM FourCC.
