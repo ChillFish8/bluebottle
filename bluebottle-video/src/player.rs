@@ -47,6 +47,27 @@ impl Player {
         })
     }
 
+    /// Reset a bound player to new media, reusing the same `playbin` and sink
+    /// (the "play the next thing" path). Errors on the test-pattern pipelines,
+    /// which have no `uri`.
+    ///
+    /// Stops the pipeline to NULL — freeing the render context and decoders while
+    /// keeping the surface bind (see [`Player::stop`]) — then points it at `uri`.
+    /// The player is left stopped; call [`Player::play`] to start the new media.
+    /// No [`Player::bind_window`] is needed: the user-set video sink is retained,
+    /// so `playbin` re-plugs the same (still-bound) sink for the new stream.
+    pub fn load(&self, uri: &str) -> Result<(), Error> {
+        if !self.from_playbin {
+            return Err(Error::Gstreamer {
+                message: "load() is only supported for media opened with Player::open"
+                    .to_owned(),
+            });
+        }
+        self.stop();
+        self.pipeline.set_property("uri", uri);
+        Ok(())
+    }
+
     /// Build a `videotestsrc` pipeline rendering through the sink, for demos and
     /// smoke-testing with no media file (system-memory path).
     pub fn test_pattern() -> Result<Self, Error> {
@@ -113,6 +134,10 @@ impl Player {
     /// the content surface at buffer scale 1, so a logical-sized swapchain
     /// composites at the correct on-screen size (sharp HiDPI would additionally
     /// require the content surface to adopt the output scale).
+    ///
+    /// The bind persists across [`Player::stop`] and [`Player::load`] (the sink
+    /// retains the display/surface/size), so call this once after creating the
+    /// player; only call it again if the window or content surface itself changes.
     pub fn bind_window(&self, window: &Window) {
         // SAFETY: the window owns the `wl_display`/`wl_surface` for its lifetime,
         // which outlives the pipeline (the caller stops playback before dropping
@@ -299,8 +324,26 @@ impl Player {
         self.pipeline.bus()
     }
 
-    /// Stop the pipeline (transition to NULL). Call before the window tears down
-    /// the Wayland connection the sink presents onto.
+    /// Stop the pipeline (transition to NULL) and free its heavy resources, while
+    /// keeping the surface bind intact. Blocks until the transition completes.
+    ///
+    /// On NULL the sink drops its whole libplacebo/Vulkan render context (device,
+    /// swapchain, renderer, in-flight frames) and the decoders are torn down, but
+    /// the bind set by [`Player::bind_window`] (`display`/`surface`/render size)
+    /// is retained. So a stopped player can idle cheaply and later resume with no
+    /// rebind — either [`Player::play`] (replays the same media from the start;
+    /// capture [`Player::position`] and [`Player::seek`] back if you want to
+    /// resume) or [`Player::load`] (switches media). The render context is
+    /// recreated lazily on the first frame after resuming.
+    ///
+    /// Two things to note: resuming pays the one-off cost of recreating the Vulkan
+    /// device + swapchain (tens of ms before the first frame); and the content
+    /// surface keeps showing the last presented frame until a new one arrives (the
+    /// bind, including the mapped surface, is deliberately left intact), so a
+    /// non-player view should cover it with its own opaque content.
+    ///
+    /// Also call this before the window tears down the Wayland connection the sink
+    /// presents onto.
     pub fn stop(&self) {
         let _ = self.pipeline.set_state(gst::State::Null);
         let _ = self.pipeline.state(gst::ClockTime::from_seconds(2));
