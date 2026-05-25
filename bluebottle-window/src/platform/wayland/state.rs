@@ -24,6 +24,8 @@ use smithay_client_toolkit::seat::pointer::{
     PointerEvent,
     PointerEventKind,
     PointerHandler,
+    ThemeSpec,
+    ThemedPointer,
 };
 use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
 use smithay_client_toolkit::shell::xdg::window::{
@@ -31,6 +33,7 @@ use smithay_client_toolkit::shell::xdg::window::{
     WindowConfigure,
     WindowHandler,
 };
+use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use smithay_client_toolkit::{
     delegate_compositor,
     delegate_keyboard,
@@ -38,6 +41,7 @@ use smithay_client_toolkit::{
     delegate_pointer,
     delegate_registry,
     delegate_seat,
+    delegate_shm,
     delegate_subcompositor,
     delegate_xdg_shell,
     delegate_xdg_window,
@@ -69,6 +73,10 @@ pub(crate) struct State {
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
     pub commands: mpsc::Sender<Command>,
 
+    // Shared memory + a dedicated cursor surface back the themed pointer.
+    pub shm: Shm,
+    pub cursor_surface: wl_surface::WlSurface,
+
     pub width: u32,
     pub height: u32,
     pub scale: i32,
@@ -77,9 +85,14 @@ pub(crate) struct State {
     pub exit: bool,
     pub resizing: bool,
 
-    pub pointer: Option<wl_pointer::WlPointer>,
+    pub themed_pointer: Option<ThemedPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
     pub modifiers: keyboard::Modifiers,
+
+    // Cursor management: whether the pointer is over our surface, and the last
+    // interaction we applied (so we only call `set_cursor` on changes).
+    pub pointer_on_surface: bool,
+    pub applied_cursor: Option<mouse::Interaction>,
 
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
@@ -116,6 +129,34 @@ impl State {
             let _ = tx.send(Ok(Arc::clone(&self.shared)));
         }
     }
+
+    /// Apply the cursor the render thread requested, if it changed.
+    ///
+    /// Called once per event-loop turn. The render thread publishes the desired
+    /// [`mouse::Interaction`] to [`Shared`]; here (where the pointer lives) it is
+    /// mapped to a cursor and applied, but only while the pointer is over our
+    /// surface and only when it differs from what was last set.
+    pub fn sync_cursor(&mut self, conn: &Connection) {
+        if !self.pointer_on_surface {
+            return;
+        }
+        let Some(pointer) = self.themed_pointer.as_ref() else {
+            return;
+        };
+
+        let desired = *self.shared.cursor.lock().expect("cursor mutex poisoned");
+        if self.applied_cursor == Some(desired) {
+            return;
+        }
+
+        let result = match input::cursor_icon(desired) {
+            Some(icon) => pointer.set_cursor(conn, icon),
+            None => pointer.hide_cursor(),
+        };
+        if result.is_ok() {
+            self.applied_cursor = Some(desired);
+        }
+    }
 }
 
 impl CompositorHandler for State {
@@ -123,9 +164,15 @@ impl CompositorHandler for State {
         &mut self,
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
-        _surface: &wl_surface::WlSurface,
+        surface: &wl_surface::WlSurface,
         new_factor: i32,
     ) {
+        // Other surfaces (e.g. the themed pointer's cursor surface) also report
+        // scale; only the window's scale should drive the overlay.
+        if surface != &self.main_surface {
+            return;
+        }
+
         self.scale = new_factor;
         *self.shared.scale.lock().expect("scale mutex poisoned") = new_factor as f64;
 
@@ -285,9 +332,16 @@ impl SeatHandler for State {
         capability: Capability,
     ) {
         match capability {
-            Capability::Pointer if self.pointer.is_none() => {
-                if let Ok(pointer) = self.seat_state.get_pointer(qh, &seat) {
-                    self.pointer = Some(pointer);
+            Capability::Pointer if self.themed_pointer.is_none() => {
+                match self.seat_state.get_pointer_with_theme(
+                    qh,
+                    &seat,
+                    self.shm.wl_shm(),
+                    self.cursor_surface.clone(),
+                    ThemeSpec::default(),
+                ) {
+                    Ok(pointer) => self.themed_pointer = Some(pointer),
+                    Err(err) => tracing::warn!("failed to get themed pointer: {err}"),
                 }
             },
             Capability::Keyboard if self.keyboard.is_none() => {
@@ -312,9 +366,10 @@ impl SeatHandler for State {
     ) {
         match capability {
             Capability::Pointer => {
-                if let Some(pointer) = self.pointer.take() {
-                    pointer.release();
+                if let Some(pointer) = self.themed_pointer.take() {
+                    pointer.pointer().release();
                 }
+                self.pointer_on_surface = false;
             },
             Capability::Keyboard => {
                 if let Some(keyboard) = self.keyboard.take() {
@@ -347,6 +402,10 @@ impl PointerHandler for State {
 
             match &event.kind {
                 PointerEventKind::Enter { .. } => {
+                    // The compositor resets the cursor on enter, so force the
+                    // next sync to re-apply it.
+                    self.pointer_on_surface = true;
+                    self.applied_cursor = None;
                     self.send(Command::Cursor(Some(position)));
                     self.send(Command::Event(Event::Mouse(mouse::Event::CursorEntered)));
                     self.send(Command::Event(Event::Mouse(mouse::Event::CursorMoved {
@@ -354,6 +413,7 @@ impl PointerHandler for State {
                     })));
                 },
                 PointerEventKind::Leave { .. } => {
+                    self.pointer_on_surface = false;
                     self.send(Command::Cursor(None));
                     self.send(Command::Event(Event::Mouse(mouse::Event::CursorLeft)));
                 },
@@ -482,12 +542,19 @@ impl KeyboardHandler for State {
     }
 }
 
+impl ShmHandler for State {
+    fn shm_state(&mut self) -> &mut Shm {
+        &mut self.shm
+    }
+}
+
 delegate_compositor!(State);
 delegate_subcompositor!(State);
 delegate_output!(State);
 delegate_seat!(State);
 delegate_pointer!(State);
 delegate_keyboard!(State);
+delegate_shm!(State);
 delegate_xdg_shell!(State);
 delegate_xdg_window!(State);
 delegate_registry!(State);

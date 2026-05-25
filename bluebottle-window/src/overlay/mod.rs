@@ -87,6 +87,8 @@ fn render_loop<P: Program>(
     commands: sync_chan::Receiver<Command>,
     shared: Arc<Shared>,
 ) {
+    let mut published_cursor = overlay.mouse_interaction();
+
     while !shared.close_requested.load(Ordering::Acquire) {
         let mut dirty = match commands.recv_timeout(REDRAW_INTERVAL) {
             Ok(command) => apply_command(&mut overlay, command),
@@ -106,6 +108,14 @@ fn render_loop<P: Program>(
 
         if dirty || overlay.wants_redraw() {
             overlay.draw();
+
+            // Publish the cursor the UI wants so the event-loop thread (which
+            // owns the pointer) can apply it.
+            let interaction = overlay.mouse_interaction();
+            if interaction != published_cursor {
+                published_cursor = interaction;
+                *shared.cursor.lock().expect("cursor mutex poisoned") = interaction;
+            }
         }
     }
 }
@@ -220,6 +230,7 @@ pub(crate) struct IcedOverlay<P: Program> {
     scale: f64,
     events: Vec<Event>,
     cursor: mouse::Cursor,
+    mouse_interaction: mouse::Interaction,
     runtime: RuntimeOf<P>,
     receiver: mpsc::UnboundedReceiver<ActionOf<P>>,
     redraw_request: window::RedrawRequest,
@@ -286,6 +297,7 @@ impl<P: Program> IcedOverlay<P> {
             scale,
             events: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
+            mouse_interaction: mouse::Interaction::None,
             runtime,
             receiver,
             redraw_request: window::RedrawRequest::Wait,
@@ -413,6 +425,11 @@ impl<P: Program> IcedOverlay<P> {
         self.cache = Some(cache);
     }
 
+    /// The cursor the UI currently wants shown, as of the last [`Self::draw`].
+    fn mouse_interaction(&self) -> mouse::Interaction {
+        self.mouse_interaction
+    }
+
     fn wants_redraw(&self) -> bool {
         match self.redraw_request {
             window::RedrawRequest::NextFrame => true,
@@ -452,10 +469,19 @@ impl<P: Program> IcedOverlay<P> {
                 &mut self.clipboard,
                 &mut messages,
             );
-            self.redraw_request = match state {
-                user_interface::State::Updated { redraw_request, .. } => redraw_request,
-                user_interface::State::Outdated => window::RedrawRequest::NextFrame,
-            };
+            match state {
+                user_interface::State::Updated {
+                    redraw_request,
+                    mouse_interaction,
+                    ..
+                } => {
+                    self.redraw_request = redraw_request;
+                    self.mouse_interaction = mouse_interaction;
+                },
+                user_interface::State::Outdated => {
+                    self.redraw_request = window::RedrawRequest::NextFrame;
+                },
+            }
             cache = ui.into_cache();
             statuses
         };

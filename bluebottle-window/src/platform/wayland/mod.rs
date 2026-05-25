@@ -31,6 +31,7 @@ use smithay_client_toolkit::seat::SeatState;
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgShell;
 use smithay_client_toolkit::shell::xdg::window::WindowDecorations;
+use smithay_client_toolkit::shm::Shm;
 use smithay_client_toolkit::subcompositor::SubcompositorState;
 use snafu::ResultExt;
 use state::State;
@@ -173,6 +174,8 @@ where
             result = Err(err).context(EventLoopSnafu);
             break;
         }
+        // Apply any cursor the render thread requested (it owns no pointer).
+        state.sync_cursor(&conn);
     }
 
     // Make the shutdown observable to the render thread and the caller, whether
@@ -223,6 +226,10 @@ where
     let xdg_shell = XdgShell::bind(&globals, &qh).context(MissingGlobalSnafu {
         what: "xdg_wm_base",
     })?;
+    let shm = Shm::bind(&globals, &qh).context(MissingGlobalSnafu { what: "wl_shm" })?;
+
+    // A dedicated surface the themed pointer presents cursor images on.
+    let cursor_surface = compositor.create_surface(&qh);
 
     let (width, height) = DEFAULT_SIZE;
 
@@ -261,6 +268,7 @@ where
         size: Mutex::new((width, height)),
         scale: Mutex::new(1.0),
         close_requested: AtomicBool::new(false),
+        cursor: Mutex::new(Default::default()),
     });
 
     // Spawn the render thread. It builds the Iced overlay (neither the program
@@ -308,15 +316,19 @@ where
         overlay_surface,
         overlay_subsurface,
         commands: commands_tx,
+        shm,
+        cursor_surface,
         width,
         height,
         scale: 1,
         configured: false,
         exit: false,
         resizing: false,
-        pointer: None,
+        themed_pointer: None,
         keyboard: None,
         modifiers: iced::keyboard::Modifiers::empty(),
+        pointer_on_surface: false,
+        applied_cursor: None,
         shared,
         init_tx: Some(tx),
     };

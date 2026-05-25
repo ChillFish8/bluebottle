@@ -6,6 +6,7 @@
 use iced_runtime::core::keyboard::key::{Key, Named, NativeCode, Physical};
 use iced_runtime::core::{keyboard, mouse};
 use smithay_client_toolkit::seat::keyboard::{Keysym, Modifiers as SctkModifiers};
+use smithay_client_toolkit::seat::pointer::CursorIcon;
 
 /// Linux button codes from `<linux/input-event-codes.h>`.
 const BTN_LEFT: u32 = 0x110;
@@ -116,4 +117,62 @@ fn named_key(keysym: Keysym) -> Option<Named> {
 /// Whether the text is entirely control characters (and so not insertable).
 fn is_control(text: &str) -> bool {
     text.chars().all(char::is_control)
+}
+
+/// Map an Iced [`mouse::Interaction`] to a Wayland [`CursorIcon`].
+///
+/// Returns `None` when the cursor should be hidden ([`mouse::Interaction::Hidden`]).
+pub(crate) fn cursor_icon(interaction: mouse::Interaction) -> Option<CursorIcon> {
+    use mouse::Interaction;
+
+    Some(match interaction {
+        Interaction::Hidden => return None,
+        Interaction::None | Interaction::Idle => CursorIcon::Default,
+        Interaction::ContextMenu => CursorIcon::ContextMenu,
+        Interaction::Help => CursorIcon::Help,
+        Interaction::Pointer => CursorIcon::Pointer,
+        Interaction::Progress => CursorIcon::Progress,
+        Interaction::Wait => CursorIcon::Wait,
+        Interaction::Cell => CursorIcon::Cell,
+        Interaction::Crosshair => CursorIcon::Crosshair,
+        Interaction::Text => CursorIcon::Text,
+        Interaction::Alias => CursorIcon::Alias,
+        Interaction::Copy => CursorIcon::Copy,
+        Interaction::Move => CursorIcon::Move,
+        Interaction::NoDrop => CursorIcon::NoDrop,
+        Interaction::NotAllowed => CursorIcon::NotAllowed,
+        Interaction::Grab => CursorIcon::Grab,
+        Interaction::Grabbing => CursorIcon::Grabbing,
+        Interaction::ResizingHorizontally => CursorIcon::EwResize,
+        Interaction::ResizingVertically => CursorIcon::NsResize,
+        Interaction::ResizingDiagonallyUp => CursorIcon::NeswResize,
+        Interaction::ResizingDiagonallyDown => CursorIcon::NwseResize,
+        Interaction::ResizingColumn => CursorIcon::ColResize,
+        Interaction::ResizingRow => CursorIcon::RowResize,
+        Interaction::AllScroll => CursorIcon::AllScroll,
+        Interaction::ZoomIn => CursorIcon::ZoomIn,
+        Interaction::ZoomOut => CursorIcon::ZoomOut,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_icon_maps_common_interactions() {
+        assert_eq!(
+            cursor_icon(mouse::Interaction::Pointer),
+            Some(CursorIcon::Pointer)
+        );
+        assert_eq!(
+            cursor_icon(mouse::Interaction::Text),
+            Some(CursorIcon::Text)
+        );
+        assert_eq!(
+            cursor_icon(mouse::Interaction::None),
+            Some(CursorIcon::Default)
+        );
+        assert_eq!(cursor_icon(mouse::Interaction::Hidden), None);
+    }
 }
