@@ -27,7 +27,7 @@ use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::z
 };
 
 use super::state::State;
-use crate::overlay::Command;
+use crate::overlay::{Command, Tick};
 
 /// Per-object user data for a text input (the state lives on [`State`]).
 pub(super) struct TextInputData;
@@ -137,7 +137,7 @@ impl State {
     fn send_input_method(&self, event: input_method::Event) {
         let _ = self
             .commands
-            .send(Command::Event(Event::InputMethod(event)));
+            .send(Tick::Command(Command::Event(Event::InputMethod(event))));
     }
 }
 

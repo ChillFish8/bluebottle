@@ -279,14 +279,21 @@ where
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
         .expect("wl_surface pointer is never null");
 
-    // The wake ping lets the render thread and the caller rouse the (otherwise
-    // indefinitely blocked) dispatch loop; its source is registered with the
-    // event loop below. The `Ping` shares the backing eventfd with its source,
-    // so it stays valid for as long as `Shared` lives.
+    // Both loops block when idle, so each needs rousing: the dispatch loop by a
+    // calloop ping (its source is registered with the event loop below), and the
+    // render loop by a `Tick::Wake` on its command channel. `Shared::wake`
+    // signals both, so a caller close request or a render-thread update reaches
+    // whichever loop must act. The `Ping` shares its eventfd with the source, so
+    // it stays valid for as long as `Shared` lives.
     let (wake_ping, wake_source) =
         make_ping().map_err(|err| Error::EventLoopInsert {
             message: format!("failed to create the wake ping: {err}"),
         })?;
+
+    // Wayland-thread commands and bare wakeups share one channel so the render
+    // loop can block on it. The Wayland thread keeps `commands_tx` (in `State`);
+    // the wake closure and the runtime hold further senders.
+    let (commands_tx, commands_rx) = mpsc::channel::<overlay::Tick>();
 
     let shared = Arc::new(Shared {
         handles,
@@ -295,14 +302,19 @@ where
         close_requested: AtomicBool::new(false),
         cursor: Mutex::new(Default::default()),
         ime: Mutex::new(InputMethod::Disabled),
-        wake: Arc::new(move || wake_ping.ping()),
+        wake: Arc::new({
+            let wake_tick = commands_tx.clone();
+            move || {
+                wake_ping.ping();
+                let _ = wake_tick.send(overlay::Tick::Wake);
+            }
+        }),
     });
 
     // Spawn the render thread. It builds the Iced overlay (neither the program
     // nor the wgpu renderer is Send) and renders there, so blocking on surface
     // presentation never stalls this event loop. We wait for it to finish
     // building before continuing, so renderer errors are reported eagerly.
-    let (commands_tx, commands_rx) = mpsc::channel::<overlay::Command>();
     let (window_tx, window_rx) = mpsc::channel::<overlay::WindowRequest>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), Error>>();
     let overlay_target = RawSurface {
@@ -310,6 +322,8 @@ where
         surface: overlay_surface_ptr,
     };
     let render_shared = Arc::clone(&shared);
+    // The render loop uses this to let async runtime output wake itself.
+    let render_notify = commands_tx.clone();
     let render_thread = thread::Builder::new()
         .name("bluebottle-overlay".to_owned())
         .spawn(move || {
@@ -322,6 +336,7 @@ where
                 (width, height),
                 1.0,
                 commands_rx,
+                render_notify,
                 window_tx,
                 render_shared,
                 ready_tx,

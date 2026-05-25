@@ -56,7 +56,7 @@ use smithay_client_toolkit::{
 use super::input;
 use crate::error::Error;
 use crate::handle::Shared;
-use crate::overlay::{Command, WindowRequest};
+use crate::overlay::{Command, Tick, WindowRequest};
 
 /// All Wayland state owned by the event loop thread.
 ///
@@ -76,7 +76,7 @@ pub(crate) struct State {
     pub overlay_surface: wl_surface::WlSurface,
     #[allow(dead_code)]
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
-    pub commands: mpsc::Sender<Command>,
+    pub commands: mpsc::Sender<Tick>,
     // Window-control requests from the overlay UI (it is the window's chrome).
     pub window_requests: mpsc::Receiver<WindowRequest>,
 
@@ -125,7 +125,7 @@ pub(crate) struct State {
 impl State {
     /// Send a [`Command`] to the render thread, ignoring a closed channel.
     fn send(&self, command: Command) {
-        let _ = self.commands.send(command);
+        let _ = self.commands.send(Tick::Command(command));
     }
 
     /// Feed a window lifecycle event into the overlay UI.

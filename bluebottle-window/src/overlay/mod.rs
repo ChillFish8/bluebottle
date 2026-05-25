@@ -1,8 +1,11 @@
+use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc as sync_chan};
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use iced::Program;
+use iced_futures::futures::Sink;
 use iced_futures::futures::channel::{mpsc, oneshot};
 use iced_futures::{Executor as _, Runtime, subscription};
 use iced_graphics::compositor::{self, Compositor};
@@ -34,9 +37,18 @@ use raw_window_handle::HasDisplayHandle;
 use crate::error::Error;
 use crate::handle::Shared;
 
-/// How long the render thread waits for a command before re-checking for async
-/// runtime output and pending animation frames.
-const REDRAW_INTERVAL: Duration = Duration::from_millis(16);
+/// Wakes the render loop, optionally carrying a [`Command`] to apply.
+///
+/// The loop blocks on a single channel of these so it sleeps when idle rather
+/// than polling: the Wayland thread sends [`Tick::Command`]s, while async
+/// runtime output (via [`WakingSender`]) and shutdown send a bare [`Tick::Wake`]
+/// to rouse the loop so it can drain the runtime / observe the close.
+pub(crate) enum Tick {
+    /// Apply this command from the Wayland event loop.
+    Command(Command),
+    /// Wake the loop with no command; it will pump the runtime and re-check.
+    Wake,
+}
 
 /// A message from the Wayland event loop to the overlay render thread.
 pub(crate) enum Command {
@@ -100,7 +112,8 @@ pub(crate) fn run<P, F, W>(
     target: W,
     size: (u32, u32),
     scale: f64,
-    commands: sync_chan::Receiver<Command>,
+    ticks: sync_chan::Receiver<Tick>,
+    notify: sync_chan::Sender<Tick>,
     window_requests: sync_chan::Sender<WindowRequest>,
     shared: Arc<Shared>,
     ready: sync_chan::Sender<Result<(), Error>>,
@@ -117,6 +130,7 @@ pub(crate) fn run<P, F, W>(
         scale,
         window_requests,
         Arc::clone(&shared.wake),
+        notify,
     ) {
         Ok(overlay) => {
             let _ = ready.send(Ok(()));
@@ -128,26 +142,50 @@ pub(crate) fn run<P, F, W>(
         },
     };
 
-    render_loop(overlay, commands, shared);
+    render_loop(overlay, ticks, shared);
 }
 
-/// Drive the overlay: apply commands, pump the runtime, and redraw as needed.
+/// How long the render loop may block waiting for the next [`Tick`].
+enum RedrawWait {
+    /// A redraw is already due; drain without blocking and draw this turn.
+    Now,
+    /// Block up to this long (the next scheduled animation frame) for a tick.
+    For(Duration),
+    /// Nothing is scheduled; block until a tick arrives.
+    Idle,
+}
+
+/// Drive the overlay: wait for work, apply it, pump the runtime, and redraw.
+///
+/// The loop blocks on a single [`Tick`] channel rather than polling: when idle
+/// it sleeps until woken (input, async runtime output, or close), and when an
+/// animation frame is scheduled it blocks only until that frame is due.
+/// Continuous redraws are paced by `present` (vsync by default), as before.
 fn render_loop<P: Program>(
     mut overlay: IcedOverlay<P>,
-    commands: sync_chan::Receiver<Command>,
+    ticks: sync_chan::Receiver<Tick>,
     shared: Arc<Shared>,
 ) {
     let mut published_cursor = overlay.mouse_interaction();
     let mut published_ime = overlay.input_method().clone();
 
     while !shared.close_requested.load(Ordering::Acquire) {
-        let mut dirty = match commands.recv_timeout(REDRAW_INTERVAL) {
-            Ok(command) => apply_command(&mut overlay, command),
-            Err(sync_chan::RecvTimeoutError::Timeout) => false,
-            Err(sync_chan::RecvTimeoutError::Disconnected) => break,
+        let first = match overlay.redraw_wait() {
+            RedrawWait::Now => ticks.try_recv().ok(),
+            RedrawWait::For(timeout) => match ticks.recv_timeout(timeout) {
+                Ok(tick) => Some(tick),
+                Err(sync_chan::RecvTimeoutError::Timeout) => None,
+                Err(sync_chan::RecvTimeoutError::Disconnected) => break,
+            },
+            RedrawWait::Idle => match ticks.recv() {
+                Ok(tick) => Some(tick),
+                Err(_) => break,
+            },
         };
-        while let Ok(command) = commands.try_recv() {
-            dirty |= apply_command(&mut overlay, command);
+
+        let mut dirty = first.is_some_and(|tick| apply_tick(&mut overlay, tick));
+        while let Ok(tick) = ticks.try_recv() {
+            dirty |= apply_tick(&mut overlay, tick);
         }
 
         dirty |= overlay.pump();
@@ -185,6 +223,15 @@ fn render_loop<P: Program>(
                 shared.wake();
             }
         }
+    }
+}
+
+/// Apply a single [`Tick`], returning whether it requires a redraw.
+fn apply_tick<P: Program>(overlay: &mut IcedOverlay<P>, tick: Tick) -> bool {
+    match tick {
+        Tick::Command(command) => apply_command(overlay, command),
+        // A bare wake just rouses the loop; `pump`/`wants_redraw` do the work.
+        Tick::Wake => false,
     }
 }
 
@@ -243,9 +290,66 @@ fn to_dimensions(size: Option<Size>) -> Option<(u32, u32)> {
 /// The runtime action type produced by a program's messages.
 type ActionOf<P> = Action<<P as Program>::Message>;
 
-/// The Iced runtime specialised for a program, sending actions over an mpsc channel.
+/// The Iced runtime specialised for a program, sending actions over a
+/// [`WakingSender`] so each action also rouses the render loop.
 type RuntimeOf<P> =
-    Runtime<<P as Program>::Executor, mpsc::UnboundedSender<ActionOf<P>>, ActionOf<P>>;
+    Runtime<<P as Program>::Executor, WakingSender<ActionOf<P>>, ActionOf<P>>;
+
+/// A runtime action sink that wakes the render loop after each send.
+///
+/// The iced runtime delivers async output (completed `Task`s, `Subscription`
+/// items) by sending to this sink from executor threads. Forwarding to `inner`
+/// makes the action available to [`IcedOverlay::pump`]; the [`Tick::Wake`] on
+/// `notify` rouses the (otherwise blocked) render loop so it pumps promptly.
+struct WakingSender<T> {
+    inner: mpsc::UnboundedSender<T>,
+    notify: sync_chan::Sender<Tick>,
+}
+
+// Manual `Clone`: the runtime clones the sender per spawned future, and a
+// derive would needlessly bound `T: Clone`.
+impl<T> Clone for WakingSender<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            notify: self.notify.clone(),
+        }
+    }
+}
+
+impl<T> Sink<T> for WakingSender<T> {
+    type Error = mpsc::SendError;
+
+    fn poll_ready(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.get_mut().inner).poll_ready(cx)
+    }
+
+    fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
+        let this = self.get_mut();
+        let result = Pin::new(&mut this.inner).start_send(item);
+        // Wake the loop so it pumps the action just enqueued; a closed channel
+        // means the loop has already exited, so the wake can be dropped.
+        let _ = this.notify.send(Tick::Wake);
+        result
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.get_mut().inner).poll_flush(cx)
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), Self::Error>> {
+        Pin::new(&mut self.get_mut().inner).poll_close(cx)
+    }
+}
 
 /// Bridges iced's [`clipboard::Clipboard`] to the platform clipboard.
 ///
@@ -335,6 +439,7 @@ impl<P: Program> IcedOverlay<P> {
         scale: f64,
         window_requests: sync_chan::Sender<WindowRequest>,
         wake: Arc<dyn Fn() + Send + Sync>,
+        notify: sync_chan::Sender<Tick>,
     ) -> Result<Self, Error>
     where
         W: compositor::Window + Clone,
@@ -358,7 +463,13 @@ impl<P: Program> IcedOverlay<P> {
         let executor =
             P::Executor::new().map_err(|source| Error::Executor { source })?;
         let (sender, receiver) = mpsc::unbounded();
-        let mut runtime = RuntimeOf::<P>::new(executor, sender);
+        let mut runtime = RuntimeOf::<P>::new(
+            executor,
+            WakingSender {
+                inner: sender,
+                notify,
+            },
+        );
 
         let (instance, boot_task) = Instance::new(program);
         let window_id = window::Id::unique();
@@ -714,6 +825,25 @@ impl<P: Program> IcedOverlay<P> {
             window::RedrawRequest::NextFrame => true,
             window::RedrawRequest::At(instant) => Instant::now() >= instant,
             window::RedrawRequest::Wait => false,
+        }
+    }
+
+    /// How long the render loop may block before the next obligatory redraw.
+    ///
+    /// `NextFrame` is due immediately; `At` bounds the wait to the scheduled
+    /// instant; `Wait` has no deadline, so the loop sleeps until woken.
+    fn redraw_wait(&self) -> RedrawWait {
+        match self.redraw_request {
+            window::RedrawRequest::NextFrame => RedrawWait::Now,
+            window::RedrawRequest::Wait => RedrawWait::Idle,
+            window::RedrawRequest::At(instant) => {
+                let remaining = instant.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    RedrawWait::Now
+                } else {
+                    RedrawWait::For(remaining)
+                }
+            },
         }
     }
 
