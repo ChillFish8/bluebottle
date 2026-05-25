@@ -16,11 +16,13 @@ pub mod platform;
 mod player;
 mod render;
 pub mod sink;
+mod stats;
 
 pub use config::RenderPreset;
 pub use error::Error;
 pub use player::Player;
 pub use sink::PlaceboSink;
+pub use stats::{AudioStats, MediaStats, RenderStats, SubtitleStats, VideoStats};
 
 #[cfg(test)]
 mod tests {

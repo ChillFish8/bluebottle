@@ -60,6 +60,12 @@ impl PlaceboSink {
     pub fn set_render_preset(&self, preset: crate::config::RenderPreset) {
         self.imp().set_render_preset(preset);
     }
+
+    /// A snapshot of the render path (format, zero-copy, preset, perf), or
+    /// `None` until rendering has started.
+    pub fn render_stats(&self) -> Option<crate::stats::RenderStats> {
+        self.imp().render_stats()
+    }
 }
 
 impl Default for PlaceboSink {

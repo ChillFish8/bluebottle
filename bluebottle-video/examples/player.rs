@@ -15,10 +15,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use bluebottle_video::{Player, RenderPreset};
+use bluebottle_video::{MediaStats, Player, RenderPreset};
 use gstreamer as gst;
 use gstreamer::prelude::*;
-use iced::widget::{button, column, row, slider, text};
+use iced::widget::{Space, button, column, container, row, slider, text};
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -118,6 +118,10 @@ struct App {
     scrubbing: bool,
     /// Current libplacebo render-quality preset.
     preset: RenderPreset,
+    /// Whether the "stats for nerds" debug panel is visible.
+    show_stats: bool,
+    /// Latest debug snapshot, refreshed on the tick while the panel is shown.
+    stats: Option<MediaStats>,
 }
 
 impl App {
@@ -129,6 +133,8 @@ impl App {
             duration: 0.0,
             scrubbing: false,
             preset: RenderPreset::default(),
+            show_stats: false,
+            stats: None,
         }
     }
 }
@@ -141,6 +147,7 @@ enum Message {
     Tick,
     Resized(u32, u32),
     CyclePreset,
+    ToggleStats,
 }
 
 fn update(state: &mut App, message: Message) -> iced::Task<Message> {
@@ -166,6 +173,9 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
             {
                 state.position = position.as_secs_f64();
             }
+            if state.show_stats {
+                state.stats = Some(state.player.media_stats());
+            }
         },
         Message::Resized(width, height) => {
             state.player.set_render_size(width, height);
@@ -177,6 +187,10 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
                 RenderPreset::HighQuality => RenderPreset::Fast,
             };
             state.player.set_render_preset(state.preset);
+        },
+        Message::ToggleStats => {
+            state.show_stats = !state.show_stats;
+            state.stats = state.show_stats.then(|| state.player.media_stats());
         },
     }
     iced::Task::none()
@@ -194,10 +208,11 @@ fn view(state: &App) -> iced::Element<'_, Message> {
 
     let quality = format!("quality: {:?}", state.preset);
 
-    column![
+    let controls = column![
         row![
             button(label).on_press(Message::TogglePause),
             button(text(quality)).on_press(Message::CyclePreset),
+            button("stats").on_press(Message::ToggleStats),
             text(format!(
                 "{} / {}",
                 format_time(state.position),
@@ -208,9 +223,124 @@ fn view(state: &App) -> iced::Element<'_, Message> {
         .spacing(16),
         seek,
     ]
-    .spacing(12)
-    .padding(24)
-    .into()
+    .spacing(12);
+
+    let mut screen = column![].padding(24).spacing(12).height(iced::Length::Fill);
+    if state.show_stats {
+        screen = screen.push(stats_panel(state.stats.as_ref()));
+    }
+    // Push the controls to the bottom of the window.
+    screen = screen.push(Space::new().height(iced::Length::Fill));
+    screen.push(controls).into()
+}
+
+/// A monospaced "stats for nerds" panel summarising the active streams and the
+/// render path.
+fn stats_panel(stats: Option<&MediaStats>) -> iced::Element<'_, Message> {
+    let body = match stats {
+        Some(stats) => stats_text(stats),
+        None => "collecting…".to_owned(),
+    };
+    let label = text(body)
+        .font(iced::Font::MONOSPACE)
+        .size(13)
+        .color(iced::Color::WHITE);
+    container(label)
+        .padding(12)
+        .style(|_| container::Style {
+            background: Some(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
+            border: iced::border::rounded(8),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// Render `stats` as grouped, labelled lines, using `—` for unknown fields.
+fn stats_text(stats: &MediaStats) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::new();
+    if let Some(video) = &stats.video {
+        let _ = writeln!(out, "Video");
+        let _ = writeln!(out, "  codec: {}", or_dash(&video.codec));
+        let _ = writeln!(out, "  resolution: {}x{}", video.width, video.height);
+        let framerate = video
+            .framerate
+            .map(|fps| format!("{fps:.3} fps"))
+            .unwrap_or_else(dash);
+        let _ = writeln!(out, "  framerate: {framerate}");
+        let _ = writeln!(out, "  bitrate: {}", opt_bitrate(video.bitrate));
+    }
+    if let Some(audio) = &stats.audio {
+        let _ = writeln!(out, "Audio");
+        let _ = writeln!(out, "  codec: {}", or_dash(&audio.codec));
+        let rate = audio
+            .sample_rate
+            .map(|hz| format!("{hz} Hz"))
+            .unwrap_or_else(dash);
+        let _ = writeln!(out, "  sample rate: {rate}");
+        let channels = audio
+            .channels
+            .map(|count| count.to_string())
+            .unwrap_or_else(dash);
+        let _ = writeln!(out, "  channels: {channels}");
+        let _ = writeln!(out, "  bitrate: {}", opt_bitrate(audio.bitrate));
+        let _ = writeln!(out, "  language: {}", or_dash(&audio.language));
+        let _ = writeln!(out, "  track: {}/{}", audio.track + 1, audio.track_count);
+    }
+    let subtitle = &stats.subtitle;
+    let _ = writeln!(out, "Subtitle");
+    if subtitle.track >= 0 {
+        let _ = writeln!(
+            out,
+            "  track: {}/{}",
+            subtitle.track + 1,
+            subtitle.track_count
+        );
+        let _ = writeln!(out, "  language: {}", or_dash(&subtitle.language));
+    } else {
+        let _ = writeln!(out, "  none ({} available)", subtitle.track_count);
+    }
+    let _ = writeln!(out, "Render");
+    match &stats.render {
+        Some(render) => {
+            let _ = writeln!(out, "  format: {}", render.format);
+            let _ = writeln!(out, "  size: {}x{}", render.width, render.height);
+            let path = if render.zero_copy {
+                "zero-copy dmabuf"
+            } else {
+                "sysmem upload"
+            };
+            let _ = writeln!(out, "  path: {path}");
+            let _ = writeln!(out, "  color: {}", or_dash(&render.color));
+            let _ = writeln!(out, "  preset: {:?}", render.preset);
+            let _ = writeln!(out, "  present fps: {:.1}", render.fps);
+            let _ = writeln!(
+                out,
+                "  frames: {} presented / {} skipped",
+                render.frames_presented, render.frames_skipped
+            );
+        },
+        None => {
+            let _ = writeln!(out, "  not started");
+        },
+    }
+    out
+}
+
+fn dash() -> String {
+    "—".to_owned()
+}
+
+fn or_dash(value: &Option<String>) -> String {
+    value.clone().unwrap_or_else(dash)
+}
+
+/// Format a bitrate in bits/s as kbps, or `—` when unknown.
+fn opt_bitrate(bits_per_second: Option<u32>) -> String {
+    bits_per_second
+        .map(|bits| format!("{:.0} kbps", bits as f64 / 1000.0))
+        .unwrap_or_else(dash)
 }
 
 fn subscription(_state: &App) -> iced::Subscription<Message> {

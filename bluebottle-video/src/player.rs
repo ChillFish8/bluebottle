@@ -15,11 +15,15 @@ use gstreamer as gst;
 
 use crate::error::Error;
 use crate::sink::PlaceboSink;
+use crate::stats::{AudioStats, MediaStats, SubtitleStats, VideoStats};
 
 /// A libplacebo-rendered video player.
 pub struct Player {
     pipeline: gst::Pipeline,
     sink: PlaceboSink,
+    /// Whether `pipeline` is a `playbin` (the test-pattern pipelines are not, and
+    /// lack the `n-*`/`current-*` properties and `get-*` track signals).
+    from_playbin: bool,
 }
 
 impl Player {
@@ -36,7 +40,11 @@ impl Player {
         let pipeline = playbin
             .downcast::<gst::Pipeline>()
             .expect("playbin is a pipeline");
-        Ok(Self { pipeline, sink })
+        Ok(Self {
+            pipeline,
+            sink,
+            from_playbin: true,
+        })
     }
 
     /// Build a `videotestsrc` pipeline rendering through the sink, for demos and
@@ -56,7 +64,11 @@ impl Player {
             .map_err(into_gst("add elements"))?;
         gst::Element::link_many([&src, &convert, sink.upcast_ref()])
             .map_err(into_gst("link elements"))?;
-        Ok(Self { pipeline, sink })
+        Ok(Self {
+            pipeline,
+            sink,
+            from_playbin: false,
+        })
     }
 
     /// Build a VA-API pipeline (`videotestsrc ! vapostproc ! placebosink`) that
@@ -87,7 +99,11 @@ impl Player {
             .map_err(into_gst("add elements"))?;
         gst::Element::link_many([&src, &postproc, &filter, sink.upcast_ref()])
             .map_err(into_gst("link elements"))?;
-        Ok(Self { pipeline, sink })
+        Ok(Self {
+            pipeline,
+            sink,
+            from_playbin: false,
+        })
     }
 
     /// Point the sink at a `bluebottle-window` content surface and size it to the
@@ -159,6 +175,125 @@ impl Player {
             .map(|t| Duration::from_nanos(t.nseconds()))
     }
 
+    /// A debug snapshot of the active streams and the render path, for a
+    /// "stats for nerds"-style overlay.
+    ///
+    /// Stream info (codecs, tracks, languages) is only available for media
+    /// opened with [`Player::open`]; the test-pattern pipelines report just the
+    /// [`render`] section. Cheap enough to poll a few times a second.
+    ///
+    /// [`render`]: crate::MediaStats::render
+    pub fn media_stats(&self) -> MediaStats {
+        let render = self.sink.render_stats();
+        if !self.from_playbin {
+            return MediaStats {
+                render,
+                ..Default::default()
+            };
+        }
+
+        let current_video: i32 = self.pipeline.property("current-video");
+        let current_audio: i32 = self.pipeline.property("current-audio");
+        let current_text: i32 = self.pipeline.property("current-text");
+        let n_audio: i32 = self.pipeline.property("n-audio");
+        let n_text: i32 = self.pipeline.property("n-text");
+
+        MediaStats {
+            video: (current_video >= 0).then(|| self.video_stats(current_video)),
+            audio: (current_audio >= 0)
+                .then(|| self.audio_stats(current_audio, n_audio)),
+            subtitle: SubtitleStats {
+                track: current_text,
+                track_count: n_text,
+                language: (current_text >= 0)
+                    .then(|| self.text_language(current_text))
+                    .flatten(),
+            },
+            render,
+        }
+    }
+
+    fn video_stats(&self, index: i32) -> VideoStats {
+        let caps = self.pad_caps("get-video-pad", index);
+        let structure = caps.as_ref().and_then(|caps| caps.structure(0));
+        let (width, height) = structure
+            .map(|s| (read_dim(s, "width"), read_dim(s, "height")))
+            .unwrap_or((0, 0));
+        let framerate = structure
+            .and_then(|s| s.get::<gst::Fraction>("framerate").ok())
+            .and_then(fraction_to_f64);
+
+        let tags = self.tags("get-video-tags", index);
+        VideoStats {
+            codec: tags.as_ref().and_then(|tags| {
+                tags.get::<gst::tags::VideoCodec>()
+                    .map(|value| value.get().to_string())
+                    .or_else(|| {
+                        tags.get::<gst::tags::Codec>()
+                            .map(|value| value.get().to_string())
+                    })
+            }),
+            width,
+            height,
+            framerate,
+            bitrate: tags.as_ref().and_then(|tags| {
+                tags.get::<gst::tags::Bitrate>().map(|value| value.get())
+            }),
+        }
+    }
+
+    fn audio_stats(&self, index: i32, track_count: i32) -> AudioStats {
+        let caps = self.pad_caps("get-audio-pad", index);
+        let structure = caps.as_ref().and_then(|caps| caps.structure(0));
+        let sample_rate = structure.map(|s| read_dim(s, "rate")).filter(|&r| r > 0);
+        let channels = structure
+            .map(|s| read_dim(s, "channels"))
+            .filter(|&c| c > 0);
+
+        let tags = self.tags("get-audio-tags", index);
+        AudioStats {
+            codec: tags.as_ref().and_then(|tags| {
+                tags.get::<gst::tags::AudioCodec>()
+                    .map(|value| value.get().to_string())
+                    .or_else(|| {
+                        tags.get::<gst::tags::Codec>()
+                            .map(|value| value.get().to_string())
+                    })
+            }),
+            sample_rate,
+            channels,
+            bitrate: tags.as_ref().and_then(|tags| {
+                tags.get::<gst::tags::Bitrate>().map(|value| value.get())
+            }),
+            language: tags.as_ref().and_then(|tags| {
+                tags.get::<gst::tags::LanguageCode>()
+                    .map(|value| value.get().to_string())
+            }),
+            track: index,
+            track_count,
+        }
+    }
+
+    fn text_language(&self, index: i32) -> Option<String> {
+        let tags = self.tags("get-text-tags", index)?;
+        tags.get::<gst::tags::LanguageCode>()
+            .map(|value| value.get().to_string())
+    }
+
+    /// Negotiated caps of a selected track, via a `playbin` `get-*-pad` signal.
+    fn pad_caps(&self, signal: &str, index: i32) -> Option<gst::Caps> {
+        let pad = self
+            .pipeline
+            .emit_by_name::<Option<gst::Pad>>(signal, &[&index])?;
+        pad.current_caps()
+    }
+
+    /// Tags of a selected track, via a `playbin` `get-*-tags` signal.
+    fn tags(&self, signal: &str, index: i32) -> Option<gst::TagList> {
+        self.pipeline
+            .emit_by_name::<Option<gst::TagList>>(signal, &[&index])
+    }
+
     /// The pipeline bus, for the caller's lifecycle/error loop.
     pub fn bus(&self) -> Option<gst::Bus> {
         self.pipeline.bus()
@@ -185,6 +320,19 @@ impl Player {
             message: format!("failed to initialise GStreamer: {err}"),
         })
     }
+}
+
+/// Read a non-negative integer caps field (`width`/`rate`/...) as `u32`,
+/// defaulting to `0` when absent.
+fn read_dim(structure: &gst::StructureRef, field: &str) -> u32 {
+    structure.get::<i32>(field).unwrap_or(0).max(0) as u32
+}
+
+/// Convert a framerate fraction to frames per second, guarding against a zero
+/// denominator.
+fn fraction_to_f64(framerate: gst::Fraction) -> Option<f64> {
+    let denom = framerate.denom();
+    (denom != 0).then(|| framerate.numer() as f64 / denom as f64)
 }
 
 /// Build a closure mapping a GStreamer error into [`Error::Gstreamer`] with

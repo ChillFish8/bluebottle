@@ -10,6 +10,7 @@ use gstreamer_video as gst_video;
 
 use crate::config::RenderPreset;
 use crate::render::RenderContext;
+use crate::stats::RenderStats;
 
 /// Mutable sink state, serialised behind a mutex (GStreamer may touch the
 /// element from several threads; rendering only happens on the streaming
@@ -41,6 +42,11 @@ struct State {
 #[derive(Default)]
 pub struct PlaceboSink {
     state: Mutex<State>,
+    /// Latest debug snapshot, published by the streaming thread after each
+    /// frame. Kept under its own lock — separate from `state`, which the
+    /// streaming thread holds across the whole GPU render+present — so a UI
+    /// thread polling [`PlaceboSink::render_stats`] never blocks on the render.
+    stats: Mutex<Option<RenderStats>>,
 }
 
 impl PlaceboSink {
@@ -59,6 +65,37 @@ impl PlaceboSink {
     pub(super) fn set_render_preset(&self, preset: RenderPreset) {
         self.state.lock().unwrap().preset = preset;
     }
+
+    /// The latest render-path snapshot for the debug overlay, or `None` until
+    /// the first frame has been rendered.
+    ///
+    /// Reads only the `stats` lock, so it does not contend with the per-frame
+    /// render that holds `state`.
+    pub(super) fn render_stats(&self) -> Option<RenderStats> {
+        self.stats.lock().unwrap().clone()
+    }
+}
+
+/// Summarise the negotiated colour space, flagging HDR transfer functions.
+fn color_summary(info: &gst_video::VideoInfo) -> Option<String> {
+    let colorimetry = info.colorimetry();
+    let (transfer, hdr) = match colorimetry.transfer() {
+        gst_video::VideoTransferFunction::Smpte2084 => ("PQ", true),
+        gst_video::VideoTransferFunction::AribStdB67 => ("HLG", true),
+        gst_video::VideoTransferFunction::Bt709 => ("BT.709", false),
+        gst_video::VideoTransferFunction::Srgb => ("sRGB", false),
+        _ => ("SDR", false),
+    };
+    let primaries = match colorimetry.primaries() {
+        gst_video::VideoColorPrimaries::Bt709 => "BT.709",
+        gst_video::VideoColorPrimaries::Bt2020 => "BT.2020",
+        gst_video::VideoColorPrimaries::Smpte170m => "BT.601",
+        _ => "unknown",
+    };
+    Some(format!(
+        "{primaries} / {transfer}{}",
+        if hdr { " (HDR)" } else { "" }
+    ))
 }
 
 #[glib::object_subclass]
@@ -173,6 +210,7 @@ impl BaseSinkImpl for PlaceboSink {
         let mut state = self.state.lock().unwrap();
         state.render = None;
         state.applied_rect = None;
+        *self.stats.lock().unwrap() = None;
         Ok(())
     }
 }
@@ -249,6 +287,21 @@ impl VideoSinkImpl for PlaceboSink {
             );
             gst::FlowError::Error
         })?;
+        let runtime = context.runtime_stats();
+
+        // Publish the snapshot under the `stats` lock (held only here, briefly),
+        // not the `state` lock we hold across the render above.
+        *self.stats.lock().unwrap() = Some(RenderStats {
+            format: format!("{:?}", info.format()),
+            width: info.width(),
+            height: info.height(),
+            zero_copy: dma_drm.is_some(),
+            color: color_summary(&info),
+            preset: state.preset,
+            frames_presented: runtime.frames_presented,
+            frames_skipped: runtime.frames_skipped,
+            fps: runtime.fps,
+        });
 
         Ok(gst::FlowSuccess::Ok)
     }

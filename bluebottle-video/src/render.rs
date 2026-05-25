@@ -8,6 +8,7 @@
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
+use std::time::Instant;
 
 use gstreamer as gst;
 use gstreamer_allocators::DmaBufMemory;
@@ -44,6 +45,16 @@ struct FrameHold {
 /// frame's dmabuf is no longer in use by the time we release it.
 const MAX_IN_FLIGHT: usize = 4;
 
+/// How many recent present timestamps to keep for the FPS estimate.
+const FPS_WINDOW: usize = 30;
+
+/// A point-in-time view of the render loop's runtime counters.
+pub(crate) struct RenderRuntime {
+    pub frames_presented: u64,
+    pub frames_skipped: u64,
+    pub fps: f64,
+}
+
 /// libplacebo render engine bound to one presentation surface.
 ///
 /// Field order is the drop order and is load-bearing: GPU objects (renderer,
@@ -65,6 +76,10 @@ pub struct RenderContext {
     /// Tuned render parameters (scalers, colour management, dither), selected by
     /// the active [`RenderPreset`].
     params: pl::pl_render_params,
+    frames_presented: u64,
+    frames_skipped: u64,
+    /// Recent present timestamps (most recent at the back), for the FPS estimate.
+    present_times: VecDeque<Instant>,
 }
 
 // SAFETY: the contained libplacebo objects are only ever touched from the
@@ -104,7 +119,31 @@ impl RenderContext {
             _instance: instance,
             _log: log,
             params,
+            frames_presented: 0,
+            frames_skipped: 0,
+            present_times: VecDeque::new(),
         })
+    }
+
+    /// A snapshot of the runtime counters for the debug overlay.
+    pub(crate) fn runtime_stats(&self) -> RenderRuntime {
+        // FPS over the window's span; needs at least two samples to have one.
+        let fps = match (self.present_times.front(), self.present_times.back()) {
+            (Some(oldest), Some(newest)) if self.present_times.len() >= 2 => {
+                let span = newest.duration_since(*oldest).as_secs_f64();
+                if span > 0.0 {
+                    (self.present_times.len() - 1) as f64 / span
+                } else {
+                    0.0
+                }
+            },
+            _ => 0.0,
+        };
+        RenderRuntime {
+            frames_presented: self.frames_presented,
+            frames_skipped: self.frames_skipped,
+            fps,
+        }
     }
 
     /// Resize the swapchain to `width`×`height` logical pixels. Returns whether
@@ -143,6 +182,7 @@ impl RenderContext {
         let Some(sw_frame) = self.swapchain.start_frame() else {
             // Surface hidden/minimised: skip this frame, not an error. The
             // imported textures (and buffer) drop here, unused by the GPU.
+            self.frames_skipped += 1;
             return Ok(());
         };
 
@@ -170,6 +210,11 @@ impl RenderContext {
         // next `start_frame`. Present only if submission succeeded.
         if self.swapchain.submit_frame() {
             self.swapchain.swap_buffers();
+            self.frames_presented += 1;
+            self.present_times.push_back(Instant::now());
+            while self.present_times.len() > FPS_WINDOW {
+                self.present_times.pop_front();
+            }
         }
 
         // Retain this frame's GPU resources for the in-flight window so the
