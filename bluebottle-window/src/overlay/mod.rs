@@ -15,6 +15,7 @@ use iced_runtime::core::{
     Color,
     Event,
     Point,
+    Renderer,
     Size,
     input_method,
     mouse,
@@ -23,6 +24,7 @@ use iced_runtime::core::{
     widget,
     window,
 };
+use iced_runtime::image::Action as ImageAction;
 use iced_runtime::user_interface::{self, Cache, UserInterface};
 use iced_runtime::window::Action as WindowAction;
 use iced_runtime::{Action, task};
@@ -49,6 +51,8 @@ pub(crate) enum Command {
 /// which owns the toplevel. The overlay is the window's chrome, so its
 /// `window::Action`s drive the real toplevel.
 pub(crate) enum WindowRequest {
+    /// Set the window title.
+    SetTitle(String),
     /// Minimize the window.
     Minimize,
     /// Maximize (`true`) or unmaximize (`false`) the window.
@@ -260,9 +264,17 @@ pub(crate) struct IcedOverlay<P: Program> {
     default_theme: P::Theme,
     cache: Option<Cache>,
     viewport: Viewport,
+    // Physical (buffer) pixel size, the logical size, and the two scale factors:
+    // `compositor_scale` is the integer HiDPI scale (drives the buffer); the
+    // viewport's scale is `compositor_scale * program_scale`, where the program
+    // scale is the app's own zoom from `Instance::scale_factor`.
     width: u32,
     height: u32,
-    scale: f64,
+    logical_width: u32,
+    logical_height: u32,
+    compositor_scale: f64,
+    program_scale: f64,
+    last_title: String,
     events: Vec<Event>,
     cursor: mouse::Cursor,
     mouse_interaction: mouse::Interaction,
@@ -311,9 +323,10 @@ impl<P: Program> IcedOverlay<P> {
         let (instance, boot_task) = Instance::new(program);
         let window_id = window::Id::unique();
         let default_theme = <P::Theme as theme::Base>::default(theme::Mode::default());
+        let program_scale = instance.scale_factor(window_id) as f64;
         let viewport = Viewport::with_physical_size(
             Size::new(physical_width, physical_height),
-            scale as f32,
+            (scale * program_scale) as f32,
         );
 
         if let Some(stream) = task::into_stream(boot_task) {
@@ -333,7 +346,11 @@ impl<P: Program> IcedOverlay<P> {
             viewport,
             width: physical_width,
             height: physical_height,
-            scale,
+            logical_width: width,
+            logical_height: height,
+            compositor_scale: scale,
+            program_scale,
+            last_title: String::new(),
             events: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
             mouse_interaction: mouse::Interaction::None,
@@ -345,7 +362,17 @@ impl<P: Program> IcedOverlay<P> {
         };
 
         overlay.sync_subscriptions();
+        overlay.sync_title();
         Ok(overlay)
+    }
+
+    /// Forward the program's window title to the toplevel if it changed.
+    fn sync_title(&mut self) {
+        let title = self.instance.title(self.window_id);
+        if title != self.last_title {
+            self.last_title.clone_from(&title);
+            let _ = self.window_requests.send(WindowRequest::SetTitle(title));
+        }
     }
 
     /// Apply a message to the program state, running any resulting [`Task`].
@@ -371,17 +398,29 @@ impl<P: Program> IcedOverlay<P> {
 impl<P: Program> IcedOverlay<P> {
     fn resize(&mut self, logical_width: u32, logical_height: u32, scale: f64) {
         let (width, height) = physical_size(logical_width, logical_height, scale);
-        if self.width == width && self.height == height && self.scale == scale {
+        if self.width == width && self.height == height && self.compositor_scale == scale
+        {
             return;
         }
 
+        self.logical_width = logical_width;
+        self.logical_height = logical_height;
+        self.compositor_scale = scale;
         self.width = width;
         self.height = height;
-        self.scale = scale;
-        self.viewport =
-            Viewport::with_physical_size(Size::new(width, height), scale as f32);
+        self.update_viewport();
         self.compositor
             .configure_surface(&mut self.surface, width, height);
+    }
+
+    /// Rebuild the viewport from the current physical size and effective scale.
+    ///
+    /// The buffer (physical) size is unaffected by the program scale, so callers
+    /// that only change the program scale need not reconfigure the wgpu surface.
+    fn update_viewport(&mut self) {
+        let scale = (self.compositor_scale * self.program_scale) as f32;
+        self.viewport =
+            Viewport::with_physical_size(Size::new(self.width, self.height), scale);
     }
 
     fn queue_event(&mut self, event: Event) {
@@ -421,9 +460,14 @@ impl<P: Program> IcedOverlay<P> {
                     self.clipboard.write(target, contents);
                 },
                 Action::Window(action) => self.apply_window_action(action),
+                Action::Image(ImageAction::Allocate(handle, sender)) => {
+                    self.renderer.allocate_image(&handle, move |allocation| {
+                        let _ = sender.send(allocation);
+                    });
+                    redraw = true;
+                },
                 Action::Exit => self.exit = true,
-                // Image and system actions are not yet supported for an overlay;
-                // ignore them for now.
+                // System actions (theme/info) are not supported; ignore them.
                 _ => {},
             }
         }
@@ -450,7 +494,8 @@ impl<P: Program> IcedOverlay<P> {
                 let _ = channel.send(self.viewport.logical_size());
             },
             WindowAction::GetScaleFactor(_, channel) => {
-                let _ = channel.send(self.scale as f32);
+                let _ =
+                    channel.send((self.compositor_scale * self.program_scale) as f32);
             },
             WindowAction::GetLatest(channel) | WindowAction::GetOldest(channel) => {
                 let _ = channel.send(Some(self.window_id));
@@ -475,8 +520,27 @@ impl<P: Program> IcedOverlay<P> {
             WindowAction::DragResize(_, direction) => {
                 self.request_window(WindowRequest::DragResize(direction));
             },
-            // Geometry/position/icon/etc. are compositor-owned on Wayland, and
-            // remaining queries need toplevel state we do not track; ignore.
+            WindowAction::GetPosition(_, channel) => {
+                // Wayland does not expose a global window position.
+                let _ = channel.send(None);
+            },
+            WindowAction::Screenshot(_, channel) => {
+                let bytes = self.compositor.screenshot(
+                    &mut self.renderer,
+                    &self.viewport,
+                    Color::TRANSPARENT,
+                );
+                let _ = channel.send(window::Screenshot::new(
+                    bytes,
+                    Size::new(self.width, self.height),
+                    self.viewport.scale_factor(),
+                ));
+            },
+            WindowAction::RedrawAll | WindowAction::RelayoutAll => {
+                self.redraw_request = window::RedrawRequest::NextFrame;
+            },
+            // Geometry/icon/etc. are compositor-owned on Wayland; remaining
+            // state queries are answered in a later pass. Ignore for now.
             _ => {},
         }
     }
@@ -540,6 +604,14 @@ impl<P: Program> IcedOverlay<P> {
     }
 
     fn draw(&mut self) {
+        // The program's own scale factor can change between frames; fold it into
+        // the viewport (buffer size is unaffected, so no surface reconfigure).
+        let program_scale = self.instance.scale_factor(self.window_id) as f64;
+        if program_scale != self.program_scale {
+            self.program_scale = program_scale;
+            self.update_viewport();
+        }
+
         let bounds = self.viewport.logical_size();
         let mut cache = self.cache.take().unwrap_or_default();
 
@@ -601,6 +673,8 @@ impl<P: Program> IcedOverlay<P> {
         }
         if applied {
             self.sync_subscriptions();
+            // The title may depend on state the messages just changed.
+            self.sync_title();
         }
 
         let theme = self.instance.theme(self.window_id);

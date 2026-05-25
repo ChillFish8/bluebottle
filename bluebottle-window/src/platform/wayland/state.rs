@@ -191,6 +191,7 @@ impl State {
 
     fn apply_window_request(&mut self, request: WindowRequest) {
         match request {
+            WindowRequest::SetTitle(title) => self.window.set_title(title),
             WindowRequest::Minimize => self.window.set_minimized(),
             WindowRequest::SetMaximized(true) => self.window.set_maximized(),
             WindowRequest::SetMaximized(false) => self.window.unset_maximized(),

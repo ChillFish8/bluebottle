@@ -139,7 +139,9 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     let window = bluebottle_window::create_overlay(|| {
-        iced::application(App::default, update, view).subscription(subscription)
+        iced::application(App::default, update, view)
+            .title("Bluebottle Overlay Demo")
+            .subscription(subscription)
     })
     .expect("create overlay window");
 
