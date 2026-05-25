@@ -2,7 +2,8 @@
 resolver = "3"
 members = [
     "bluebottle",
-    "bluebottle-ui", "bluebottle-window",
+    "bluebottle-ui", "bluebottle-video", "bluebottle-window",
+    "placebo-sys",
 ]
 
 [workspace.dependencies]
@@ -56,9 +57,23 @@ window_clipboard = "0.5"
 # Used by examples to render the caller-owned main surface.
 wgpu = "27"
 
-# Used by the `gst` example: GStreamer playback embedded via waylandsink.
+# GStreamer playback. Used by the `gst` example (waylandsink) and by
+# `bluebottle-video` (the `placebosink` libplacebo renderer + Player).
 gstreamer = "0.25"
-gstreamer-video = "0.25"
+# v1_24 enables the DMA-DRM video-info API (`VideoInfoDmaDrm`) used for
+# zero-copy dmabuf import; the system GStreamer is 1.28.
+gstreamer-video = { version = "0.25", features = ["v1_24"] }
+gstreamer-base = "0.25"
+gstreamer-allocators = "0.25"
+gstreamer-gl = "0.25"
+
+# Raw Vulkan, used by `bluebottle-video` to build the `VkSurfaceKHR` that
+# libplacebo's swapchain presents onto the bluebottle-window content surface.
+ash = "0.38"
+
+# FFI tooling for the in-tree `placebo-sys` libplacebo bindings.
+bindgen = "0.72"
+pkg-config = "0.3"
 
 # Dev dependencies
 rstest = "0.26"

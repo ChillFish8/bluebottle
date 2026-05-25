@@ -1,0 +1,16 @@
+[package]
+name = "placebo-sys"
+version = "0.1.0"
+edition = "2024"
+publish = false
+# In-tree FFI to the system libplacebo (>= API v7 / PL_API_VER 360). Generated
+# with bindgen against the installed headers and linked dynamically via
+# pkg-config; intentionally not published.
+description = "FFI bindings to libplacebo"
+links = "placebo"
+
+[dependencies]
+
+[build-dependencies]
+bindgen = { workspace = true }
+pkg-config = { workspace = true }

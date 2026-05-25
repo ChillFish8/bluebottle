@@ -1,0 +1,21 @@
+[package]
+name = "bluebottle-video"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+placebo-sys = { path = "../placebo-sys" }
+bluebottle-window = { path = "../bluebottle-window" }
+
+gstreamer = { workspace = true }
+gstreamer-video = { workspace = true }
+gstreamer-base = { workspace = true }
+gstreamer-allocators = { workspace = true }
+
+ash = { workspace = true }
+snafu = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+iced = { workspace = true }
+tracing-subscriber = { workspace = true }
