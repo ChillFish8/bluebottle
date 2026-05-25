@@ -29,6 +29,7 @@ use smithay_client_toolkit::reexports::calloop::EventLoop;
 use smithay_client_toolkit::reexports::calloop::ping::make_ping;
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::reexports::client::globals::registry_queue_init;
+use smithay_client_toolkit::reexports::client::protocol::wl_shm;
 use smithay_client_toolkit::reexports::client::{Connection, Proxy};
 use smithay_client_toolkit::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use smithay_client_toolkit::registry::RegistryState;
@@ -37,6 +38,7 @@ use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgShell;
 use smithay_client_toolkit::shell::xdg::window::WindowDecorations;
 use smithay_client_toolkit::shm::Shm;
+use smithay_client_toolkit::shm::slot::SlotPool;
 use smithay_client_toolkit::subcompositor::SubcompositorState;
 use snafu::ResultExt;
 use state::State;
@@ -63,6 +65,14 @@ pub trait WindowExtWayland {
 
     /// Returns a pointer to the main `wl_surface`.
     fn wl_surface_ptr(&self) -> *mut c_void;
+
+    /// Returns a pointer to the content `wl_surface` a video sink should render
+    /// into, or null when the window was not created with
+    /// [`crate::create_video_overlay`].
+    ///
+    /// The library stacks this surface beneath the overlay, so video drawn here
+    /// (for example by GStreamer's `waylandsink`) composites below the UI.
+    fn wl_video_surface_ptr(&self) -> *mut c_void;
 }
 
 impl WindowExtWayland for Window {
@@ -78,6 +88,11 @@ impl WindowExtWayland for Window {
             RawWindowHandle::Wayland(handle) => handle.surface.as_ptr(),
             _ => std::ptr::null_mut(),
         }
+    }
+
+    fn wl_video_surface_ptr(&self) -> *mut c_void {
+        self.raw_video_surface()
+            .map_or(std::ptr::null_mut(), NonNull::as_ptr)
     }
 }
 
@@ -122,7 +137,7 @@ const DEFAULT_SIZE: (u32, u32) = (1280, 720);
 ///
 /// Blocks only until the loop reports that the main surface is ready (or fails);
 /// the loop then keeps running on its thread until close is requested.
-pub(crate) fn run<P, F>(build: F) -> Result<Window, Error>
+pub(crate) fn run<P, F>(build: F, video: bool) -> Result<Window, Error>
 where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
@@ -131,7 +146,7 @@ where
 
     let thread = thread::Builder::new()
         .name("bluebottle-window".to_owned())
-        .spawn(move || event_loop(build, tx))
+        .spawn(move || event_loop(build, tx, video))
         .context(SpawnThreadSnafu)?;
 
     match rx.recv() {
@@ -148,19 +163,23 @@ where
 }
 
 /// The body of the background thread: drive Wayland and render the overlay.
-fn event_loop<P, F>(build: F, tx: mpsc::Sender<InitResult>) -> Result<(), Error>
+fn event_loop<P, F>(
+    build: F,
+    tx: mpsc::Sender<InitResult>,
+    video: bool,
+) -> Result<(), Error>
 where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    let (conn, mut event_loop, mut state, render_thread) = match setup(build, tx.clone())
-    {
-        Ok(parts) => parts,
-        Err(err) => {
-            let _ = tx.send(Err(err));
-            return Ok(());
-        },
-    };
+    let (conn, mut event_loop, mut state, render_thread) =
+        match setup(build, tx.clone(), video) {
+            Ok(parts) => parts,
+            Err(err) => {
+                let _ = tx.send(Err(err));
+                return Ok(());
+            },
+        };
 
     // Rendering happens on the overlay thread; here we only dispatch Wayland
     // events (input, configure) and forward them. Keeping this loop dispatching
@@ -207,6 +226,7 @@ where
 fn setup<P, F>(
     build: F,
     tx: mpsc::Sender<InitResult>,
+    video: bool,
 ) -> Result<
     (
         Connection,
@@ -262,6 +282,54 @@ where
     window.set_min_size(Some((1, 1)));
     window.commit();
 
+    // In video mode, create a transparent content subsurface *below* the overlay
+    // for an external video sink to render into. Creating it before the overlay
+    // subsurface leaves the overlay on top (a new subsurface is stacked
+    // top-most), so the sink's video composites beneath the UI.
+    let (content_surface, content_subsurface, video_pool, content_buffer, video_ptr) =
+        if video {
+            let (content_subsurface, content_surface) =
+                subcompositor.create_subsurface(main_surface.clone(), &qh);
+            content_subsurface.set_position(0, 0);
+            content_subsurface.set_desync();
+
+            // The parent must have a committed buffer to map, but the sink's own
+            // (larger) subsurface provides the visible video — a 1x1 transparent
+            // placeholder is enough. Commit it once; the sink owns it thereafter.
+            let mut pool =
+                SlotPool::new(16, &shm).map_err(|err| Error::VideoBuffer {
+                    message: err.to_string(),
+                })?;
+            let buffer = {
+                let (buffer, canvas) = pool
+                    .create_buffer(1, 1, 4, wl_shm::Format::Argb8888)
+                    .map_err(|err| Error::VideoBuffer {
+                        message: err.to_string(),
+                    })?;
+                canvas.fill(0);
+                buffer
+            };
+            buffer
+                .attach_to(&content_surface)
+                .map_err(|err| Error::VideoBuffer {
+                    message: err.to_string(),
+                })?;
+            content_surface.damage_buffer(0, 0, 1, 1);
+            content_surface.commit();
+
+            let ptr = NonNull::new(content_surface.id().as_ptr() as *mut c_void)
+                .expect("wl_surface pointer is never null");
+            (
+                Some(content_surface),
+                Some(content_subsurface),
+                Some(pool),
+                Some(buffer),
+                Some(ptr),
+            )
+        } else {
+            (None, None, None, None, None)
+        };
+
     let (overlay_subsurface, overlay_surface) =
         subcompositor.create_subsurface(main_surface.clone(), &qh);
     overlay_subsurface.set_position(0, 0);
@@ -274,6 +342,7 @@ where
     let handles = RawHandles {
         window: RawWindowHandle::Wayland(WaylandWindowHandle::new(main_surface_ptr)),
         display: RawDisplayHandle::Wayland(WaylandDisplayHandle::new(display_ptr)),
+        video: video_ptr,
     };
 
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
@@ -358,6 +427,11 @@ where
         main_surface,
         overlay_surface,
         overlay_subsurface,
+        content_surface,
+        content_subsurface,
+        video_pool,
+        main_buffer: None,
+        content_buffer,
         commands: commands_tx,
         window_requests: window_rx,
         shm,

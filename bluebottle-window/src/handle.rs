@@ -1,3 +1,5 @@
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -25,6 +27,10 @@ use crate::error::Error;
 pub(crate) struct RawHandles {
     pub window: RawWindowHandle,
     pub display: RawDisplayHandle,
+    /// The content subsurface's `wl_surface`, present only in video mode (see
+    /// [`crate::create_video_overlay`]). A video sink draws into this surface,
+    /// which the library stacks beneath the overlay.
+    pub video: Option<NonNull<c_void>>,
 }
 
 // SAFETY: the handles reference native window/display objects owned for the
@@ -98,6 +104,14 @@ impl Window {
     /// Returns the raw display handle for the main (parent) surface.
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         self.shared.handles.display
+    }
+
+    /// Returns the content subsurface, if this window was created in video mode.
+    ///
+    /// Backs the platform extension trait (e.g. `wl_video_surface_ptr`); `None`
+    /// for windows created with [`crate::create_overlay`].
+    pub(crate) fn raw_video_surface(&self) -> Option<NonNull<c_void>> {
+        self.shared.handles.video
     }
 
     /// Returns the current size of the window in logical pixels.

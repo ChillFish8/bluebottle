@@ -56,5 +56,9 @@ window_clipboard = "0.5"
 # Used by examples to render the caller-owned main surface.
 wgpu = "27"
 
+# Used by the `gst` example: GStreamer playback embedded via waylandsink.
+gstreamer = "0.25"
+gstreamer-video = "0.25"
+
 # Dev dependencies
 rstest = "0.26"

@@ -9,6 +9,7 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_output,
     wl_pointer,
     wl_seat,
+    wl_shm,
     wl_subsurface,
     wl_surface,
 };
@@ -38,6 +39,7 @@ use smithay_client_toolkit::shell::xdg::window::{
     WindowConfigure,
     WindowHandler,
 };
+use smithay_client_toolkit::shm::slot::{Buffer, SlotPool};
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
 use smithay_client_toolkit::{
     delegate_compositor,
@@ -76,6 +78,22 @@ pub(crate) struct State {
     pub overlay_surface: wl_surface::WlSurface,
     #[allow(dead_code)]
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
+
+    // Video mode (see `create_video_overlay`): a content subsurface stacked
+    // beneath the overlay for an external sink, plus the bluebottle-owned
+    // buffers that map the main and content surfaces. All `None` otherwise, when
+    // the caller renders the main surface itself; `video_pool.is_some()` gates
+    // video-mode behaviour.
+    pub video_pool: Option<SlotPool>,
+    #[allow(dead_code)]
+    pub content_surface: Option<wl_surface::WlSurface>,
+    #[allow(dead_code)]
+    pub content_subsurface: Option<wl_subsurface::WlSubsurface>,
+    // Retained so the attached buffers outlive their surfaces' use of them.
+    pub main_buffer: Option<Buffer>,
+    #[allow(dead_code)]
+    pub content_buffer: Option<Buffer>,
+
     pub commands: mpsc::Sender<Tick>,
     // Window-control requests from the overlay UI (it is the window's chrome).
     pub window_requests: mpsc::Receiver<WindowRequest>,
@@ -147,6 +165,43 @@ impl State {
             height: self.height,
             scale: scale as f64,
         });
+        // In video mode the library, not the caller, drives the main surface;
+        // give it a backdrop sized to the new layout. Committing here also
+        // applies the content subsurface's position (double-buffered on parent).
+        self.update_main_buffer();
+    }
+
+    /// Attach an opaque black backdrop to the main surface (video mode only).
+    ///
+    /// The caller does not render the main surface in video mode, so the library
+    /// gives it a buffer itself: an opaque black fill at the physical size, which
+    /// doubles as the letterbox background behind the video. Re-created on each
+    /// layout change to track size and scale; a no-op outside video mode.
+    fn update_main_buffer(&mut self) {
+        let Some(pool) = self.video_pool.as_mut() else {
+            return;
+        };
+        let scale = self.scale.max(1);
+        let width = self.width as i32 * scale;
+        let height = self.height as i32 * scale;
+        if width <= 0 || height <= 0 {
+            return;
+        }
+        let stride = width * 4;
+        match pool.create_buffer(width, height, stride, wl_shm::Format::Xrgb8888) {
+            Ok((buffer, canvas)) => {
+                // Xrgb8888: a zeroed canvas is opaque black.
+                canvas.fill(0);
+                if let Err(err) = buffer.attach_to(&self.main_surface) {
+                    tracing::warn!("failed to attach main backdrop buffer: {err}");
+                    return;
+                }
+                self.main_surface.damage_buffer(0, 0, width, height);
+                self.main_surface.commit();
+                self.main_buffer = Some(buffer);
+            },
+            Err(err) => tracing::warn!("failed to allocate main backdrop buffer: {err}"),
+        }
     }
 
     /// Report readiness to [`crate::create_overlay`] exactly once.
