@@ -145,22 +145,28 @@ pub(crate) fn run<P, F, W>(
     render_loop(overlay, ticks, shared);
 }
 
-/// How long the render loop may block waiting for the next [`Tick`].
-enum RedrawWait {
-    /// A redraw is already due; drain without blocking and draw this turn.
-    Now,
-    /// Block up to this long (the next scheduled animation frame) for a tick.
-    For(Duration),
-    /// Nothing is scheduled; block until a tick arrives.
-    Idle,
-}
+/// Minimum interval between overlay presents (~60 fps).
+///
+/// Pending work (animation frames and coalesced input) is drawn at most once per
+/// interval so the overlay never floods the compositor with presents. Without
+/// this, a `RedrawRequest::NextFrame` animation spins at thousands of fps, which
+/// on some compositors (e.g. KWin) shows as visible flicker. Idle frames are
+/// unaffected: with nothing to draw the loop blocks until woken.
+const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// Upper bound on rebuild+re-update passes per draw while settling the interface.
+///
+/// Each pass applies the messages produced by the previous one. A well-behaved
+/// UI settles in a pass or two; the bound stops a widget that perpetually
+/// invalidates its layout from spinning the frame (iced_winit caps this too).
+const MAX_SETTLE_PASSES: u32 = 3;
 
 /// Drive the overlay: wait for work, apply it, pump the runtime, and redraw.
 ///
 /// The loop blocks on a single [`Tick`] channel rather than polling: when idle
-/// it sleeps until woken (input, async runtime output, or close), and when an
-/// animation frame is scheduled it blocks only until that frame is due.
-/// Continuous redraws are paced by `present` (vsync by default), as before.
+/// it sleeps until woken (input, async runtime output, or close). Pending work
+/// is coalesced and drawn at most once per [`FRAME_INTERVAL`], so animations and
+/// rapid input redraw at a bounded rate instead of flooding the compositor.
 fn render_loop<P: Program>(
     mut overlay: IcedOverlay<P>,
     ticks: sync_chan::Receiver<Tick>,
@@ -168,22 +174,37 @@ fn render_loop<P: Program>(
 ) {
     let mut published_cursor = overlay.mouse_interaction();
     let mut published_ime = overlay.input_method().clone();
+    let mut dirty = false;
+    // Allow the first frame to draw immediately.
+    let mut last_present = Instant::now() - FRAME_INTERVAL;
 
     while !shared.close_requested.load(Ordering::Acquire) {
-        let first = match overlay.redraw_wait() {
-            RedrawWait::Now => ticks.try_recv().ok(),
-            RedrawWait::For(timeout) => match ticks.recv_timeout(timeout) {
-                Ok(tick) => Some(tick),
-                Err(sync_chan::RecvTimeoutError::Timeout) => None,
-                Err(sync_chan::RecvTimeoutError::Disconnected) => break,
-            },
-            RedrawWait::Idle => match ticks.recv() {
-                Ok(tick) => Some(tick),
-                Err(_) => break,
-            },
+        // Decide how long we may block before acting. With work pending (or an
+        // animation frame due) we wait only until the next frame slot opens;
+        // otherwise we sleep until the next scheduled redraw, or indefinitely.
+        let next_slot = last_present + FRAME_INTERVAL;
+        let deadline = if dirty || overlay.wants_redraw() {
+            Some(next_slot)
+        } else {
+            overlay.next_redraw().map(|at| at.max(next_slot))
         };
 
-        let mut dirty = first.is_some_and(|tick| apply_tick(&mut overlay, tick));
+        match deadline {
+            None => match ticks.recv() {
+                Ok(tick) => dirty |= apply_tick(&mut overlay, tick),
+                Err(_) => break,
+            },
+            Some(at) => {
+                let timeout = at.saturating_duration_since(Instant::now());
+                if !timeout.is_zero() {
+                    match ticks.recv_timeout(timeout) {
+                        Ok(tick) => dirty |= apply_tick(&mut overlay, tick),
+                        Err(sync_chan::RecvTimeoutError::Timeout) => {},
+                        Err(sync_chan::RecvTimeoutError::Disconnected) => break,
+                    }
+                }
+            },
+        }
         while let Ok(tick) = ticks.try_recv() {
             dirty |= apply_tick(&mut overlay, tick);
         }
@@ -196,8 +217,12 @@ fn render_loop<P: Program>(
             break;
         }
 
-        if dirty || overlay.wants_redraw() {
+        // Draw at most once per interval, coalescing everything since the last
+        // present.
+        if (dirty || overlay.wants_redraw()) && Instant::now() >= next_slot {
             overlay.draw();
+            last_present = Instant::now();
+            dirty = false;
 
             // Publish the cursor and input-method state the UI wants so the
             // event-loop thread (which owns the pointer and text input) can
@@ -232,6 +257,38 @@ fn apply_tick<P: Program>(overlay: &mut IcedOverlay<P>, tick: Tick) -> bool {
         Tick::Command(command) => apply_command(overlay, command),
         // A bare wake just rouses the loop; `pump`/`wants_redraw` do the work.
         Tick::Wake => false,
+    }
+}
+
+/// Apply a [`UserInterface::update`] result to the overlay's redraw/cursor/IME
+/// state, returning whether the interface still needs settling — its layout
+/// changed, or it is outdated and must be rebuilt before drawing.
+///
+/// Takes the affected fields individually rather than `&mut self` so it can be
+/// called while a [`UserInterface`] borrowing the program is still alive.
+fn apply_ui_state(
+    state: user_interface::State,
+    redraw_request: &mut window::RedrawRequest,
+    mouse_interaction: &mut mouse::Interaction,
+    input_method: &mut input_method::InputMethod,
+) -> bool {
+    match state {
+        user_interface::State::Updated {
+            redraw_request: next_redraw,
+            mouse_interaction: next_mouse,
+            input_method: next_input_method,
+            has_layout_changed,
+        } => {
+            *redraw_request = next_redraw;
+            *mouse_interaction = next_mouse;
+            *input_method = next_input_method;
+            has_layout_changed
+        },
+        // `Outdated` means the tree must be rebuilt; leave cursor/IME untouched.
+        user_interface::State::Outdated => {
+            *redraw_request = window::RedrawRequest::NextFrame;
+            true
+        },
     }
 }
 
@@ -828,22 +885,16 @@ impl<P: Program> IcedOverlay<P> {
         }
     }
 
-    /// How long the render loop may block before the next obligatory redraw.
+    /// The instant at which a redraw is next scheduled, if any.
     ///
-    /// `NextFrame` is due immediately; `At` bounds the wait to the scheduled
-    /// instant; `Wait` has no deadline, so the loop sleeps until woken.
-    fn redraw_wait(&self) -> RedrawWait {
+    /// `Wait` has nothing scheduled; `NextFrame` is due now; `At` is due at the
+    /// given instant. The render loop clamps this to [`FRAME_INTERVAL`] so a
+    /// redraw never fires faster than the present rate.
+    fn next_redraw(&self) -> Option<Instant> {
         match self.redraw_request {
-            window::RedrawRequest::NextFrame => RedrawWait::Now,
-            window::RedrawRequest::Wait => RedrawWait::Idle,
-            window::RedrawRequest::At(instant) => {
-                let remaining = instant.saturating_duration_since(Instant::now());
-                if remaining.is_zero() {
-                    RedrawWait::Now
-                } else {
-                    RedrawWait::For(remaining)
-                }
-            },
+            window::RedrawRequest::Wait => None,
+            window::RedrawRequest::NextFrame => Some(Instant::now()),
+            window::RedrawRequest::At(instant) => Some(instant),
         }
     }
 
@@ -861,7 +912,7 @@ impl<P: Program> IcedOverlay<P> {
         }
 
         let bounds = self.viewport.logical_size();
-        let cache = self.cache.take().unwrap_or_default();
+        let mut cache = self.cache.take().unwrap_or_default();
 
         // A redraw-request event is delivered every frame (matching iced_winit)
         // so time-based animations and the `window::frames()` subscription keep
@@ -888,23 +939,12 @@ impl<P: Program> IcedOverlay<P> {
             &mut self.clipboard,
             &mut messages,
         );
-        let outdated = match state {
-            user_interface::State::Updated {
-                redraw_request,
-                mouse_interaction,
-                input_method,
-                ..
-            } => {
-                self.redraw_request = redraw_request;
-                self.mouse_interaction = mouse_interaction;
-                self.input_method = input_method;
-                false
-            },
-            user_interface::State::Outdated => {
-                self.redraw_request = window::RedrawRequest::NextFrame;
-                true
-            },
-        };
+        let mut needs_settle = apply_ui_state(
+            state,
+            &mut self.redraw_request,
+            &mut self.mouse_interaction,
+            &mut self.input_method,
+        );
 
         // Forward every processed event (the redraw tick plus inputs) to the
         // runtime so event-listening and redraw-driven subscriptions fire.
@@ -916,30 +956,60 @@ impl<P: Program> IcedOverlay<P> {
             });
         }
 
-        // Rebuild the interface only when this frame's draw would otherwise be
-        // stale: either messages changed program state, or `update` reported the
-        // tree itself is outdated (e.g. a widget invalidated its layout). When
-        // neither holds, `update` guarantees the interface can be reused, so it
-        // is drawn directly — halving `view()` calls on the common
-        // redraw/animation path.
-        let applied = !messages.is_empty();
-        let mut ui = if applied || outdated {
-            let cache = ui.into_cache();
-            for message in messages {
+        // Settle the interface before drawing. Applying this frame's messages
+        // can change program state (and layout), and an `Outdated` result means
+        // the tree must be rebuilt; either way the drawn interface must be one
+        // that has since been updated. Rebuild, then re-run the update pass —
+        // with a fresh redraw tick only — repeating until no new messages are
+        // produced and the layout is stable, so the drawn frame always reflects
+        // fully-settled, updated state (matching iced_winit). Skipping the
+        // re-update would draw a freshly-built interface whose widgets are still
+        // in their default state — e.g. buttons fall back to their disabled
+        // style — which reads as a one-frame blink. When nothing needs settling
+        // the already-updated interface is drawn directly, keeping the common
+        // redraw path to a single `view()` build.
+        let mut passes = 0;
+        while !messages.is_empty() || needs_settle {
+            // Bound the work so a widget that perpetually invalidates cannot spin
+            // the frame (iced_winit caps this too); the last rebuilt-and-updated
+            // interface is drawn as-is.
+            if passes >= MAX_SETTLE_PASSES {
+                break;
+            }
+            passes += 1;
+
+            let applied = !messages.is_empty();
+            cache = ui.into_cache();
+            for message in messages.drain(..) {
                 self.apply_message(message);
             }
             if applied {
                 self.sync_subscriptions();
             }
-            UserInterface::build(
+            ui = UserInterface::build(
                 self.instance.view(self.window_id),
                 bounds,
                 cache,
                 &mut self.renderer,
-            )
-        } else {
-            ui
-        };
+            );
+
+            let redraw = [Event::Window(
+                window::Event::RedrawRequested(Instant::now()),
+            )];
+            let (state, _) = ui.update(
+                &redraw,
+                self.cursor,
+                &mut self.renderer,
+                &mut self.clipboard,
+                &mut messages,
+            );
+            needs_settle = apply_ui_state(
+                state,
+                &mut self.redraw_request,
+                &mut self.mouse_interaction,
+                &mut self.input_method,
+            );
+        }
 
         // The theme is resolved after any messages are applied so it reflects
         // the state this frame draws; it borrows the program immutably and so
