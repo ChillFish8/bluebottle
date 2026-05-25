@@ -116,6 +116,7 @@ pub(crate) fn run<P, F, W>(
         size.1,
         scale,
         window_requests,
+        Arc::clone(&shared.wake),
     ) {
         Ok(overlay) => {
             let _ = ready.send(Ok(()));
@@ -153,26 +154,35 @@ fn render_loop<P: Program>(
 
         if overlay.should_exit() {
             shared.close_requested.store(true, Ordering::Release);
+            shared.wake();
             break;
         }
 
         if dirty || overlay.wants_redraw() {
             overlay.draw();
 
-            // Publish the cursor the UI wants so the event-loop thread (which
-            // owns the pointer) can apply it.
+            // Publish the cursor and input-method state the UI wants so the
+            // event-loop thread (which owns the pointer and text input) can
+            // apply them, waking it if either changed. The IME cursor rect is
+            // converted to surface-logical coordinates on the way out.
+            let mut feedback_changed = false;
+
             let interaction = overlay.mouse_interaction();
             if interaction != published_cursor {
                 published_cursor = interaction;
                 *shared.cursor.lock().expect("cursor mutex poisoned") = interaction;
+                feedback_changed = true;
             }
 
-            // Likewise publish the input-method state for the text input
-            // (with its cursor rect converted to surface-logical coordinates).
             if *overlay.input_method() != published_ime {
                 published_ime = overlay.input_method().clone();
                 *shared.ime.lock().expect("ime mutex poisoned") =
                     overlay.surface_input_method();
+                feedback_changed = true;
+            }
+
+            if feedback_changed {
+                shared.wake();
             }
         }
     }
@@ -298,18 +308,25 @@ pub(crate) struct IcedOverlay<P: Program> {
     program_scale: f64,
     last_title: String,
     events: Vec<Event>,
+    // Retained across frames so building the per-frame event list (the redraw
+    // tick plus queued input) does not allocate each draw.
+    event_buffer: Vec<Event>,
     cursor: mouse::Cursor,
     mouse_interaction: mouse::Interaction,
     input_method: input_method::InputMethod,
     runtime: RuntimeOf<P>,
     receiver: mpsc::UnboundedReceiver<ActionOf<P>>,
     window_requests: sync_chan::Sender<WindowRequest>,
+    // Wakes the event-loop thread after a window request is queued, so it is
+    // applied promptly rather than at the next unrelated Wayland event.
+    wake: Arc<dyn Fn() + Send + Sync>,
     redraw_request: window::RedrawRequest,
     exit: bool,
 }
 
 impl<P: Program> IcedOverlay<P> {
     /// Build the renderer/compositor for `program` on the given overlay surface.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new<W>(
         program: P,
         target: W,
@@ -317,6 +334,7 @@ impl<P: Program> IcedOverlay<P> {
         height: u32,
         scale: f64,
         window_requests: sync_chan::Sender<WindowRequest>,
+        wake: Arc<dyn Fn() + Send + Sync>,
     ) -> Result<Self, Error>
     where
         W: compositor::Window + Clone,
@@ -372,11 +390,13 @@ impl<P: Program> IcedOverlay<P> {
             program_scale,
             last_title: String::new(),
             events: Vec::new(),
+            event_buffer: Vec::new(),
             cursor: mouse::Cursor::Unavailable,
             mouse_interaction: mouse::Interaction::None,
             input_method: input_method::InputMethod::Disabled,
             runtime,
             receiver,
+            wake,
             redraw_request: window::RedrawRequest::Wait,
             exit: false,
         };
@@ -391,7 +411,7 @@ impl<P: Program> IcedOverlay<P> {
         let title = self.instance.title(self.window_id);
         if title != self.last_title {
             self.last_title.clone_from(&title);
-            let _ = self.window_requests.send(WindowRequest::SetTitle(title));
+            self.request_window(WindowRequest::SetTitle(title));
         }
     }
 
@@ -614,9 +634,10 @@ impl<P: Program> IcedOverlay<P> {
         }
     }
 
-    /// Forward a window-control request to the event-loop thread.
+    /// Forward a window-control request to the event-loop thread and wake it.
     fn request_window(&self, request: WindowRequest) {
         let _ = self.window_requests.send(request);
+        (self.wake)();
     }
 
     /// Apply a widget [`Operation`] (focus, scroll-to, queries, ...) to the UI.
@@ -710,53 +731,54 @@ impl<P: Program> IcedOverlay<P> {
         }
 
         let bounds = self.viewport.logical_size();
-        let mut cache = self.cache.take().unwrap_or_default();
+        let cache = self.cache.take().unwrap_or_default();
 
         // A redraw-request event is delivered every frame (matching iced_winit)
         // so time-based animations and the `window::frames()` subscription keep
-        // advancing without input; queued input events follow it. Running the
-        // update pass also refreshes the animation redraw request.
-        let redraw_event = Event::Window(window::Event::RedrawRequested(Instant::now()));
-        let mut events = vec![redraw_event];
-        events.append(&mut self.events);
+        // advancing without input; queued input events follow it. The buffer is
+        // retained between frames to avoid a per-frame allocation.
+        self.event_buffer.clear();
+        self.event_buffer
+            .push(Event::Window(
+                window::Event::RedrawRequested(Instant::now()),
+            ));
+        self.event_buffer.append(&mut self.events);
 
         let mut messages = Vec::new();
-        let statuses = {
-            let mut ui = UserInterface::build(
-                self.instance.view(self.window_id),
-                bounds,
-                cache,
-                &mut self.renderer,
-            );
-            let (state, statuses) = ui.update(
-                &events,
-                self.cursor,
-                &mut self.renderer,
-                &mut self.clipboard,
-                &mut messages,
-            );
-            match state {
-                user_interface::State::Updated {
-                    redraw_request,
-                    mouse_interaction,
-                    input_method,
-                    ..
-                } => {
-                    self.redraw_request = redraw_request;
-                    self.mouse_interaction = mouse_interaction;
-                    self.input_method = input_method;
-                },
-                user_interface::State::Outdated => {
-                    self.redraw_request = window::RedrawRequest::NextFrame;
-                },
-            }
-            cache = ui.into_cache();
-            statuses
+        let mut ui = UserInterface::build(
+            self.instance.view(self.window_id),
+            bounds,
+            cache,
+            &mut self.renderer,
+        );
+        let (state, statuses) = ui.update(
+            &self.event_buffer,
+            self.cursor,
+            &mut self.renderer,
+            &mut self.clipboard,
+            &mut messages,
+        );
+        let outdated = match state {
+            user_interface::State::Updated {
+                redraw_request,
+                mouse_interaction,
+                input_method,
+                ..
+            } => {
+                self.redraw_request = redraw_request;
+                self.mouse_interaction = mouse_interaction;
+                self.input_method = input_method;
+                false
+            },
+            user_interface::State::Outdated => {
+                self.redraw_request = window::RedrawRequest::NextFrame;
+                true
+            },
         };
 
         // Forward every processed event (the redraw tick plus inputs) to the
         // runtime so event-listening and redraw-driven subscriptions fire.
-        for (event, status) in events.into_iter().zip(statuses) {
+        for (event, status) in self.event_buffer.drain(..).zip(statuses) {
             self.runtime.broadcast(subscription::Event::Interaction {
                 window: self.window_id,
                 event,
@@ -764,28 +786,38 @@ impl<P: Program> IcedOverlay<P> {
             });
         }
 
+        // Rebuild the interface only when this frame's draw would otherwise be
+        // stale: either messages changed program state, or `update` reported the
+        // tree itself is outdated (e.g. a widget invalidated its layout). When
+        // neither holds, `update` guarantees the interface can be reused, so it
+        // is drawn directly — halving `view()` calls on the common
+        // redraw/animation path.
         let applied = !messages.is_empty();
-        for message in messages {
-            self.apply_message(message);
-        }
-        if applied {
-            self.sync_subscriptions();
-        }
-        // Re-sync unconditionally: the title may depend on state changed by an
-        // async `Task` or `Subscription` message (applied in `pump`), not just
-        // the messages produced here. `sync_title` no-ops when unchanged.
-        self.sync_title();
+        let mut ui = if applied || outdated {
+            let cache = ui.into_cache();
+            for message in messages {
+                self.apply_message(message);
+            }
+            if applied {
+                self.sync_subscriptions();
+            }
+            UserInterface::build(
+                self.instance.view(self.window_id),
+                bounds,
+                cache,
+                &mut self.renderer,
+            )
+        } else {
+            ui
+        };
 
+        // The theme is resolved after any messages are applied so it reflects
+        // the state this frame draws; it borrows the program immutably and so
+        // coexists with the live interface.
         let theme = self.instance.theme(self.window_id);
         let theme = theme.as_ref().unwrap_or(&self.default_theme);
         let text_color = self.instance.style(theme).text_color;
 
-        let mut ui = UserInterface::build(
-            self.instance.view(self.window_id),
-            bounds,
-            cache,
-            &mut self.renderer,
-        );
         ui.draw(
             &mut self.renderer,
             theme,
@@ -794,6 +826,12 @@ impl<P: Program> IcedOverlay<P> {
         );
 
         self.cache = Some(ui.into_cache());
+
+        // Re-sync unconditionally (after the interface is dropped): the title
+        // may depend on state changed by an async `Task` or `Subscription`
+        // message (applied in `pump`), not just the messages produced here.
+        // `sync_title` no-ops when unchanged.
+        self.sync_title();
 
         match self.compositor.present(
             &mut self.renderer,

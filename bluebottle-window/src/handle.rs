@@ -45,6 +45,19 @@ pub(crate) struct Shared {
     /// Input-method state the overlay wants, published by the render thread and
     /// applied by the event-loop thread (which owns the text input).
     pub ime: Mutex<InputMethod>,
+    /// Wakes the event-loop thread so it re-checks the cross-thread state above
+    /// (and `close_requested`). The loop blocks indefinitely when idle, so any
+    /// thread that mutates this state must call [`Shared::wake`] afterwards or
+    /// the change is not observed until the next unrelated Wayland event. On
+    /// Wayland this signals a calloop ping registered with the loop.
+    pub wake: Arc<dyn Fn() + Send + Sync>,
+}
+
+impl Shared {
+    /// Wake the event-loop thread to re-check cross-thread state.
+    pub fn wake(&self) {
+        (self.wake)();
+    }
 }
 
 /// A handle to the main (parent) surface of an overlay window.
@@ -120,6 +133,9 @@ impl Window {
     /// Requests that the overlay window close and the event loop exit.
     pub fn request_close(&self) {
         self.shared.close_requested.store(true, Ordering::Release);
+        // The loop blocks indefinitely when idle; wake it so the close is
+        // observed promptly rather than at the next unrelated event.
+        self.shared.wake();
     }
 
     /// Blocks until the event loop has exited, returning its result.

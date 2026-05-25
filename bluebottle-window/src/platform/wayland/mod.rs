@@ -26,6 +26,7 @@ use smithay_client_toolkit::compositor::CompositorState;
 use smithay_client_toolkit::globals::GlobalData;
 use smithay_client_toolkit::output::OutputState;
 use smithay_client_toolkit::reexports::calloop::EventLoop;
+use smithay_client_toolkit::reexports::calloop::ping::make_ping;
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::reexports::client::globals::registry_queue_init;
 use smithay_client_toolkit::reexports::client::{Connection, Proxy};
@@ -117,9 +118,6 @@ type InitResult = Result<Arc<Shared>, Error>;
 /// The size used until the compositor suggests one of its own.
 const DEFAULT_SIZE: (u32, u32) = (1280, 720);
 
-/// How long the loop blocks per turn before re-checking for a close request.
-const DISPATCH_TIMEOUT: Duration = Duration::from_millis(16);
-
 /// Spawn the Wayland event loop on a background thread and return a [`Window`].
 ///
 /// Blocks only until the loop reports that the main surface is ready (or fails);
@@ -168,13 +166,20 @@ where
     // events (input, configure) and forward them. Keeping this loop dispatching
     // is what lets the caller map the main surface.
     //
+    // The dispatch blocks indefinitely: there is no periodic work, so the loop
+    // sleeps until either a Wayland event arrives or the render thread / caller
+    // signals the wake ping (registered in `setup`). Every wake then drains the
+    // render thread's requests and reconciles the pointer/IME, regardless of
+    // what caused it — a Wayland event (e.g. pointer enter) needs the same
+    // reconciliation as a ping.
+    //
     // A dispatch error must still fall through to the shutdown below rather than
     // returning early: the render thread holds a wgpu context referencing the
     // `wl_display`, so the connection must not be dropped until that thread has
     // joined. We capture the error and report it after tearing down cleanly.
     let mut result = Ok(());
     while !state.should_exit() {
-        if let Err(err) = event_loop.dispatch(DISPATCH_TIMEOUT, &mut state) {
+        if let Err(err) = event_loop.dispatch(None::<Duration>, &mut state) {
             result = Err(err).context(EventLoopSnafu);
             break;
         }
@@ -274,6 +279,15 @@ where
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
         .expect("wl_surface pointer is never null");
 
+    // The wake ping lets the render thread and the caller rouse the (otherwise
+    // indefinitely blocked) dispatch loop; its source is registered with the
+    // event loop below. The `Ping` shares the backing eventfd with its source,
+    // so it stays valid for as long as `Shared` lives.
+    let (wake_ping, wake_source) =
+        make_ping().map_err(|err| Error::EventLoopInsert {
+            message: format!("failed to create the wake ping: {err}"),
+        })?;
+
     let shared = Arc::new(Shared {
         handles,
         size: Mutex::new((width, height)),
@@ -281,6 +295,7 @@ where
         close_requested: AtomicBool::new(false),
         cursor: Mutex::new(Default::default()),
         ime: Mutex::new(InputMethod::Disabled),
+        wake: Arc::new(move || wake_ping.ping()),
     });
 
     // Spawn the render thread. It builds the Iced overlay (neither the program
@@ -366,6 +381,16 @@ where
         .insert(event_loop.handle())
         .map_err(|err| Error::EventLoopInsert {
             message: err.to_string(),
+        })?;
+
+    // The ping only needs to wake the blocked dispatch; the reconciliation it
+    // stands in for runs unconditionally after each dispatch turn, so the
+    // callback itself is empty.
+    event_loop
+        .handle()
+        .insert_source(wake_source, |_event, _meta, _state| {})
+        .map_err(|err| Error::EventLoopInsert {
+            message: format!("failed to register the wake source: {err}"),
         })?;
 
     Ok((conn, event_loop, state, render_thread))
