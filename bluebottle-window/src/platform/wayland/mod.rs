@@ -174,7 +174,8 @@ where
             result = Err(err).context(EventLoopSnafu);
             break;
         }
-        // Apply any cursor the render thread requested (it owns no pointer).
+        // Apply anything the render thread asked of the toplevel/pointer.
+        state.apply_window_requests();
         state.sync_cursor(&conn);
     }
 
@@ -276,6 +277,7 @@ where
     // presentation never stalls this event loop. We wait for it to finish
     // building before continuing, so renderer errors are reported eagerly.
     let (commands_tx, commands_rx) = mpsc::channel::<overlay::Command>();
+    let (window_tx, window_rx) = mpsc::channel::<overlay::WindowRequest>();
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), Error>>();
     let overlay_target = RawSurface {
         display: display_ptr,
@@ -295,6 +297,7 @@ where
                 (width, height),
                 1.0,
                 commands_rx,
+                window_tx,
                 render_shared,
                 ready_tx,
             );
@@ -316,6 +319,7 @@ where
         overlay_surface,
         overlay_subsurface,
         commands: commands_tx,
+        window_requests: window_rx,
         shm,
         cursor_surface,
         width,
@@ -325,6 +329,7 @@ where
         exit: false,
         resizing: false,
         focused: false,
+        maximized: false,
         themed_pointer: None,
         keyboard: None,
         modifiers: iced::keyboard::Modifiers::empty(),

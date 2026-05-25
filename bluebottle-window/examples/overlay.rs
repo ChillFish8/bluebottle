@@ -11,7 +11,7 @@
 
 use std::time::{Duration, Instant};
 
-use iced::widget::{button, column, text, text_input};
+use iced::widget::{button, column, mouse_area, text, text_input};
 
 /// How long the demo runs before closing itself.
 const RUN_FOR: Duration = Duration::from_secs(30);
@@ -29,6 +29,7 @@ struct App {
     count: u32,
     ticks: u32,
     input: String,
+    window_id: Option<iced::window::Id>,
 }
 
 #[derive(Debug, Clone)]
@@ -38,7 +39,10 @@ enum Message {
     Tick,
     InputChanged(String),
     FocusInput,
-    WindowEvent(String),
+    Window(iced::window::Id, String),
+    Minimize,
+    ToggleMaximize,
+    StartDrag,
 }
 
 fn update(state: &mut App, message: Message) -> iced::Task<Message> {
@@ -55,7 +59,27 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
         Message::InputChanged(value) => state.input = value,
         // Exercises a widget operation: focus is driven by a Task, not input.
         Message::FocusInput => return iced::widget::operation::focus(INPUT_ID),
-        Message::WindowEvent(label) => tracing::info!("window event: {label}"),
+        Message::Window(id, label) => {
+            state.window_id = Some(id);
+            tracing::info!("window event: {label}");
+        },
+        // Window controls: the overlay is the chrome, so these drive the
+        // real toplevel.
+        Message::Minimize => {
+            if let Some(id) = state.window_id {
+                return iced::window::minimize(id, true);
+            }
+        },
+        Message::ToggleMaximize => {
+            if let Some(id) = state.window_id {
+                return iced::window::toggle_maximize(id);
+            }
+        },
+        Message::StartDrag => {
+            if let Some(id) = state.window_id {
+                return iced::window::drag(id);
+            }
+        },
     }
 
     iced::Task::none()
@@ -65,11 +89,12 @@ fn update(state: &mut App, message: Message) -> iced::Task<Message> {
 fn window_event(
     event: iced::Event,
     _status: iced::event::Status,
-    _id: iced::window::Id,
+    id: iced::window::Id,
 ) -> Option<Message> {
     use iced::window::Event;
 
     let label = match event {
+        iced::Event::Window(Event::Opened { .. }) => "opened".to_owned(),
         iced::Event::Window(Event::Focused) => "focused".to_owned(),
         iced::Event::Window(Event::Unfocused) => "unfocused".to_owned(),
         iced::Event::Window(Event::Resized(size)) => {
@@ -80,7 +105,7 @@ fn window_event(
         _ => return None,
     };
 
-    Some(Message::WindowEvent(label))
+    Some(Message::Window(id, label))
 }
 
 fn view(state: &App) -> iced::Element<'_, Message> {
@@ -92,6 +117,11 @@ fn view(state: &App) -> iced::Element<'_, Message> {
             .id(INPUT_ID)
             .on_input(Message::InputChanged),
         button("focus input").on_press(Message::FocusInput),
+        button("minimize").on_press(Message::Minimize),
+        button("toggle maximize").on_press(Message::ToggleMaximize),
+        // `on_press` fires on button-down, so the move grab starts while the
+        // pointer button is still held — what the compositor needs.
+        mouse_area(text("— drag here to move —")).on_press(Message::StartDrag),
     ]
     .spacing(16)
     .padding(24)

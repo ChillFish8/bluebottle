@@ -23,6 +23,7 @@ use iced_runtime::core::{
     window,
 };
 use iced_runtime::user_interface::{self, Cache, UserInterface};
+use iced_runtime::window::Action as WindowAction;
 use iced_runtime::{Action, task};
 use raw_window_handle::HasDisplayHandle;
 
@@ -43,6 +44,24 @@ pub(crate) enum Command {
     Resize { width: u32, height: u32, scale: f64 },
 }
 
+/// A window-control request from the overlay UI back to the event-loop thread,
+/// which owns the toplevel. The overlay is the window's chrome, so its
+/// `window::Action`s drive the real toplevel.
+pub(crate) enum WindowRequest {
+    /// Minimize the window.
+    Minimize,
+    /// Maximize (`true`) or unmaximize (`false`) the window.
+    SetMaximized(bool),
+    /// Toggle the maximized state.
+    ToggleMaximized,
+    /// Enter (`true`) or leave (`false`) fullscreen.
+    SetFullscreen(bool),
+    /// Begin an interactive move driven by the compositor.
+    Drag,
+    /// Begin an interactive resize from the given edge/corner.
+    DragResize(window::Direction),
+}
+
 /// Build the overlay on this (render) thread and drive it until close.
 ///
 /// `target` provides the raw window/display handles of the overlay surface the
@@ -60,6 +79,7 @@ pub(crate) fn run<P, F, W>(
     size: (u32, u32),
     scale: f64,
     commands: sync_chan::Receiver<Command>,
+    window_requests: sync_chan::Sender<WindowRequest>,
     shared: Arc<Shared>,
     ready: sync_chan::Sender<Result<(), Error>>,
 ) where
@@ -67,7 +87,14 @@ pub(crate) fn run<P, F, W>(
     P: Program,
     W: compositor::Window + Clone,
 {
-    let overlay = match IcedOverlay::new(build(), target, size.0, size.1, scale) {
+    let overlay = match IcedOverlay::new(
+        build(),
+        target,
+        size.0,
+        size.1,
+        scale,
+        window_requests,
+    ) {
         Ok(overlay) => {
             let _ = ready.send(Ok(()));
             overlay
@@ -233,6 +260,7 @@ pub(crate) struct IcedOverlay<P: Program> {
     mouse_interaction: mouse::Interaction,
     runtime: RuntimeOf<P>,
     receiver: mpsc::UnboundedReceiver<ActionOf<P>>,
+    window_requests: sync_chan::Sender<WindowRequest>,
     redraw_request: window::RedrawRequest,
     exit: bool,
 }
@@ -245,6 +273,7 @@ impl<P: Program> IcedOverlay<P> {
         width: u32,
         height: u32,
         scale: f64,
+        window_requests: sync_chan::Sender<WindowRequest>,
     ) -> Result<Self, Error>
     where
         W: compositor::Window + Clone,
@@ -289,6 +318,7 @@ impl<P: Program> IcedOverlay<P> {
             renderer,
             surface,
             clipboard,
+            window_requests,
             default_theme,
             cache: Some(Cache::default()),
             viewport,
@@ -380,9 +410,10 @@ impl<P: Program> IcedOverlay<P> {
                 Action::Clipboard(ClipboardAction::Write { target, contents }) => {
                     self.clipboard.write(target, contents);
                 },
+                Action::Window(action) => self.apply_window_action(action),
                 Action::Exit => self.exit = true,
-                // Image and window/system actions are not yet supported for an
-                // overlay; ignore them for now.
+                // Image and system actions are not yet supported for an overlay;
+                // ignore them for now.
                 _ => {},
             }
         }
@@ -392,6 +423,57 @@ impl<P: Program> IcedOverlay<P> {
         }
 
         applied || redraw
+    }
+
+    /// Handle a window [`Action`] from the program.
+    ///
+    /// Queries the overlay can answer itself (size, scale, id) are replied to
+    /// directly; window-control actions are forwarded to the event-loop thread,
+    /// which owns the toplevel; `Close` ends the loop like [`Action::Exit`].
+    /// Geometry actions that Wayland leaves to the compositor are ignored.
+    ///
+    /// [`Action`]: WindowAction
+    fn apply_window_action(&mut self, action: WindowAction) {
+        match action {
+            WindowAction::Close(_) => self.exit = true,
+            WindowAction::GetSize(_, channel) => {
+                let _ = channel.send(self.viewport.logical_size());
+            },
+            WindowAction::GetScaleFactor(_, channel) => {
+                let _ = channel.send(self.scale as f32);
+            },
+            WindowAction::GetLatest(channel) | WindowAction::GetOldest(channel) => {
+                let _ = channel.send(Some(self.window_id));
+            },
+            WindowAction::Minimize(_, true)
+            | WindowAction::SetMode(_, window::Mode::Hidden) => {
+                self.request_window(WindowRequest::Minimize);
+            },
+            WindowAction::Maximize(_, maximized) => {
+                self.request_window(WindowRequest::SetMaximized(maximized));
+            },
+            WindowAction::ToggleMaximize(_) => {
+                self.request_window(WindowRequest::ToggleMaximized);
+            },
+            WindowAction::SetMode(_, window::Mode::Fullscreen) => {
+                self.request_window(WindowRequest::SetFullscreen(true));
+            },
+            WindowAction::SetMode(_, window::Mode::Windowed) => {
+                self.request_window(WindowRequest::SetFullscreen(false));
+            },
+            WindowAction::Drag(_) => self.request_window(WindowRequest::Drag),
+            WindowAction::DragResize(_, direction) => {
+                self.request_window(WindowRequest::DragResize(direction));
+            },
+            // Geometry/position/icon/etc. are compositor-owned on Wayland, and
+            // remaining queries need toplevel state we do not track; ignore.
+            _ => {},
+        }
+    }
+
+    /// Forward a window-control request to the event-loop thread.
+    fn request_window(&self, request: WindowRequest) {
+        let _ = self.window_requests.send(request);
     }
 
     /// Apply a widget [`Operation`] (focus, scroll-to, queries, ...) to the UI.

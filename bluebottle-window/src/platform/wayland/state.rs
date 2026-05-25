@@ -12,7 +12,8 @@ use smithay_client_toolkit::reexports::client::protocol::{
     wl_subsurface,
     wl_surface,
 };
-use smithay_client_toolkit::reexports::client::{Connection, QueueHandle};
+use smithay_client_toolkit::reexports::client::{Connection, Proxy, QueueHandle};
+use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent,
@@ -21,6 +22,7 @@ use smithay_client_toolkit::seat::keyboard::{
     RawModifiers,
 };
 use smithay_client_toolkit::seat::pointer::{
+    PointerData,
     PointerEvent,
     PointerEventKind,
     PointerHandler,
@@ -51,7 +53,7 @@ use smithay_client_toolkit::{
 use super::input;
 use crate::error::Error;
 use crate::handle::Shared;
-use crate::overlay::Command;
+use crate::overlay::{Command, WindowRequest};
 
 /// All Wayland state owned by the event loop thread.
 ///
@@ -72,6 +74,8 @@ pub(crate) struct State {
     #[allow(dead_code)]
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
     pub commands: mpsc::Sender<Command>,
+    // Window-control requests from the overlay UI (it is the window's chrome).
+    pub window_requests: mpsc::Receiver<WindowRequest>,
 
     // Shared memory + a dedicated cursor surface back the themed pointer.
     pub shm: Shm,
@@ -85,6 +89,7 @@ pub(crate) struct State {
     pub exit: bool,
     pub resizing: bool,
     pub focused: bool,
+    pub maximized: bool,
 
     pub themed_pointer: Option<ThemedPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
@@ -162,6 +167,66 @@ impl State {
         if result.is_ok() {
             self.applied_cursor = Some(desired);
         }
+    }
+
+    /// Apply all window-control requests the overlay UI has queued.
+    pub fn apply_window_requests(&mut self) {
+        while let Ok(request) = self.window_requests.try_recv() {
+            self.apply_window_request(request);
+        }
+    }
+
+    fn apply_window_request(&mut self, request: WindowRequest) {
+        match request {
+            WindowRequest::Minimize => self.window.set_minimized(),
+            WindowRequest::SetMaximized(true) => self.window.set_maximized(),
+            WindowRequest::SetMaximized(false) => self.window.unset_maximized(),
+            WindowRequest::ToggleMaximized => {
+                if self.maximized {
+                    self.window.unset_maximized();
+                } else {
+                    self.window.set_maximized();
+                }
+            },
+            WindowRequest::SetFullscreen(true) => self.window.set_fullscreen(None),
+            WindowRequest::SetFullscreen(false) => self.window.unset_fullscreen(),
+            WindowRequest::Drag => {
+                if let Some((seat, serial)) = self.pointer_grab() {
+                    self.window.move_(&seat, serial);
+                }
+            },
+            WindowRequest::DragResize(direction) => {
+                if let Some((seat, serial)) = self.pointer_grab() {
+                    self.window.resize(&seat, serial, resize_edge(direction));
+                }
+            },
+        }
+    }
+
+    /// The seat and latest button serial for an interactive move/resize grab.
+    ///
+    /// The compositor requires the serial of the button press that started the
+    /// drag; without a pointer (or a press), no grab can be initiated.
+    fn pointer_grab(&self) -> Option<(wl_seat::WlSeat, u32)> {
+        let pointer = self.themed_pointer.as_ref()?;
+        let data = pointer.pointer().data::<PointerData>()?;
+        Some((data.seat().clone(), data.latest_button_serial()?))
+    }
+}
+
+/// Map an Iced resize [`window::Direction`] to an xdg-toplevel [`ResizeEdge`].
+fn resize_edge(direction: window::Direction) -> ResizeEdge {
+    use window::Direction;
+
+    match direction {
+        Direction::North => ResizeEdge::Top,
+        Direction::South => ResizeEdge::Bottom,
+        Direction::East => ResizeEdge::Right,
+        Direction::West => ResizeEdge::Left,
+        Direction::NorthEast => ResizeEdge::TopRight,
+        Direction::NorthWest => ResizeEdge::TopLeft,
+        Direction::SouthEast => ResizeEdge::BottomRight,
+        Direction::SouthWest => ResizeEdge::BottomLeft,
     }
 }
 
@@ -259,6 +324,8 @@ impl WindowHandler for State {
                 self.overlay_subsurface.set_desync();
             }
         }
+
+        self.maximized = configure.is_maximized();
 
         let was_configured = self.configured;
         let old_size = (self.width, self.height);
