@@ -1,5 +1,6 @@
 mod app;
 mod background;
+mod project_dirs;
 mod screen;
 mod spotlight;
 
@@ -9,13 +10,13 @@ use std::time::Duration;
 
 use bluebottle_video::Player;
 use clap::Parser;
-use directories::ProjectDirs;
 use gstreamer as gst;
 use gstreamer::prelude::*;
-use snafu::{OptionExt, ResultExt, Whatever};
+use snafu::{ResultExt, Whatever};
 
 use crate::app::App;
 use crate::background::BackgroundSource;
+use crate::project_dirs::ProjectDirs;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -23,7 +24,8 @@ struct Args {
     /// Enable debugging logging.
     debug: bool,
     #[arg(long, env = "BLUEBOTTLE_STORAGE_PATH")]
-    /// The explicit folder path to store app state.
+    /// The explicit root folder for app state, holding `cache/`, `config/`, and
+    /// `data/` directly.
     ///
     /// If this is not set, it will use the conventional OS paths.
     storage_path: Option<PathBuf>,
@@ -51,8 +53,8 @@ fn main() -> Result<(), Whatever> {
 
     tracing::info!("starting Bluebottle");
 
-    let storage = storage_root(args.storage_path)?;
-    let source = Arc::new(BackgroundSource::new(spotlight::load(&storage)));
+    let dirs = ProjectDirs::resolve(args.storage_path)?;
+    let source = Arc::new(BackgroundSource::new(spotlight::load(dirs.cache_dir())));
 
     gst::init().whatever_context("initialise GStreamer")?;
 
@@ -80,6 +82,7 @@ fn main() -> Result<(), Whatever> {
         for font in bluebottle_ui::font::required_fonts() {
             application = application.font(font);
         }
+
         application
     })
     .whatever_context("create the application window")?;
@@ -106,17 +109,6 @@ fn main() -> Result<(), Whatever> {
     tracing::info!("system exit complete");
 
     Ok(())
-}
-
-/// Resolves the storage root: the explicit `--storage-path`, else the OS data
-/// directory from the `directories` crate.
-fn storage_root(explicit: Option<PathBuf>) -> Result<PathBuf, Whatever> {
-    if let Some(path) = explicit {
-        return Ok(path);
-    }
-    let dirs = ProjectDirs::from("", "", "Bluebottle")
-        .whatever_context("resolve the OS storage directory")?;
-    Ok(dirs.data_dir().to_path_buf())
 }
 
 /// Pumps the pipeline bus, keeping the process alive until the window closes and
