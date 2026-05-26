@@ -27,6 +27,7 @@ parking_lot = "0.12"
 lru = "0.16"
 arrayvec = "0.7"
 tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # 3rd party widgets
 iced_palace = "0.14"

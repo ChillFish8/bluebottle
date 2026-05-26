@@ -1,6 +1,21 @@
-use std::path::PathBuf;
+mod app;
+mod background;
+mod screen;
+mod spotlight;
 
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+
+use bluebottle_video::Player;
 use clap::Parser;
+use directories::ProjectDirs;
+use gstreamer as gst;
+use gstreamer::prelude::*;
+use snafu::{OptionExt, ResultExt, Whatever};
+
+use crate::app::App;
+use crate::background::BackgroundSource;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -15,7 +30,7 @@ struct Args {
 }
 
 #[snafu::report]
-fn main() -> Result<(), snafu::Whatever> {
+fn main() -> Result<(), Whatever> {
     let args = Args::parse();
 
     if std::env::var("RUST_LOG").is_err() {
@@ -36,7 +51,95 @@ fn main() -> Result<(), snafu::Whatever> {
 
     tracing::info!("starting Bluebottle");
 
+    let storage = storage_root(args.storage_path)?;
+    let source = Arc::new(BackgroundSource::new(spotlight::load(&storage)));
+
+    gst::init().whatever_context("initialise GStreamer")?;
+
+    // The player is built before the window so an `Arc` can be moved into the
+    // overlay's build closure; it is bound to the content surface afterwards.
+    let player =
+        Arc::new(Player::test_pattern().whatever_context("build the video player")?);
+
+    let ui_player = Arc::clone(&player);
+    let window = bluebottle_window::create_video_overlay(move || {
+        let mut application = iced::application(
+            {
+                let player = Arc::clone(&ui_player);
+                let source = Arc::clone(&source);
+                move || App::new(Arc::clone(&player), Arc::clone(&source))
+            },
+            App::update,
+            App::view,
+        )
+        .title("BlueBottle")
+        .subscription(App::subscription)
+        .default_font(bluebottle_ui::font::regular())
+        .theme(|_state: &App| bluebottle_ui::color::theme());
+
+        for font in bluebottle_ui::font::required_fonts() {
+            application = application.font(font);
+        }
+        application
+    })
+    .whatever_context("create the application window")?;
+
+    player.bind_window(&window);
+
+    // Track the content surface to the window straight from the event-loop
+    // thread, avoiding the latency of routing the resize through the UI.
+    let resize_player = Arc::clone(&player);
+    window.on_resize(move |width, height| resize_player.set_render_size(width, height));
+
+    // The player only renders while the player screen is active; keep the
+    // process alive and surface pipeline errors until the window closes.
+    run_bus(&player, &window);
+
+    // Stop the pipeline before the window tears down the Wayland connection the
+    // libplacebo swapchain presents onto.
+    player.stop();
+    window.request_close();
+    window
+        .join()
+        .whatever_context("overlay loop exited cleanly")?;
+
     tracing::info!("system exit complete");
 
     Ok(())
+}
+
+/// Resolves the storage root: the explicit `--storage-path`, else the OS data
+/// directory from the `directories` crate.
+fn storage_root(explicit: Option<PathBuf>) -> Result<PathBuf, Whatever> {
+    if let Some(path) = explicit {
+        return Ok(path);
+    }
+    let dirs = ProjectDirs::from("", "", "Bluebottle")
+        .whatever_context("resolve the OS storage directory")?;
+    Ok(dirs.data_dir().to_path_buf())
+}
+
+/// Pumps the pipeline bus, keeping the process alive until the window closes and
+/// logging any pipeline error; loops playback on end-of-stream.
+fn run_bus(player: &Player, window: &bluebottle_window::Window) {
+    let Some(bus) = player.bus() else {
+        return;
+    };
+    while window.is_open() {
+        let Some(message) = bus.timed_pop(gst::ClockTime::from_mseconds(100)) else {
+            continue;
+        };
+        match message.view() {
+            gst::MessageView::Error(error) => {
+                tracing::error!(
+                    "pipeline error from {:?}: {}",
+                    error.src().map(|source| source.path_string()),
+                    error.error()
+                );
+                break;
+            },
+            gst::MessageView::Eos(_) => player.seek(Duration::ZERO),
+            _ => {},
+        }
+    }
 }
