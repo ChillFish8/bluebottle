@@ -24,6 +24,51 @@ pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;
 // Special edge cases to be used _very_ sparingly
 pub const SHIMMER: iced::Color = iced::color!(0x182236);
 
+// Derived shades. The single source of truth for tinted surfaces and accents,
+// so the same colour is never recomputed ad hoc across the app.
+
+/// An elevated overlay surface: the background leaned slightly toward primary so
+/// panels (e.g. the sidebar) read as a distinct shade from the page.
+pub const SURFACE: iced::Color = mix(BACKGROUND, PRIMARY, 0.10);
+
+/// Leading-edge accent line on overlay panels: the primary darkened and held at
+/// low opacity.
+pub const BORDER: iced::Color = with_alpha(scale(PRIMARY, 0.6), 0.4);
+
+/// Full-screen wash dimming content behind an overlay. Its alpha is the wash at
+/// full reveal; callers scale it by the overlay's reveal animation.
+pub const SCRIM: iced::Color = with_alpha(BACKGROUND, 0.9);
+
+/// Linearly interpolates `from` → `to` by `t` in `[0, 1]`, in sRGB components.
+pub const fn mix(from: iced::Color, to: iced::Color, t: f32) -> iced::Color {
+    iced::Color {
+        r: from.r + (to.r - from.r) * t,
+        g: from.g + (to.g - from.g) * t,
+        b: from.b + (to.b - from.b) * t,
+        a: from.a + (to.a - from.a) * t,
+    }
+}
+
+/// Scales a colour's rgb toward black by `factor` (`1.0` = unchanged), alpha kept.
+pub const fn scale(color: iced::Color, factor: f32) -> iced::Color {
+    iced::Color {
+        r: color.r * factor,
+        g: color.g * factor,
+        b: color.b * factor,
+        a: color.a,
+    }
+}
+
+/// Copies `color` with a replaced `alpha`.
+pub const fn with_alpha(color: iced::Color, alpha: f32) -> iced::Color {
+    iced::Color {
+        r: color.r,
+        g: color.g,
+        b: color.b,
+        a: alpha,
+    }
+}
+
 /// Returns a configured color theme for an iced application.
 pub fn theme() -> iced::theme::Theme {
     let base_palette = Palette {

@@ -2,7 +2,7 @@ mod shader;
 
 use std::sync::Arc;
 
-use bluebottle_ui::color;
+use bluebottle_ui::{color, style};
 use iced::widget::shader::Shader;
 use iced::{Color, Rectangle};
 
@@ -66,7 +66,7 @@ impl Default for BackgroundLook {
     fn default() -> Self {
         Self {
             base: color::BACKGROUND,
-            blur: 45.0,
+            blur: style::IMAGE_BLUR,
             saturate: 1.4,
             image_opacity_start: 0.3,
             image_opacity_end: 0.0,
