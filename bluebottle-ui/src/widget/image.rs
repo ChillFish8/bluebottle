@@ -46,7 +46,6 @@ pub fn thumbnail(handle: Handle) -> Image {
         .width(270)
         .height(152)
         .content_fit(ContentFit::Cover)
-        .into()
 }
 
 /// Creates a loading skeleton for the thumbnail form factor.
@@ -63,7 +62,6 @@ pub fn square(handle: Handle) -> Image {
         .width(152)
         .height(152)
         .content_fit(ContentFit::Cover)
-        .into()
 }
 
 /// Creates a loading skeleton for the square form factor.
