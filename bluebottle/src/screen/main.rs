@@ -13,7 +13,7 @@ pub enum MainMsg {}
 /// State for the main library surface.
 pub struct MainScreen {
     source: Arc<BackgroundSource>,
-    look: BackgroundLook,
+    background_look: BackgroundLook,
 }
 
 impl MainScreen {
@@ -21,7 +21,7 @@ impl MainScreen {
     pub fn new(source: Arc<BackgroundSource>) -> Self {
         Self {
             source,
-            look: BackgroundLook::default(),
+            background_look: BackgroundLook::default(),
         }
     }
 
@@ -30,6 +30,6 @@ impl MainScreen {
     }
 
     pub fn view(&self) -> Element<'_, MainMsg> {
-        background(Arc::clone(&self.source), self.look).into()
+        background(Arc::clone(&self.source), self.background_look).into()
     }
 }
