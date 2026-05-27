@@ -1,11 +1,3 @@
-//! The single iced program behind both screens.
-//!
-//! One [`App`] owns a [`MainScreen`] (an opaque, image-derived background) and a
-//! [`PlayerScreen`] (a transparent overlay the libplacebo video shows through),
-//! each a self-contained struct with its own state, message, and `update`/`view`.
-//! [`App::update`] and [`App::view`] dispatch to the active [`Screen`], mapping
-//! per-screen messages into [`Message`].
-
 use std::sync::Arc;
 
 use bluebottle_video::Player;

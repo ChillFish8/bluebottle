@@ -1,11 +1,3 @@
-//! The main screen background: a blurred backdrop image, or a procedural
-//! gradient when no image is available.
-//!
-//! The look mirrors a two-layer CSS treatment — a heavily blurred, saturated
-//! poster wash fading out down the page, under a dark vertical tint that lands
-//! on the solid app background. It is drawn by a custom wgpu shader (see
-//! [`shader`]); the [`background`] helper wraps it in an [`iced`] widget.
-
 mod shader;
 
 use std::sync::Arc;
@@ -26,7 +18,7 @@ const HIGHLIGHT: Color = iced::color!(0x243154);
 /// and the fill colour eases further in over the wash between `bg_start` and
 /// `bg_end`. The window is never transparent.
 #[derive(Debug, Clone, Copy)]
-pub struct Look {
+pub struct BackgroundLook {
     /// Blur radius, in source pixels.
     pub blur: f32,
     /// Saturation multiplier for the wash (mirrors CSS `saturate()`).
@@ -58,7 +50,7 @@ pub struct Look {
     pub zoom: f32,
 }
 
-impl Default for Look {
+impl Default for BackgroundLook {
     fn default() -> Self {
         Self {
             blur: 45.0,
@@ -102,7 +94,7 @@ impl BackgroundSource {
 /// changes.
 pub fn background<Message>(
     source: Arc<BackgroundSource>,
-    look: Look,
+    look: BackgroundLook,
 ) -> Shader<Message, BackgroundProgram> {
     Shader::new(BackgroundProgram { source, look })
         .width(Length::Fill)
@@ -112,7 +104,7 @@ pub fn background<Message>(
 /// The [`shader::Program`](iced::widget::shader::Program) driving the background.
 pub struct BackgroundProgram {
     source: Arc<BackgroundSource>,
-    look: Look,
+    look: BackgroundLook,
 }
 
 impl<Message> iced::widget::shader::Program<Message> for BackgroundProgram {

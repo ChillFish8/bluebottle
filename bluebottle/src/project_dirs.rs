@@ -1,9 +1,3 @@
-//! Resolves where Bluebottle keeps its cache, config, and data.
-//!
-//! With an explicit root (`--storage-path`), the three live directly beneath it
-//! as `cache/`, `config/`, and `data/`. Otherwise they follow the OS conventions
-//! via the `directories` crate.
-
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs as OsProjectDirs;

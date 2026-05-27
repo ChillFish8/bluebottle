@@ -1,9 +1,3 @@
-//! The player overlay.
-//!
-//! Deliberately empty and transparent: the libplacebo video renders on the
-//! content surface beneath the overlay, so leaving the overlay clear lets it
-//! show through.
-
 use std::sync::Arc;
 
 use bluebottle_video::Player;

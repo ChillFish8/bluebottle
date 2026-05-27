@@ -1,11 +1,3 @@
-//! The backdrop image that seeds the main screen background.
-//!
-//! Resolved in order: the cached trending "spotlight" image under the cache
-//! directory, otherwise the `default-backdrop.jpeg` shipped in the config
-//! directory. Both are decoded to packed RGBA8 for upload to the background
-//! shader; only if neither is available does the UI fall back to the procedural
-//! gradient.
-
 use std::fmt;
 use std::path::Path;
 

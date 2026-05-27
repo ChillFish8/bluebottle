@@ -1,17 +1,10 @@
-//! The wgpu pipeline behind [`Background`](super::Background).
-//!
-//! A separable Gaussian blur pre-pass turns the backdrop image into a soft
-//! wash (run only when the image or blur radius changes), and a composite pass
-//! lays that wash — or a procedural gradient — under a dark vertical tint,
-//! emitting opaque pixels so the main screen reads as solid.
-
 use std::sync::Arc;
 
 use bluebottle_ui::color;
 use iced::widget::shader::{self, Viewport};
 use iced::{Rectangle, wgpu};
 
-use super::{BackgroundSource, HIGHLIGHT, Look};
+use super::{BackgroundLook, BackgroundSource, HIGHLIGHT};
 use crate::backdrop::BackdropImage;
 
 /// sRGB format for the uploaded source image, so sampling decodes it to linear.
@@ -24,7 +17,7 @@ const BLUR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 #[derive(Debug)]
 pub struct BackgroundPrimitive {
     pub source: Arc<BackgroundSource>,
-    pub look: Look,
+    pub look: BackgroundLook,
 }
 
 impl shader::Primitive for BackgroundPrimitive {
@@ -234,7 +227,7 @@ impl BackgroundPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         source: &BackgroundSource,
-        look: Look,
+        look: BackgroundLook,
         bounds: &Rectangle,
     ) {
         let (mode, source_size) = match source {

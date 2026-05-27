@@ -1,18 +1,14 @@
-// Background shader for the main screen.
+// Background shader for the main screen. Two pipelines share this module: a
+// separable Gaussian blur (`vs_fullscreen` + `fs_blur`) run twice over the
+// backdrop image, then a composite (`vs_fullscreen` + `fs_composite`) that lays
+// the blurred poster (or a procedural gradient) under a dark vertical tint.
 //
-// Two pipelines share this module:
-//   * the separable Gaussian blur (`vs_fullscreen` + `fs_blur`), run twice as a
-//     pre-pass over the backdrop image, and
-//   * the composite (`vs_fullscreen` + `fs_composite`), which lays the blurred
-//     poster (or a procedural gradient) under a dark vertical tint.
-//
-// All colour maths is in linear space: the source image and intermediate
-// targets are sRGB textures (so sampling decodes and rendering re-encodes), and
-// the constant colours arrive as linear uniforms.
+// Colour maths runs in linear space: source and intermediate targets are sRGB
+// textures, and the constant colours arrive as linear uniforms.
 
 struct VsOut {
     @builtin(position) position: vec4<f32>,
-    // `uv` spans the widget rect, with (0, 0) at the top-left.
+    // Spans the widget rect, with (0, 0) at the top-left.
     @location(0) uv: vec2<f32>,
 }
 
@@ -32,19 +28,14 @@ fn vs_fullscreen(@builtin(vertex_index) index: u32) -> VsOut {
     return out;
 }
 
-// ---------------------------------------------------------------------------
-// Separable Gaussian blur pre-pass.
-// ---------------------------------------------------------------------------
-
 struct Blur {
     // Size of one source texel, `1.0 / source_size`.
     texel: vec2<f32>,
-    // `(1, 0)` for the horizontal pass, `(0, 1)` for the vertical pass.
+    // `(1, 0)` horizontal pass, `(0, 1)` vertical pass.
     direction: vec2<f32>,
     // Blur radius, in source pixels.
     radius: f32,
-    // Scalar padding to a 32-byte buffer; a `vec3` here would force 16-byte
-    // alignment and bloat the struct to 48 bytes.
+    // Padding to 32 bytes; scalars avoid the 16-byte alignment a `vec3` forces.
     _pad0: f32,
     _pad1: f32,
     _pad2: f32,
@@ -54,17 +45,16 @@ struct Blur {
 @group(0) @binding(1) var blur_source: texture_2d<f32>;
 @group(0) @binding(2) var blur_sampler: sampler;
 
-// Upper bound on taps per side, to keep the (one-time) cost finite at large
-// radii. Below this the tap count tracks the radius for ~1-texel spacing.
+// Cap on taps per side, keeping the one-time cost finite at large radii. Below
+// it the tap count tracks the radius for ~1-texel spacing.
 const MAX_TAPS: i32 = 64;
 
 @fragment
 fn fs_blur(in: VsOut) -> @location(0) vec4<f32> {
     let radius = max(blur.radius, 0.001);
     let sigma = radius / 3.0;
-    // Sample out to ~4.5σ (1.5× the radius) so the Gaussian tail isn't clipped,
-    // at roughly one tap per source texel — coarser spacing reads as stepping
-    // once the small blur is up-scaled to the screen.
+    // Sample out to ~4.5σ so the Gaussian tail isn't clipped, at ~one tap per
+    // source texel — coarser spacing reads as stepping once up-scaled.
     let extent = radius * 1.5;
     let taps = min(i32(ceil(extent)), MAX_TAPS);
     let step = extent / f32(max(taps, 1));
@@ -80,10 +70,6 @@ fn fs_blur(in: VsOut) -> @location(0) vec4<f32> {
     }
     return vec4<f32>(sum / weight_total, 1.0);
 }
-
-// ---------------------------------------------------------------------------
-// Composite pass.
-// ---------------------------------------------------------------------------
 
 struct Composite {
     target_size: vec2<f32>,
@@ -121,13 +107,13 @@ struct Composite {
 @group(0) @binding(2) var poster_sampler: sampler;
 
 // Cover-fit the source across the full window, centred, then zoom in by `zoom`.
-// The image is positioned as if it filled the whole window; the fade and blur
-// only govern how much of it shows.
+// The image is positioned as if it filled the window; the fade and blur only
+// govern how much of it shows.
 fn poster_uv(uv: vec2<f32>) -> vec2<f32> {
     let target_aspect = comp.target_size.x / comp.target_size.y;
     let source_aspect = comp.source_size.x / comp.source_size.y;
 
-    // Anchor horizontally at the centre and vertically at `focus`, like CSS
+    // Anchor horizontally at centre, vertically at `focus`, like CSS
     // `background-position: center <focus>` (0 = top, 0.5 = centre).
     let anchor = vec2<f32>(0.5, comp.focus);
     var centered = uv - anchor;
@@ -167,13 +153,13 @@ fn dither(p: vec2<f32>) -> f32 {
 
 @fragment
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
-    // Composite in sRGB (display) space to match CSS gradient interpolation.
-    // The blur and saturate run in linear; everything is converted to sRGB here
-    // for the opacity/coverage mixes, then back to linear for output.
+    // Composite in sRGB (display) space to match CSS gradient interpolation:
+    // blur and saturate run in linear, then everything converts to sRGB for the
+    // opacity/coverage mixes and back to linear for output.
     let base = linear_to_srgb(comp.base_color.rgb);
 
-    // The wash look at the top: the image (knocked back by its opacity so the
-    // base shows through it), or the procedural highlight, over the base fill.
+    // The wash at the top: the image knocked back by its opacity so the base
+    // shows through, or the procedural highlight, over the base fill.
     var wash_look: vec3<f32>;
     if comp.mode > 0.5 {
         var wash = textureSampleLevel(poster, poster_sampler, poster_uv(in.uv), 0.0).rgb;
@@ -181,8 +167,8 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
         wash = mix(vec3<f32>(luma), wash, comp.saturate);
         let wash_srgb = linear_to_srgb(wash);
 
-        // The image wash opacity eases from `image_opacity_start` at the top to
-        // `image_opacity_end` by `image_fade` (smoothstep — eased both ends).
+        // Ease opacity from `image_opacity_start` at the top to
+        // `image_opacity_end` by `image_fade`.
         let img_t = smoothstep(0.0, max(comp.image_fade, 0.001), in.uv.y);
         let image_op =
             mix(comp.image_opacity_start, comp.image_opacity_end, img_t);
@@ -196,19 +182,18 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
         wash_look = mix(base, linear_to_srgb(comp.highlight.rgb), glow * 0.85);
     }
 
-    // The base colour eases in over the wash from `bg_start` (smoothstep),
-    // plus a hard floor at `bg_solid`. The base fill stays opaque throughout, so
-    // the window is never transparent.
+    // The base colour eases in over the wash from `bg_start`, with a hard floor
+    // at `bg_solid`. The base fill stays opaque, so the window never is.
     let soft = smoothstep(comp.bg_start, max(comp.bg_end, comp.bg_start + 0.001), in.uv.y);
     let bg_op = mix(comp.bg_opacity_start, comp.bg_opacity_end, soft);
-    // The floor snaps fully solid (1.0, independent of `bg_opacity_*`); a narrow
+    // The floor snaps fully solid (independent of `bg_opacity_*`); a narrow
     // smoothstep softens the seam so its derivative doesn't read as a band.
     let floor = smoothstep(comp.bg_solid - 0.02, comp.bg_solid, in.uv.y);
     let coverage = max(bg_op, floor);
     var rgb = mix(wash_look, base, coverage);
 
-    // Dither one 8-bit step (already in sRGB), then convert to linear so the
-    // surface's hardware sRGB encode lands back on the dithered value.
+    // Dither one 8-bit step in sRGB, then convert to linear so the surface's
+    // hardware sRGB encode lands back on the dithered value.
     rgb = rgb + dither(in.position.xy) / 255.0;
     return vec4<f32>(srgb_to_linear(rgb), 1.0);
 }
