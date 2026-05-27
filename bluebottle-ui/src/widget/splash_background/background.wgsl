@@ -1,7 +1,7 @@
-// Background composite stage. Concatenated after `shader_common.wgsl`, which
-// provides `VsOut`, `vs_fullscreen`, the `Blur` pre-pass (`fs_blur`), and the
-// sRGB / dither helpers. This lays the blurred poster (or a procedural gradient)
-// under a dark vertical tint.
+// Splash background composite stage. Concatenated after `shader_common.wgsl`,
+// which provides `VsOut`, `vs_fullscreen`, the `Blur` pre-pass (`fs_blur`), and
+// the sRGB / dither helpers. This lays the blurred poster (or a soft glow) under
+// a vertical tint that settles into the base colour.
 //
 // Colour maths runs in linear space: source and intermediate targets are sRGB
 // textures, and the constant colours arrive as linear uniforms.
@@ -9,13 +9,13 @@
 struct Composite {
     target_size: vec2<f32>,
     source_size: vec2<f32>,
-    // Linear base colour the page settles into (app background).
+    // Linear base colour the surface settles into.
     base_color: vec4<f32>,
-    // Linear highlight colour for the procedural gradient's glow.
-    highlight: vec4<f32>,
+    // Linear glow colour for the image-less gradient.
+    glow: vec4<f32>,
     // Saturation multiplier applied to the poster wash.
     saturate: f32,
-    // `1.0` to sample the blurred poster, `0.0` for the procedural gradient.
+    // `1.0` to sample the blurred poster, `0.0` for the glow gradient.
     mode: f32,
     // Image wash opacity at the top / at `image_fade`.
     image_opacity_start: f32,
@@ -35,6 +35,12 @@ struct Composite {
     focus: f32,
     // Zoom applied to the cover-fit image (1.0 = none).
     zoom: f32,
+    // Peak coverage of the glow over the base.
+    glow_strength: f32,
+    // Output alpha, used to crossfade this pass over the one beneath it.
+    opacity: f32,
+    _pad0: f32,
+    _pad1: f32,
 }
 
 @group(0) @binding(0) var<uniform> comp: Composite;
@@ -67,13 +73,10 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     // opacity/coverage mixes and back to linear for output.
     let base = linear_to_srgb(comp.base_color.rgb);
 
-    // The wash at the top: a solid base, the image knocked back by its opacity
-    // so the base shows through, or the procedural highlight, over the base fill.
+    // The wash at the top: the image knocked back by its opacity so the base
+    // shows through, or a soft glow over the base.
     var wash_look: vec3<f32>;
-    if comp.mode > 1.5 {
-        // Solid fill: the base everywhere (the coverage mix below is a no-op).
-        wash_look = base;
-    } else if comp.mode > 0.5 {
+    if comp.mode > 0.5 {
         var wash = textureSampleLevel(poster, poster_sampler, poster_uv(in.uv), 0.0).rgb;
         let luma = dot(wash, vec3<f32>(0.2126, 0.7152, 0.0722));
         wash = mix(vec3<f32>(luma), wash, comp.saturate);
@@ -86,16 +89,17 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
             mix(comp.image_opacity_start, comp.image_opacity_end, img_t);
         wash_look = mix(base, wash_srgb, image_op);
     } else {
-        // Soft highlight near the top-centre, trending into the dark base.
+        // Soft glow near the top-centre, trending into the base.
         let center = vec2<f32>(0.5, 0.22);
         var delta = in.uv - center;
         delta.x *= comp.target_size.x / comp.target_size.y;
         let glow = 1.0 - smoothstep(0.0, 0.75, length(delta));
-        wash_look = mix(base, linear_to_srgb(comp.highlight.rgb), glow * 0.85);
+        wash_look =
+            mix(base, linear_to_srgb(comp.glow.rgb), glow * comp.glow_strength);
     }
 
     // The base colour eases in over the wash from `bg_start`, with a hard floor
-    // at `bg_solid`. The base fill stays opaque, so the window never is.
+    // at `bg_solid`.
     let soft = smoothstep(comp.bg_start, max(comp.bg_end, comp.bg_start + 0.001), in.uv.y);
     let bg_op = mix(comp.bg_opacity_start, comp.bg_opacity_end, soft);
     // The floor snaps fully solid (independent of `bg_opacity_*`); a narrow
@@ -107,5 +111,5 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     // Dither one 8-bit step in sRGB, then convert to linear so the surface's
     // hardware sRGB encode lands back on the dithered value.
     rgb = rgb + dither(in.position.xy) / 255.0;
-    return vec4<f32>(srgb_to_linear(rgb), 1.0);
+    return vec4<f32>(srgb_to_linear(rgb), comp.opacity);
 }

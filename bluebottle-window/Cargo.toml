@@ -29,6 +29,5 @@ tracing-subscriber = { workspace = true }
 wgpu = { workspace = true }
 pollster = { workspace = true }
 
-# `gst` example only: GStreamer video embedded into the content subsurface.
 gstreamer = { workspace = true }
 gstreamer-video = { workspace = true }

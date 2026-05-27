@@ -6,4 +6,5 @@ pub mod style;
 pub mod util;
 mod widget;
 
+pub use self::widget::splash_background::{splash_background, splash_panel};
 pub use self::widget::*;

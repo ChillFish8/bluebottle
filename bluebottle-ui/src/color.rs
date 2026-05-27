@@ -39,6 +39,10 @@ pub const BORDER: iced::Color = with_alpha(scale(PRIMARY, 0.6), 0.4);
 /// full reveal; callers scale it by the overlay's reveal animation.
 pub const SCRIM: iced::Color = with_alpha(BACKGROUND, 0.9);
 
+/// Glow color for the image-less background gradient: the primary tinted down
+/// so it reads as a soft wash rather than a high-contrast highlight.
+pub const GLOW: iced::Color = scale(PRIMARY, 0.4);
+
 /// Linearly interpolates `from` → `to` by `t` in `[0, 1]`, in sRGB components.
 pub const fn mix(from: iced::Color, to: iced::Color, t: f32) -> iced::Color {
     iced::Color {

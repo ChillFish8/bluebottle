@@ -1,7 +1,15 @@
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bluebottle_ui::{button, color, easing, image, style};
+use bluebottle_ui::splash_background::Backdrop;
+use bluebottle_ui::{
+    button,
+    color,
+    easing,
+    image,
+    splash_background,
+    splash_panel,
+    style,
+};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{
     Space,
@@ -17,8 +25,6 @@ use iced::widget::{
 use iced::{Element, Length, Subscription, Vector};
 
 use crate::backdrop;
-use crate::background::{BackgroundLook, BackgroundSource, background};
-use crate::sidebar::sidebar;
 
 /// How long the sidebar's slide in / out runs.
 const FADE: Duration = Duration::from_millis(220);
@@ -59,11 +65,11 @@ pub enum MainMsg {
 
 /// State for the main library surface.
 pub struct MainScreen {
-    source: Arc<BackgroundSource>,
-    background_look: BackgroundLook,
+    /// The page background image, or `None` for the glow.
+    backdrop: Option<Backdrop>,
     sidebar: Option<SidebarState>,
     /// The poster blurred behind the drawer (the same one it shows).
-    sidebar_source: Arc<BackgroundSource>,
+    sidebar_backdrop: Option<Backdrop>,
     /// Decoded handles for the example poster content.
     posters: Vec<image::Handle>,
 }
@@ -107,22 +113,12 @@ impl SidebarState {
 }
 
 impl MainScreen {
-    /// Builds the screen over `source`, with the default look.
-    pub fn new(source: Arc<BackgroundSource>) -> Self {
-        // The drawer blurs the poster it shows; decode it up front so the
-        // pipeline keys on a stable `Arc` rather than re-uploading each frame.
-        // If it fails to decode, fall back to a solid tinted fill.
-        let sidebar_source =
-            Arc::new(match backdrop::decode_bytes(POSTER_BYTES[SIDEBAR_POSTER]) {
-                Some(image) => BackgroundSource::Image(Arc::new(image)),
-                None => BackgroundSource::Solid,
-            });
-
+    /// Builds the screen over `backdrop`, with the default look.
+    pub fn new(backdrop: Option<Backdrop>) -> Self {
         Self {
-            source,
-            background_look: BackgroundLook::default(),
+            backdrop,
             sidebar: None,
-            sidebar_source,
+            sidebar_backdrop: backdrop::decode_bytes(POSTER_BYTES[SIDEBAR_POSTER]),
             posters: POSTER_BYTES
                 .iter()
                 .map(|bytes| image::Handle::from_bytes(*bytes))
@@ -176,7 +172,7 @@ impl MainScreen {
     }
 
     pub fn view(&self) -> Element<'_, MainMsg> {
-        let backdrop = background(Arc::clone(&self.source), self.background_look);
+        let backdrop = splash_background(self.backdrop.clone());
 
         // The sidebar trigger, parked in the bottom-right corner.
         let trigger = container(button::standard(
@@ -289,7 +285,7 @@ impl MainScreen {
         // leading-edge elevation shadow (a quad is still drawn for a shadow with
         // no fill).
         let drawer = container(stack![
-            sidebar(Arc::clone(&self.sidebar_source), sidebar_look()),
+            splash_panel(self.sidebar_backdrop.clone()),
             body,
             border
         ])
@@ -313,18 +309,5 @@ impl MainScreen {
         .height(Length::Fill)
         .align_x(Horizontal::Right)
         .into()
-    }
-}
-
-/// The drawer's background look: the main background's style over the elevated
-/// surface tint, settling into it by mid-height.
-fn sidebar_look() -> BackgroundLook {
-    BackgroundLook {
-        base: color::SURFACE,
-        image_fade: 0.45,
-        bg_end: 0.5,
-        bg_solid: 0.5,
-        focus: 0.5,
-        ..BackgroundLook::default()
     }
 }

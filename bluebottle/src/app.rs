@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use bluebottle_ui::splash_background::Backdrop;
 use bluebottle_video::Player;
 use iced::keyboard::key::Named;
 use iced::keyboard::{Event as KeyboardEvent, Key};
 use iced::{Element, Event, Subscription, Task};
 
-use crate::background::BackgroundSource;
 use crate::screen::main::{MainMsg, MainScreen};
 use crate::screen::player::{PlayerMsg, PlayerScreen};
 
@@ -35,12 +35,12 @@ pub enum Message {
 }
 
 impl App {
-    /// Builds the app on the [`Main`](Screen::Main) screen with `source` as its
+    /// Builds the app on the [`Main`](Screen::Main) screen with `backdrop` as its
     /// background, ready to switch to `player` on demand.
-    pub fn new(player: Arc<Player>, source: Arc<BackgroundSource>) -> Self {
+    pub fn new(player: Arc<Player>, backdrop: Option<Backdrop>) -> Self {
         Self {
             screen: Screen::Main,
-            main: MainScreen::new(source),
+            main: MainScreen::new(backdrop),
             player: PlayerScreen::new(player),
         }
     }

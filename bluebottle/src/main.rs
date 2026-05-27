@@ -1,10 +1,7 @@
 mod app;
 mod backdrop;
-mod background;
-mod gpu;
 mod project_dirs;
 mod screen;
-mod sidebar;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,7 +14,6 @@ use gstreamer::prelude::*;
 use snafu::{ResultExt, Whatever};
 
 use crate::app::App;
-use crate::background::BackgroundSource;
 use crate::project_dirs::ProjectDirs;
 
 #[derive(Debug, Parser)]
@@ -56,7 +52,7 @@ fn main() -> Result<(), Whatever> {
     tracing::info!("starting Bluebottle");
 
     let dirs = ProjectDirs::resolve(args.storage_path)?;
-    let source = Arc::new(BackgroundSource::new(backdrop::resolve(&dirs)));
+    let backdrop = backdrop::resolve(&dirs);
 
     gst::init().whatever_context("initialise GStreamer")?;
 
@@ -70,8 +66,8 @@ fn main() -> Result<(), Whatever> {
         let mut application = iced::application(
             {
                 let player = Arc::clone(&ui_player);
-                let source = Arc::clone(&source);
-                move || App::new(Arc::clone(&player), Arc::clone(&source))
+                let backdrop = backdrop.clone();
+                move || App::new(Arc::clone(&player), backdrop.clone())
             },
             App::update,
             App::view,

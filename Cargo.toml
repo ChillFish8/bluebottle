@@ -27,7 +27,12 @@ parking_lot = "0.12"
 lru = "0.16"
 arrayvec = "0.7"
 tempfile = "3"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+bytemuck = "1"
+ash = "0.38"
+bindgen = "0.72"
+pkg-config = "0.3"
+rstest = "0.26"
+wgpu = "27"
 
 # 3rd party widgets
 iced_palace = "0.14"
@@ -39,6 +44,7 @@ tokio = { version = "1", features = ["net", "time", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "rustls-tls-native-roots", "json", "zstd"] }
 iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio", "image", "svg", "canvas", "sipper"] }
 rusqlite = { version = "0.38", features = ["bundled", "serde_json", "uuid"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # Low-level iced crates used to drive the renderer manually for the overlay window.
 iced_core = "0.14"
@@ -55,26 +61,9 @@ pollster = "0.4"
 # Cross-platform clipboard access (uses smithay-clipboard on Wayland).
 window_clipboard = "0.5"
 
-# Used by examples to render the caller-owned main surface.
-wgpu = "27"
-
-# GStreamer playback. Used by the `gst` example (waylandsink) and by
-# `bluebottle-video` (the `placebosink` libplacebo renderer + Player).
+# API v1.24 enables the DMA-DRM video-info API (`VideoInfoDmaDrm`) used for zero-copy dmabuf import.
 gstreamer = "0.25"
-# v1_24 enables the DMA-DRM video-info API (`VideoInfoDmaDrm`) used for
-# zero-copy dmabuf import; the system GStreamer is 1.28.
 gstreamer-video = { version = "0.25", features = ["v1_24"] }
 gstreamer-base = "0.25"
 gstreamer-allocators = "0.25"
 gstreamer-gl = "0.25"
-
-# Raw Vulkan, used by `bluebottle-video` to build the `VkSurfaceKHR` that
-# libplacebo's swapchain presents onto the bluebottle-window content surface.
-ash = "0.38"
-
-# FFI tooling for the in-tree `placebo-sys` libplacebo bindings.
-bindgen = "0.72"
-pkg-config = "0.3"
-
-# Dev dependencies
-rstest = "0.26"

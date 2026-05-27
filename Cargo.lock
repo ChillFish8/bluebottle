@@ -374,6 +374,7 @@ dependencies = [
 name = "bluebottle-ui"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "iced",
  "iced_palace",
  "lyon_algorithms",

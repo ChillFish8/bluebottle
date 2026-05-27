@@ -1,10 +1,8 @@
-//! Small wgpu helpers shared by the background and sidebar blur pipelines
-//! (paired with `shader_common.wgsl`).
-
 use iced::wgpu;
 
 /// sRGB format for uploaded source images, so sampling decodes them to linear.
 pub const SOURCE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+
 /// Linear 16-bit-float format for the blur intermediates. The extra precision
 /// keeps the smooth blur from banding when it is later up-scaled.
 pub const BLUR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -34,17 +32,4 @@ pub fn blur_pass(
     pass.set_pipeline(pipeline);
     pass.set_bind_group(0, bind, &[]);
     pass.draw(0..3, 0..1);
-}
-
-/// Reinterprets a packed `f32` slice as bytes for `queue.write_buffer`.
-pub fn as_bytes(values: &[f32]) -> &[u8] {
-    // SAFETY: `f32` has no padding and no invalid bit patterns, so viewing a
-    // contiguous slice of them as bytes is sound; the borrow ties the returned
-    // slice to `values`.
-    unsafe {
-        std::slice::from_raw_parts(
-            values.as_ptr().cast::<u8>(),
-            std::mem::size_of_val(values),
-        )
-    }
 }

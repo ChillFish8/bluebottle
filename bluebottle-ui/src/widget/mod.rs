@@ -14,4 +14,5 @@ pub mod search;
 pub mod separator;
 pub mod skeleton;
 pub mod spinner;
+pub mod splash_background;
 pub mod text;
