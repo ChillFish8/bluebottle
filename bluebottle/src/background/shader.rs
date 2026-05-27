@@ -6,12 +6,7 @@ use iced::{Rectangle, wgpu};
 
 use super::{BackgroundLook, BackgroundSource, HIGHLIGHT};
 use crate::backdrop::BackdropImage;
-
-/// sRGB format for the uploaded source image, so sampling decodes it to linear.
-const SOURCE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
-/// Linear 16-bit-float format for the blur intermediates. The extra precision
-/// keeps the smooth blur from banding when it is later up-scaled.
-const BLUR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+use crate::gpu::{BLUR_FORMAT, SOURCE_FORMAT, as_bytes, blur_pass};
 
 /// The primitive produced each draw; carries the live background parameters.
 #[derive(Debug)]
@@ -85,7 +80,13 @@ impl shader::Pipeline for BackgroundPipeline {
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("background shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("background.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                concat!(
+                    include_str!("../shader_common.wgsl"),
+                    include_str!("background.wgsl"),
+                )
+                .into(),
+            ),
         });
 
         // A uniform + sampled texture + sampler, shared by both pipelines.
@@ -498,45 +499,5 @@ impl BackgroundPipeline {
 
 /// 24 `f32`s; see the `Composite` struct in `background.wgsl`.
 const COMPOSITE_UNIFORM_SIZE: u64 = 24 * 4;
-/// 8 `f32`s; see the `Blur` struct in `background.wgsl`.
+/// 8 `f32`s; see the `Blur` struct in `shader_common.wgsl`.
 const BLUR_UNIFORM_SIZE: u64 = 8 * 4;
-
-/// Runs one full-screen blur pass into `target` with `bind`.
-fn blur_pass(
-    encoder: &mut wgpu::CommandEncoder,
-    pipeline: &wgpu::RenderPipeline,
-    target: &wgpu::TextureView,
-    bind: &wgpu::BindGroup,
-) {
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("background blur pass"),
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: target,
-            resolve_target: None,
-            depth_slice: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-    });
-    pass.set_pipeline(pipeline);
-    pass.set_bind_group(0, bind, &[]);
-    pass.draw(0..3, 0..1);
-}
-
-/// Reinterprets a packed `f32` slice as bytes for `queue.write_buffer`.
-fn as_bytes(values: &[f32]) -> &[u8] {
-    // SAFETY: `f32` has no padding and no invalid bit patterns, so viewing a
-    // contiguous slice of them as bytes is sound; the borrow ties the returned
-    // slice to `values`.
-    unsafe {
-        std::slice::from_raw_parts(
-            values.as_ptr().cast::<u8>(),
-            std::mem::size_of_val(values),
-        )
-    }
-}

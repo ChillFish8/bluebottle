@@ -1,6 +1,8 @@
 mod app;
 mod backdrop;
 mod background;
+mod gpu;
+mod inspect;
 mod project_dirs;
 mod screen;
 
