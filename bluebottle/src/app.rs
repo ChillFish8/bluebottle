@@ -47,7 +47,10 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Main(message) => self.main.update(message).map(Message::Main),
+            Message::Main(message) => {
+                self.main.update(message);
+                Task::none()
+            },
             Message::Player(message) => self.player.update(message).map(Message::Player),
             Message::ToggleScreen => {
                 self.screen = match self.screen {

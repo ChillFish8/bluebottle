@@ -1,4 +1,4 @@
-//! Small wgpu helpers shared by the background and inspect-scrim blur pipelines
+//! Small wgpu helpers shared by the background and sidebar blur pipelines
 //! (paired with `shader_common.wgsl`).
 
 use iced::wgpu;

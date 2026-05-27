@@ -1,22 +1,78 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-use bluebottle_ui::color;
 use iced::widget::shader::{self, Viewport};
-use iced::{Rectangle, wgpu};
+use iced::{Length, Rectangle, wgpu};
 
-use super::{BackgroundLook, BackgroundSource, HIGHLIGHT};
+use super::{BackgroundLook, BackgroundSource, composite_uniform};
 use crate::backdrop::BackdropImage;
 use crate::gpu::{BLUR_FORMAT, SOURCE_FORMAT, as_bytes, blur_pass};
 
-/// The primitive produced each draw; carries the live background parameters.
-#[derive(Debug)]
-pub struct BackgroundPrimitive {
-    pub source: Arc<BackgroundSource>,
-    pub look: BackgroundLook,
+/// Marks an otherwise-identical composite pipeline so iced stores each in its
+/// own slot — it shares one [`shader::Pipeline`] across every primitive of a
+/// type, so the background and the sidebar (which composite with the same shader
+/// and uniform) need distinct marker types to coexist in a frame. `LABEL` names
+/// the GPU resources for debugging.
+pub trait CompositeKind: 'static + Send + Sync + std::fmt::Debug {
+    const LABEL: &'static str;
 }
 
-impl shader::Primitive for BackgroundPrimitive {
-    type Pipeline = BackgroundPipeline;
+/// A full-bleed widget compositing `source` under `look` with the shared
+/// `background.wgsl` shader; `K` selects the pipeline instance.
+pub fn composite<Message, K: CompositeKind>(
+    source: Arc<BackgroundSource>,
+    look: BackgroundLook,
+) -> shader::Shader<Message, CompositeProgram<K>> {
+    shader::Shader::new(CompositeProgram::new(source, look))
+        .width(Length::Fill)
+        .height(Length::Fill)
+}
+
+/// The [`shader::Program`](shader::Program) driving a composite surface.
+pub struct CompositeProgram<K> {
+    source: Arc<BackgroundSource>,
+    look: BackgroundLook,
+    _kind: PhantomData<K>,
+}
+
+impl<K> CompositeProgram<K> {
+    fn new(source: Arc<BackgroundSource>, look: BackgroundLook) -> Self {
+        Self {
+            source,
+            look,
+            _kind: PhantomData,
+        }
+    }
+}
+
+impl<Message, K: CompositeKind> shader::Program<Message> for CompositeProgram<K> {
+    type State = ();
+    type Primitive = CompositePrimitive<K>;
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        _cursor: iced::mouse::Cursor,
+        _bounds: iced::Rectangle,
+    ) -> Self::Primitive {
+        CompositePrimitive {
+            source: Arc::clone(&self.source),
+            look: self.look,
+            _kind: PhantomData,
+        }
+    }
+}
+
+/// The primitive produced each draw; carries the live parameters.
+#[derive(Debug)]
+pub struct CompositePrimitive<K: CompositeKind> {
+    source: Arc<BackgroundSource>,
+    look: BackgroundLook,
+    _kind: PhantomData<K>,
+}
+
+impl<K: CompositeKind> shader::Primitive for CompositePrimitive<K> {
+    type Pipeline = CompositePipeline<K>;
 
     fn prepare(
         &self,
@@ -40,8 +96,8 @@ impl shader::Primitive for BackgroundPrimitive {
     }
 }
 
-/// GPU resources shared by every [`BackgroundPrimitive`].
-pub struct BackgroundPipeline {
+/// GPU resources shared by every [`CompositePrimitive`] of kind `K`.
+pub struct CompositePipeline<K> {
     composite_pipeline: wgpu::RenderPipeline,
     blur_pipeline: wgpu::RenderPipeline,
     bind_layout: wgpu::BindGroupLayout,
@@ -49,14 +105,15 @@ pub struct BackgroundPipeline {
     composite_uniform: wgpu::Buffer,
     blur_uniform_h: wgpu::Buffer,
     blur_uniform_v: wgpu::Buffer,
-    /// 1×1 placeholder bound in gradient mode, where the poster is never sampled.
+    /// 1×1 placeholder bound in gradient / solid mode, where the image isn't sampled.
     dummy_view: wgpu::TextureView,
-    /// Per-image GPU state, present only while a backdrop image is shown.
+    /// Per-image GPU state, present only while an image source is shown.
     image: Option<ImageState>,
     composite_bind: Option<wgpu::BindGroup>,
+    _kind: PhantomData<K>,
 }
 
-/// The textures and bind groups for the currently uploaded backdrop image.
+/// The textures and bind groups for the currently uploaded image.
 struct ImageState {
     /// Identity of the source `Arc`, to detect when the image changes.
     key: usize,
@@ -72,14 +129,17 @@ struct ImageState {
     blurred_view: wgpu::TextureView,
 }
 
-impl shader::Pipeline for BackgroundPipeline {
+impl<K: CompositeKind> shader::Pipeline for CompositePipeline<K> {
     fn new(
         device: &wgpu::Device,
         _queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
     ) -> Self {
+        // One-time labels, prefixed with the kind for GPU debugging.
+        let label = |suffix: &str| format!("{} {suffix}", K::LABEL);
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("background shader"),
+            label: Some(&label("shader")),
             source: wgpu::ShaderSource::Wgsl(
                 concat!(
                     include_str!("../shader_common.wgsl"),
@@ -92,7 +152,7 @@ impl shader::Pipeline for BackgroundPipeline {
         // A uniform + sampled texture + sampler, shared by both pipelines.
         let bind_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("background bind layout"),
+                label: Some(&label("bind layout")),
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
@@ -129,7 +189,7 @@ impl shader::Pipeline for BackgroundPipeline {
 
         let pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("background pipeline layout"),
+                label: Some(&label("pipeline layout")),
                 bind_group_layouts: &[&bind_layout],
                 push_constant_ranges: &[],
             });
@@ -163,11 +223,11 @@ impl shader::Pipeline for BackgroundPipeline {
         };
 
         let composite_pipeline =
-            make_pipeline("background composite", "fs_composite", format);
-        let blur_pipeline = make_pipeline("background blur", "fs_blur", BLUR_FORMAT);
+            make_pipeline(&label("composite"), "fs_composite", format);
+        let blur_pipeline = make_pipeline(&label("blur"), "fs_blur", BLUR_FORMAT);
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("background sampler"),
+            label: Some(&label("sampler")),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -178,12 +238,12 @@ impl shader::Pipeline for BackgroundPipeline {
         });
 
         let composite_uniform = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("background composite uniform"),
+            label: Some(&label("composite uniform")),
             size: COMPOSITE_UNIFORM_SIZE,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let blur_uniform = |label| {
+        let blur_uniform = |label: &str| {
             device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(label),
                 size: BLUR_UNIFORM_SIZE,
@@ -193,7 +253,7 @@ impl shader::Pipeline for BackgroundPipeline {
         };
 
         let dummy = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("background dummy poster"),
+            label: Some(&label("dummy image")),
             size: wgpu::Extent3d {
                 width: 1,
                 height: 1,
@@ -213,16 +273,17 @@ impl shader::Pipeline for BackgroundPipeline {
             bind_layout,
             sampler,
             composite_uniform,
-            blur_uniform_h: blur_uniform("background blur uniform (h)"),
-            blur_uniform_v: blur_uniform("background blur uniform (v)"),
+            blur_uniform_h: blur_uniform(&label("blur uniform (h)")),
+            blur_uniform_v: blur_uniform(&label("blur uniform (v)")),
             dummy_view: dummy.create_view(&wgpu::TextureViewDescriptor::default()),
             image: None,
             composite_bind: None,
+            _kind: PhantomData,
         }
     }
 }
 
-impl BackgroundPipeline {
+impl<K: CompositeKind> CompositePipeline<K> {
     fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -240,46 +301,23 @@ impl BackgroundPipeline {
                 self.image = None;
                 (0.0, [bounds.width, bounds.height])
             },
+            BackgroundSource::Solid => {
+                self.image = None;
+                (2.0, [bounds.width, bounds.height])
+            },
         };
 
-        let base = color::BACKGROUND.into_linear();
-        let highlight = HIGHLIGHT.into_linear();
-        let uniform: [f32; 24] = [
-            bounds.width,
-            bounds.height,
-            source_size[0],
-            source_size[1],
-            base[0],
-            base[1],
-            base[2],
-            base[3],
-            highlight[0],
-            highlight[1],
-            highlight[2],
-            highlight[3],
-            look.saturate,
-            mode,
-            look.image_opacity_start,
-            look.image_opacity_end,
-            look.bg_opacity_start,
-            look.bg_opacity_end,
-            look.image_fade,
-            look.bg_start,
-            look.bg_end,
-            look.bg_solid,
-            look.focus,
-            look.zoom,
-        ];
+        let uniform = composite_uniform(look, mode, source_size, bounds);
         queue.write_buffer(&self.composite_uniform, 0, as_bytes(&uniform));
 
-        // Point the composite at the freshly blurred poster, or the placeholder.
-        let poster_view = match &self.image {
+        // Point the composite at the freshly blurred image, or the placeholder.
+        let image_view = match &self.image {
             Some(state) => &state.blurred_view,
             None => &self.dummy_view,
         };
         self.composite_bind =
             Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("background composite bind"),
+                label: Some("composite bind"),
                 layout: &self.bind_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -288,7 +326,7 @@ impl BackgroundPipeline {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(poster_view),
+                        resource: wgpu::BindingResource::TextureView(image_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -335,7 +373,7 @@ impl BackgroundPipeline {
 
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("background blur"),
+                label: Some("composite blur"),
             });
         blur_pass(
             &mut encoder,
@@ -366,7 +404,7 @@ impl BackgroundPipeline {
             depth_or_array_layers: 1,
         };
         let source = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("background poster source"),
+            label: Some("composite image source"),
             size: extent,
             mip_level_count: 1,
             sample_count: 1,
@@ -407,8 +445,8 @@ impl BackgroundPipeline {
                 .create_view(&wgpu::TextureViewDescriptor::default())
         };
         let source_view = source.create_view(&wgpu::TextureViewDescriptor::default());
-        let intermediate_view = blur_target("background blur intermediate");
-        let blurred_view = blur_target("background blur result");
+        let intermediate_view = blur_target("composite blur intermediate");
+        let blurred_view = blur_target("composite blur result");
 
         ImageState {
             key,
@@ -434,7 +472,7 @@ impl BackgroundPipeline {
         input: &wgpu::TextureView,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("background blur bind"),
+            label: Some("composite blur bind"),
             layout: &self.bind_layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -463,7 +501,7 @@ impl BackgroundPipeline {
             return;
         };
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("background composite pass"),
+            label: Some("composite pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 resolve_target: None,

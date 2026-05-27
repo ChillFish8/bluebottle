@@ -2,9 +2,9 @@ mod app;
 mod backdrop;
 mod background;
 mod gpu;
-mod inspect;
 mod project_dirs;
 mod screen;
+mod sidebar;
 
 use std::path::PathBuf;
 use std::sync::Arc;

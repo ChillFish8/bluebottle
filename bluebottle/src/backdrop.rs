@@ -77,6 +77,26 @@ fn load(path: &Path, kind: &str) -> Option<BackdropImage> {
     }
 }
 
+/// Decodes encoded image `bytes` into packed RGBA8, guessing the format from
+/// their contents; logs and returns `None` on failure.
+pub fn decode_bytes(bytes: &[u8]) -> Option<BackdropImage> {
+    match image::load_from_memory(bytes) {
+        Ok(image) => {
+            let rgba = image.to_rgba8();
+            let (width, height) = rgba.dimensions();
+            Some(BackdropImage {
+                rgba: rgba.into_raw(),
+                width,
+                height,
+            })
+        },
+        Err(error) => {
+            tracing::warn!(%error, "failed to decode embedded image");
+            None
+        },
+    }
+}
+
 /// Decodes `path` into packed RGBA8, guessing the format from its contents.
 fn decode(path: &Path) -> image::ImageResult<BackdropImage> {
     let rgba = image::ImageReader::open(path)?

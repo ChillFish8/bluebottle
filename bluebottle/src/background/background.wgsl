@@ -67,10 +67,13 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     // opacity/coverage mixes and back to linear for output.
     let base = linear_to_srgb(comp.base_color.rgb);
 
-    // The wash at the top: the image knocked back by its opacity so the base
-    // shows through, or the procedural highlight, over the base fill.
+    // The wash at the top: a solid base, the image knocked back by its opacity
+    // so the base shows through, or the procedural highlight, over the base fill.
     var wash_look: vec3<f32>;
-    if comp.mode > 0.5 {
+    if comp.mode > 1.5 {
+        // Solid fill: the base everywhere (the coverage mix below is a no-op).
+        wash_look = base;
+    } else if comp.mode > 0.5 {
         var wash = textureSampleLevel(poster, poster_sampler, poster_uv(in.uv), 0.0).rgb;
         let luma = dot(wash, vec3<f32>(0.2126, 0.7152, 0.0722));
         wash = mix(vec3<f32>(luma), wash, comp.saturate);

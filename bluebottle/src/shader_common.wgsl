@@ -1,4 +1,4 @@
-// Shared scaffolding for the background and inspect-scrim shaders, concatenated
+// Shared scaffolding for the background and sidebar shaders, concatenated
 // ahead of each shader's own composite stage: the full-screen triangle, the
 // separable Gaussian blur pre-pass, and the sRGB / dither helpers. The composite
 // stages redeclare their own uniform + textures at the same binding slots, which

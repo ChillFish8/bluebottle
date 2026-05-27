@@ -2,14 +2,23 @@ mod shader;
 
 use std::sync::Arc;
 
+use bluebottle_ui::color;
 use iced::widget::shader::Shader;
-use iced::{Color, Length};
+use iced::{Color, Rectangle};
 
-use self::shader::BackgroundPrimitive;
+pub use self::shader::{CompositeKind, CompositeProgram, composite};
 use crate::backdrop::BackdropImage;
 
 /// Highlight colour for the gradient glow — a lifted, bluish tint of the base.
 const HIGHLIGHT: Color = iced::color!(0x243154);
+
+/// Marker selecting the main background's composite pipeline instance.
+#[derive(Debug, Clone, Copy)]
+pub struct BackgroundKind;
+
+impl CompositeKind for BackgroundKind {
+    const LABEL: &'static str = "background";
+}
 
 /// The live look parameters for the background.
 ///
@@ -19,6 +28,9 @@ const HIGHLIGHT: Color = iced::color!(0x243154);
 /// `bg_end`. The window is never transparent.
 #[derive(Debug, Clone, Copy)]
 pub struct BackgroundLook {
+    /// Solid colour the page settles into; the sidebar leans this toward primary
+    /// to read as a distinct shade.
+    pub base: Color,
     /// Blur radius, in source pixels.
     pub blur: f32,
     /// Saturation multiplier for the wash (mirrors CSS `saturate()`).
@@ -53,6 +65,7 @@ pub struct BackgroundLook {
 impl Default for BackgroundLook {
     fn default() -> Self {
         Self {
+            base: color::BACKGROUND,
             blur: 45.0,
             saturate: 1.4,
             image_opacity_start: 0.3,
@@ -76,6 +89,8 @@ pub enum BackgroundSource {
     Image(Arc<BackdropImage>),
     /// No image available: paint a procedural highlight-to-dark gradient.
     Gradient,
+    /// No image available: fill solid with the look's base colour.
+    Solid,
 }
 
 impl BackgroundSource {
@@ -95,31 +110,47 @@ impl BackgroundSource {
 pub fn background<Message>(
     source: Arc<BackgroundSource>,
     look: BackgroundLook,
-) -> Shader<Message, BackgroundProgram> {
-    Shader::new(BackgroundProgram { source, look })
-        .width(Length::Fill)
-        .height(Length::Fill)
+) -> Shader<Message, CompositeProgram<BackgroundKind>> {
+    composite(source, look)
 }
 
-/// The [`shader::Program`](iced::widget::shader::Program) driving the background.
-pub struct BackgroundProgram {
-    source: Arc<BackgroundSource>,
+/// Packs the `Composite` uniform (see `background.wgsl`) for a `look` drawn over
+/// `bounds`, where `mode` is `1.0` for a blurred image, `0.0` for the procedural
+/// gradient, or `2.0` for a solid base fill, and `source_size` is the image size
+/// in source pixels (or the bounds otherwise). Shared by the background and the
+/// sidebar, which composite with the identical shader.
+pub fn composite_uniform(
     look: BackgroundLook,
-}
-
-impl<Message> iced::widget::shader::Program<Message> for BackgroundProgram {
-    type State = ();
-    type Primitive = BackgroundPrimitive;
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        _cursor: iced::mouse::Cursor,
-        _bounds: iced::Rectangle,
-    ) -> Self::Primitive {
-        BackgroundPrimitive {
-            source: Arc::clone(&self.source),
-            look: self.look,
-        }
-    }
+    mode: f32,
+    source_size: [f32; 2],
+    bounds: &Rectangle,
+) -> [f32; 24] {
+    let base = look.base.into_linear();
+    let highlight = HIGHLIGHT.into_linear();
+    [
+        bounds.width,
+        bounds.height,
+        source_size[0],
+        source_size[1],
+        base[0],
+        base[1],
+        base[2],
+        base[3],
+        highlight[0],
+        highlight[1],
+        highlight[2],
+        highlight[3],
+        look.saturate,
+        mode,
+        look.image_opacity_start,
+        look.image_opacity_end,
+        look.bg_opacity_start,
+        look.bg_opacity_end,
+        look.image_fade,
+        look.bg_start,
+        look.bg_end,
+        look.bg_solid,
+        look.focus,
+        look.zoom,
+    ]
 }
