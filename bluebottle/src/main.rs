@@ -1,8 +1,8 @@
 mod app;
+mod backdrop;
 mod background;
 mod project_dirs;
 mod screen;
-mod spotlight;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ fn main() -> Result<(), Whatever> {
     tracing::info!("starting Bluebottle");
 
     let dirs = ProjectDirs::resolve(args.storage_path)?;
-    let source = Arc::new(BackgroundSource::new(spotlight::load(dirs.cache_dir())));
+    let source = Arc::new(BackgroundSource::new(backdrop::resolve(&dirs)));
 
     gst::init().whatever_context("initialise GStreamer")?;
 

@@ -1,6 +1,6 @@
 //! The wgpu pipeline behind [`Background`](super::Background).
 //!
-//! A separable Gaussian blur pre-pass turns the spotlight image into a soft
+//! A separable Gaussian blur pre-pass turns the backdrop image into a soft
 //! wash (run only when the image or blur radius changes), and a composite pass
 //! lays that wash — or a procedural gradient — under a dark vertical tint,
 //! emitting opaque pixels so the main screen reads as solid.
@@ -11,19 +11,20 @@ use bluebottle_ui::color;
 use iced::widget::shader::{self, Viewport};
 use iced::{Rectangle, wgpu};
 
-use super::{BackgroundSource, HIGHLIGHT};
-use crate::spotlight::SpotlightImage;
+use super::{BackgroundSource, HIGHLIGHT, Look};
+use crate::backdrop::BackdropImage;
 
-/// sRGB format for the source and blur intermediates, so sampling decodes to
-/// linear and rendering re-encodes — keeping the blur a linear-space average.
-const INTERMEDIATE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+/// sRGB format for the uploaded source image, so sampling decodes it to linear.
+const SOURCE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+/// Linear 16-bit-float format for the blur intermediates. The extra precision
+/// keeps the smooth blur from banding when it is later up-scaled.
+const BLUR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
 /// The primitive produced each draw; carries the live background parameters.
 #[derive(Debug)]
 pub struct BackgroundPrimitive {
     pub source: Arc<BackgroundSource>,
-    pub blur: f32,
-    pub saturate: f32,
+    pub look: Look,
 }
 
 impl shader::Primitive for BackgroundPrimitive {
@@ -37,14 +38,7 @@ impl shader::Primitive for BackgroundPrimitive {
         bounds: &Rectangle,
         _viewport: &Viewport,
     ) {
-        pipeline.prepare(
-            device,
-            queue,
-            &self.source,
-            self.blur,
-            self.saturate,
-            bounds,
-        );
+        pipeline.prepare(device, queue, &self.source, self.look, bounds);
     }
 
     fn render(
@@ -69,12 +63,12 @@ pub struct BackgroundPipeline {
     blur_uniform_v: wgpu::Buffer,
     /// 1×1 placeholder bound in gradient mode, where the poster is never sampled.
     dummy_view: wgpu::TextureView,
-    /// Per-image GPU state, present only while a spotlight image is shown.
+    /// Per-image GPU state, present only while a backdrop image is shown.
     image: Option<ImageState>,
     composite_bind: Option<wgpu::BindGroup>,
 }
 
-/// The textures and bind groups for the currently uploaded spotlight image.
+/// The textures and bind groups for the currently uploaded backdrop image.
 struct ImageState {
     /// Identity of the source `Arc`, to detect when the image changes.
     key: usize,
@@ -176,8 +170,7 @@ impl shader::Pipeline for BackgroundPipeline {
 
         let composite_pipeline =
             make_pipeline("background composite", "fs_composite", format);
-        let blur_pipeline =
-            make_pipeline("background blur", "fs_blur", INTERMEDIATE_FORMAT);
+        let blur_pipeline = make_pipeline("background blur", "fs_blur", BLUR_FORMAT);
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("background sampler"),
@@ -215,7 +208,7 @@ impl shader::Pipeline for BackgroundPipeline {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: INTERMEDIATE_FORMAT,
+            format: BLUR_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -241,13 +234,12 @@ impl BackgroundPipeline {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         source: &BackgroundSource,
-        blur: f32,
-        saturate: f32,
+        look: Look,
         bounds: &Rectangle,
     ) {
         let (mode, source_size) = match source {
             BackgroundSource::Image(image) => {
-                self.ensure_image(device, queue, image, blur);
+                self.ensure_image(device, queue, image, look.blur);
                 (1.0, [image.width as f32, image.height as f32])
             },
             BackgroundSource::Gradient => {
@@ -258,7 +250,7 @@ impl BackgroundPipeline {
 
         let base = color::BACKGROUND.into_linear();
         let highlight = HIGHLIGHT.into_linear();
-        let uniform: [f32; 16] = [
+        let uniform: [f32; 24] = [
             bounds.width,
             bounds.height,
             source_size[0],
@@ -271,10 +263,18 @@ impl BackgroundPipeline {
             highlight[1],
             highlight[2],
             highlight[3],
-            saturate,
+            look.saturate,
             mode,
-            0.0,
-            0.0,
+            look.image_opacity_start,
+            look.image_opacity_end,
+            look.bg_opacity_start,
+            look.bg_opacity_end,
+            look.image_fade,
+            look.bg_start,
+            look.bg_end,
+            look.bg_solid,
+            look.focus,
+            look.zoom,
         ];
         queue.write_buffer(&self.composite_uniform, 0, as_bytes(&uniform));
 
@@ -309,7 +309,7 @@ impl BackgroundPipeline {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        image: &Arc<SpotlightImage>,
+        image: &Arc<BackdropImage>,
         blur: f32,
     ) {
         let key = Arc::as_ptr(image) as usize;
@@ -363,7 +363,7 @@ impl BackgroundPipeline {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        image: &SpotlightImage,
+        image: &BackdropImage,
         key: usize,
     ) -> ImageState {
         let extent = wgpu::Extent3d {
@@ -377,7 +377,7 @@ impl BackgroundPipeline {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: INTERMEDIATE_FORMAT,
+            format: SOURCE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -405,7 +405,7 @@ impl BackgroundPipeline {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    format: INTERMEDIATE_FORMAT,
+                    format: BLUR_FORMAT,
                     usage: wgpu::TextureUsages::TEXTURE_BINDING
                         | wgpu::TextureUsages::RENDER_ATTACHMENT,
                     view_formats: &[],
@@ -503,8 +503,8 @@ impl BackgroundPipeline {
     }
 }
 
-/// 16 `f32`s; see the `Composite` struct in `background.wgsl`.
-const COMPOSITE_UNIFORM_SIZE: u64 = 16 * 4;
+/// 24 `f32`s; see the `Composite` struct in `background.wgsl`.
+const COMPOSITE_UNIFORM_SIZE: u64 = 24 * 4;
 /// 8 `f32`s; see the `Blur` struct in `background.wgsl`.
 const BLUR_UNIFORM_SIZE: u64 = 8 * 4;
 

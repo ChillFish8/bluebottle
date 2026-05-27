@@ -1,9 +1,9 @@
 
 run-debug:
-    WGPU_POWER_PROF=low cargo run -p bluebottle
+    cargo run -p bluebottle
 
 run-release:
-    WGPU_POWER_PROF=low cargo run -p bluebottle --release
+    cargo run -p bluebottle --release
 
 build-release:
     cargo build -p bluebottle --release

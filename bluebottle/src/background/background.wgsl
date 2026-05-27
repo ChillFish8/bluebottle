@@ -2,7 +2,7 @@
 //
 // Two pipelines share this module:
 //   * the separable Gaussian blur (`vs_fullscreen` + `fs_blur`), run twice as a
-//     pre-pass over the spotlight image, and
+//     pre-pass over the backdrop image, and
 //   * the composite (`vs_fullscreen` + `fs_composite`), which lays the blurred
 //     poster (or a procedural gradient) under a dark vertical tint.
 //
@@ -54,17 +54,24 @@ struct Blur {
 @group(0) @binding(1) var blur_source: texture_2d<f32>;
 @group(0) @binding(2) var blur_sampler: sampler;
 
-const TAPS: i32 = 12;
+// Upper bound on taps per side, to keep the (one-time) cost finite at large
+// radii. Below this the tap count tracks the radius for ~1-texel spacing.
+const MAX_TAPS: i32 = 64;
 
 @fragment
 fn fs_blur(in: VsOut) -> @location(0) vec4<f32> {
     let radius = max(blur.radius, 0.001);
     let sigma = radius / 3.0;
-    let step = radius / f32(TAPS);
+    // Sample out to ~4.5σ (1.5× the radius) so the Gaussian tail isn't clipped,
+    // at roughly one tap per source texel — coarser spacing reads as stepping
+    // once the small blur is up-scaled to the screen.
+    let extent = radius * 1.5;
+    let taps = min(i32(ceil(extent)), MAX_TAPS);
+    let step = extent / f32(max(taps, 1));
 
     var sum = vec3<f32>(0.0);
     var weight_total = 0.0;
-    for (var i = -TAPS; i <= TAPS; i = i + 1) {
+    for (var i = -taps; i <= taps; i = i + 1) {
         let distance = f32(i) * step;
         let weight = exp(-(distance * distance) / (2.0 * sigma * sigma));
         let offset = blur.direction * (distance * blur.texel);
@@ -89,60 +96,119 @@ struct Composite {
     saturate: f32,
     // `1.0` to sample the blurred poster, `0.0` for the procedural gradient.
     mode: f32,
-    _pad: vec2<f32>,
+    // Image wash opacity at the top / at `image_fade`.
+    image_opacity_start: f32,
+    image_opacity_end: f32,
+    // Background-overlay opacity at `bg_start` / at `bg_end`.
+    bg_opacity_start: f32,
+    bg_opacity_end: f32,
+    // Fraction by which the image wash has eased to its end opacity.
+    image_fade: f32,
+    // Fraction at which the base colour begins coming in over the image.
+    bg_start: f32,
+    // Fraction by which the soft base-colour fade reaches solid.
+    bg_end: f32,
+    // Fraction at/below which the background snaps to fully solid (hard edge).
+    bg_solid: f32,
+    // Vertical focal point for the cover-fit (0 = top, 0.5 = centre).
+    focus: f32,
+    // Zoom applied to the cover-fit image (1.0 = none).
+    zoom: f32,
 }
 
 @group(0) @binding(0) var<uniform> comp: Composite;
 @group(0) @binding(1) var poster: texture_2d<f32>;
 @group(0) @binding(2) var poster_sampler: sampler;
 
-// Poster overshoot, so the up-scaled blur leaves no sharp edge at the bounds.
-const ZOOM: f32 = 1.15;
-
-// Vertical tint alpha: translucent at the top, solid base by the bottom.
-fn tint_alpha(y: f32) -> f32 {
-    if y < 0.6 {
-        return mix(0.55, 0.82, y / 0.6);
-    }
-    return mix(0.82, 1.0, clamp((y - 0.6) / 0.35, 0.0, 1.0));
-}
-
-// Cover-fit the source into the target, then zoom in by `ZOOM`.
+// Cover-fit the source across the full window, centred, then zoom in by `zoom`.
+// The image is positioned as if it filled the whole window; the fade and blur
+// only govern how much of it shows.
 fn poster_uv(uv: vec2<f32>) -> vec2<f32> {
     let target_aspect = comp.target_size.x / comp.target_size.y;
     let source_aspect = comp.source_size.x / comp.source_size.y;
 
-    var centered = uv - 0.5;
+    // Anchor horizontally at the centre and vertically at `focus`, like CSS
+    // `background-position: center <focus>` (0 = top, 0.5 = centre).
+    let anchor = vec2<f32>(0.5, comp.focus);
+    var centered = uv - anchor;
     if target_aspect > source_aspect {
         centered.y *= source_aspect / target_aspect;
     } else {
         centered.x *= target_aspect / source_aspect;
     }
-    return centered / ZOOM + 0.5;
+    return centered / max(comp.zoom, 0.01) + anchor;
+}
+
+// sRGB transfer functions, used to dither in display space (where the 8-bit
+// quantisation happens) rather than in linear space.
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    let lo = c * 12.92;
+    let hi = 1.055 * pow(max(c, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(hi, lo, c <= vec3<f32>(0.0031308));
+}
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    let lo = c / 12.92;
+    let hi = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(hi, lo, c <= vec3<f32>(0.04045));
+}
+
+// A cheap hash in [0, 1) from a pixel coordinate.
+fn hash12(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Triangular-PDF dither in [-1, 1] from two hashes of the pixel coordinate.
+fn dither(p: vec2<f32>) -> f32 {
+    return hash12(p) + hash12(p + 17.0) - 1.0;
 }
 
 @fragment
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
-    let base = comp.base_color.rgb;
+    // Composite in sRGB (display) space to match CSS gradient interpolation.
+    // The blur and saturate run in linear; everything is converted to sRGB here
+    // for the opacity/coverage mixes, then back to linear for output.
+    let base = linear_to_srgb(comp.base_color.rgb);
 
-    var content: vec3<f32>;
+    // The wash look at the top: the image (knocked back by its opacity so the
+    // base shows through it), or the procedural highlight, over the base fill.
+    var wash_look: vec3<f32>;
     if comp.mode > 0.5 {
         var wash = textureSampleLevel(poster, poster_sampler, poster_uv(in.uv), 0.0).rgb;
         let luma = dot(wash, vec3<f32>(0.2126, 0.7152, 0.0722));
         wash = mix(vec3<f32>(luma), wash, comp.saturate);
+        let wash_srgb = linear_to_srgb(wash);
 
-        // Poster mask: opaque near the top, gone by 80% down, knocked back to 0.55.
-        let mask = (1.0 - smoothstep(0.3, 0.8, in.uv.y)) * 0.55;
-        content = mix(base, wash, mask);
+        // The image wash opacity eases from `image_opacity_start` at the top to
+        // `image_opacity_end` by `image_fade` (smoothstep — eased both ends).
+        let img_t = smoothstep(0.0, max(comp.image_fade, 0.001), in.uv.y);
+        let image_op =
+            mix(comp.image_opacity_start, comp.image_opacity_end, img_t);
+        wash_look = mix(base, wash_srgb, image_op);
     } else {
         // Soft highlight near the top-centre, trending into the dark base.
         let center = vec2<f32>(0.5, 0.22);
         var delta = in.uv - center;
         delta.x *= comp.target_size.x / comp.target_size.y;
         let glow = 1.0 - smoothstep(0.0, 0.75, length(delta));
-        content = mix(base, comp.highlight.rgb, glow * 0.85);
+        wash_look = mix(base, linear_to_srgb(comp.highlight.rgb), glow * 0.85);
     }
 
-    let final_color = mix(content, base, tint_alpha(in.uv.y));
-    return vec4<f32>(final_color, 1.0);
+    // The base colour eases in over the wash from `bg_start` (smoothstep),
+    // plus a hard floor at `bg_solid`. The base fill stays opaque throughout, so
+    // the window is never transparent.
+    let soft = smoothstep(comp.bg_start, max(comp.bg_end, comp.bg_start + 0.001), in.uv.y);
+    let bg_op = mix(comp.bg_opacity_start, comp.bg_opacity_end, soft);
+    // The floor snaps fully solid (1.0, independent of `bg_opacity_*`); a narrow
+    // smoothstep softens the seam so its derivative doesn't read as a band.
+    let floor = smoothstep(comp.bg_solid - 0.02, comp.bg_solid, in.uv.y);
+    let coverage = max(bg_op, floor);
+    var rgb = mix(wash_look, base, coverage);
+
+    // Dither one 8-bit step (already in sRGB), then convert to linear so the
+    // surface's hardware sRGB encode lands back on the dithered value.
+    rgb = rgb + dither(in.position.xy) / 255.0;
+    return vec4<f32>(srgb_to_linear(rgb), 1.0);
 }
