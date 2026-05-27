@@ -63,15 +63,15 @@ impl Default for Look {
         Self {
             blur: 45.0,
             saturate: 1.4,
-            image_opacity_start: 0.1,
+            image_opacity_start: 0.3,
             image_opacity_end: 0.0,
             bg_opacity_start: 0.0,
             bg_opacity_end: 1.0,
-            image_fade: 0.75,
+            image_fade: 0.5,
             bg_start: 0.0,
-            bg_end: 0.71,
-            bg_solid: 0.5,
-            focus: 0.5,
+            bg_end: 0.6,
+            bg_solid: 0.6,
+            focus: 0.7,
             zoom: 1.15,
         }
     }
