@@ -82,6 +82,19 @@ pub const fn with_alpha(color: iced::Color, alpha: f32) -> iced::Color {
     }
 }
 
+/// Scales `color`'s existing alpha by `factor`. Used by widgets that fade a
+/// tinted surface in and out alongside a Hover animation.
+pub const fn fade(color: iced::Color, factor: f32) -> iced::Color {
+    with_alpha(color, color.a * factor)
+}
+
+/// Eases `base` toward `target` by `factor`, clamped to `[0, 1]`. Same as
+/// [`mix`] but accepts unbounded factors from animation primitives without
+/// requiring the caller to clamp.
+pub fn ease(base: iced::Color, target: iced::Color, factor: f32) -> iced::Color {
+    mix(base, target, factor.clamp(0.0, 1.0))
+}
+
 /// Returns a configured color theme for an iced application.
 pub fn theme() -> iced::theme::Theme {
     let base_palette = Palette {

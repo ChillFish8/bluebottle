@@ -73,4 +73,70 @@ impl Hover {
     pub fn animating(&self, now: Instant) -> bool {
         now.duration_since(self.started) < FADE
     }
+
+    /// A track already settled at its terminal value with no animation in
+    /// flight. Used by externally-driven tracks (e.g. `selected`) so a
+    /// pre-set value at mount time does not fade in from zero on the first
+    /// frame.
+    pub fn settled(at: bool) -> Self {
+        let target = if at { 1.0 } else { 0.0 };
+        Self {
+            from: target,
+            target,
+            started: Instant::now() - FADE,
+        }
+    }
+}
+
+/// Shared hover and press bookkeeping for clickable widgets in the design
+/// system. Owns the two `Hover` tracks and the `pressed` latch and offers
+/// the four reconciliation hooks every press-dispatching widget needs.
+#[derive(Clone, Copy, Default)]
+pub struct PressState {
+    pub hover: Hover,
+    pub press: Hover,
+    /// True between a left-button press over bounds and its matching
+    /// release. Cleared on any release we observe, even captured ones,
+    /// so a release intercepted by a child cannot leak `pressed = true`
+    /// into a later release-over-bounds and spuriously dispatch.
+    pub pressed: bool,
+}
+
+impl PressState {
+    /// Reconciles both tracks against the live cursor and the current
+    /// `pressed` latch. Returns true if either track retargeted, so the
+    /// caller can request a single redraw on the transition edge.
+    pub fn reconcile(&mut self, over: bool, now: Instant) -> bool {
+        let h = self.hover.flip(over, now);
+        let p = self.press.flip(self.pressed && over, now);
+        h || p
+    }
+
+    /// Records a left-button press at the cursor. Returns true if the
+    /// press landed inside our bounds.
+    pub fn press(&mut self, over: bool, now: Instant) -> bool {
+        if over {
+            self.pressed = true;
+            self.press.flip(true, now);
+        }
+        over
+    }
+
+    /// Records a left-button release. No-op when not in a press cycle.
+    /// Otherwise clears `pressed` (even when the event is captured by a
+    /// child, so the latch cannot leak across clicks) and animates the
+    /// press track back to zero. Returns true if the release completes a
+    /// press cycle inside our bounds and the caller should dispatch.
+    pub fn release(&mut self, over: bool, now: Instant) -> bool {
+        if !self.pressed {
+            return false;
+        }
+        self.pressed = false;
+        self.press.flip(false, now);
+        over
+    }
+
+    pub fn animating(&self, now: Instant) -> bool {
+        self.hover.animating(now) || self.press.animating(now)
+    }
 }

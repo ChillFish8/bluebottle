@@ -85,6 +85,7 @@ impl Components {
             standard_buttons(),
             icon_buttons(),
             icon_toggle_buttons(),
+            clickables(),
             navigators(),
             posters(),
             episodes(),
@@ -294,14 +295,43 @@ fn icon_buttons() -> Element<'static, Message> {
         row![
             bluebottle_ui::button::icon("settings", false, Message::Click),
             bluebottle_ui::button::icon("settings", true, Message::Click),
-            bluebottle_ui::button::icon("arrow_back", false, Message::Click)
-                .style(bluebottle_ui::button::text_secondary_style),
-            bluebottle_ui::button::icon("arrow_back", true, Message::Click)
-                .style(bluebottle_ui::button::text_secondary_style),
             bluebottle_ui::button::disabled(None, Some("arrow_back"),),
         ]
         .padding(8)
         .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn clickables() -> Element<'static, Message> {
+    use bluebottle_ui::clickable;
+
+    column![
+        text("Clickables").font(font::bold()),
+        row![
+            Element::<Message>::from(clickable(text("Inert")).padding([6, 12])),
+            Element::<Message>::from(
+                clickable(text("Default"))
+                    .padding([6, 12])
+                    .on_press(Message::Click),
+            ),
+            Element::<Message>::from(
+                clickable(text("Primary tint"))
+                    .padding([6, 12])
+                    .tint(color::PRIMARY)
+                    .on_press(Message::Click),
+            ),
+            Element::<Message>::from(
+                clickable(text("Square tile"))
+                    .padding([12, 16])
+                    .radius(8.0)
+                    .on_press(Message::Click),
+            ),
+        ]
+        .padding(8)
+        .spacing(8)
+        .align_y(Center),
     ]
     .spacing(4)
     .into()

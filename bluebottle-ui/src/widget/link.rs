@@ -37,7 +37,7 @@ use iced::{
     window,
 };
 
-use crate::animate::hover::{EPSILON, Hover};
+use crate::animate::hover::{EPSILON, PressState};
 use crate::{color, font};
 
 /// Thickness of the hover underline, in logical pixels.
@@ -124,14 +124,7 @@ where
 
 #[derive(Default)]
 struct State {
-    hover: Hover,
-    /// Eased factor that tracks whether the link is currently in its pressed
-    /// (held-down and hovered) state. Drives the text colour from idle toward
-    /// [`color::PRIMARY`].
-    press: Hover,
-    /// Whether a left button press started over the link. Releases without a
-    /// matching press are ignored.
-    pressed: bool,
+    press: PressState,
     paragraph: Plain<LinkParagraph>,
     /// Measured size of the rendered text. Cached at layout time so draw can
     /// position the underline without re-measuring the paragraph each frame.
@@ -198,8 +191,8 @@ where
         // Press factor eases the text from its idle colour toward PRIMARY
         // while the user holds the mouse down on the link, and back when the
         // press ends (release, drag-off, or hover-off mid-press).
-        let press_factor = state.press.current(now);
-        let active_color = color::mix(self.color, color::PRIMARY, press_factor);
+        let press_factor = state.press.press.current(now);
+        let active_color = color::ease(self.color, color::PRIMARY, press_factor);
 
         text_draw(
             renderer,
@@ -215,7 +208,7 @@ where
         // Underline animates from 0 to full text width as the hover factor
         // settles to 1. The colour tracks the active text colour so a pressed
         // link's underline is also primary.
-        let factor = state.hover.current(now);
+        let factor = state.press.hover.current(now);
         if factor <= EPSILON {
             return;
         }
@@ -238,7 +231,7 @@ where
                 border: border::rounded(UNDERLINE_THICKNESS / 2.0),
                 ..Quad::default()
             },
-            color::with_alpha(active_color, active_color.a * factor),
+            color::fade(active_color, factor),
         );
     }
 
@@ -266,56 +259,44 @@ where
         let over = cursor.is_over(bounds);
         let state = tree.state.downcast_mut::<State>();
 
-        // Reconcile the hover and press factors with the live cursor on every
-        // event, not just CursorMoved. This catches the case where a scroll or
-        // layout change moves the link out from under (or back under) a
-        // stationary cursor without iced emitting a CursorMoved. `Hover::flip`
-        // is idempotent and reports back when the target actually changes, so
-        // we only request a redraw on the transition edge.
-        if state.hover.flip(over, now) {
-            shell.request_redraw();
-        }
-        if state.press.flip(state.pressed && over, now) {
-            shell.request_redraw();
-        }
-
-        // Press dispatch must yield to siblings/overlays that have already
-        // claimed the event. Hover/press factor updates above are deliberately
-        // outside this gate so a captured-by-sibling interaction (e.g. a
-        // scroll gesture mid-press) cannot strand the link with a stale
-        // pressed-tint or underline.
-        if shell.is_event_captured() {
-            return;
-        }
-
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) if over => {
-                state.pressed = true;
-                state.press.flip(true, now);
-                shell.capture_event();
-                shell.request_redraw();
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                if !shell.is_event_captured() && state.press.press(over, now) {
+                    shell.capture_event();
+                    shell.request_redraw();
+                }
             },
 
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                if state.pressed =>
-            {
-                state.pressed = false;
-                state.press.flip(false, now);
-                shell.request_redraw();
-
-                if over {
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                // Peek `pressed` before `release` clears it so we only
+                // redraw if this link was actually in a press cycle.
+                let was_pressed = state.press.pressed;
+                let dispatch = state.press.release(over, now);
+                if was_pressed {
+                    shell.request_redraw();
+                }
+                if dispatch && !shell.is_event_captured() {
                     shell.publish(self.on_press.clone());
                     shell.capture_event();
                 }
             },
 
-            Event::Window(window::Event::RedrawRequested(_))
-                if state.hover.animating(now) || state.press.animating(now) =>
-            {
-                shell.request_redraw();
+            _ => {
+                // Reconcile on every other event, not just CursorMoved. A
+                // scroll or layout shift can move the link out from under
+                // a stationary cursor without iced emitting CursorMoved.
+                // Run before the capture gate so a sibling that claims the
+                // event cannot strand the link with a stale tint or
+                // underline.
+                if state.press.reconcile(over, now) {
+                    shell.request_redraw();
+                }
+                if let Event::Window(window::Event::RedrawRequested(_)) = event
+                    && state.press.animating(now)
+                {
+                    shell.request_redraw();
+                }
             },
-
-            _ => {},
         }
     }
 

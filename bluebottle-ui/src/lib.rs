@@ -8,6 +8,7 @@ pub mod util;
 mod widget;
 
 pub use self::widget::breadcrumb::breadcrumb;
+pub use self::widget::clickable::clickable;
 pub use self::widget::link::link;
 pub use self::widget::media_card::media_card;
 pub use self::widget::media_image::media_image;

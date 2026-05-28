@@ -42,7 +42,7 @@ where
     Message: Clone + 'a,
 {
     if let Some(msg) = message {
-        button::icon(icon, false, msg).into()
+        button::icon(icon, false, msg)
     } else {
         button::disabled(None, Some(icon))
     }
