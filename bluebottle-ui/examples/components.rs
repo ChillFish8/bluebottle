@@ -91,6 +91,7 @@ impl Components {
             pillboxes(),
             rating(),
             titles(),
+            breadcrumbs(),
             search_input(&self.search_content),
             inputs(&self.search_content),
             spinners(),
@@ -622,6 +623,21 @@ fn titles() -> Element<'static, Message> {
         text("Titles").font(font::bold()),
         bluebottle_ui::text::title(Some("local_fire_department"), "New releases"),
         bluebottle_ui::text::title(None, "Setting option A"),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn breadcrumbs() -> Element<'static, Message> {
+    column![
+        text("Breadcrumbs").font(font::bold()),
+        bluebottle_ui::breadcrumb::breadcrumb(&["Library"]),
+        bluebottle_ui::breadcrumb::breadcrumb(&["Library", "Anime"]),
+        bluebottle_ui::breadcrumb::breadcrumb(&[
+            "Library",
+            "Anime",
+            "Dusk Beyond the End of the World",
+        ]),
     ]
     .spacing(8)
     .into()

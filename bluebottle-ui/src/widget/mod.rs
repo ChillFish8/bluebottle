@@ -1,4 +1,5 @@
 pub mod bar;
+pub mod breadcrumb;
 pub mod button;
 pub mod card;
 pub mod carousel_navigator;
