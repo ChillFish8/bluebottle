@@ -12,7 +12,7 @@ where
     let title = text(title)
         .size(font::HEADING_1)
         .font(font::semibold())
-        .color(color::TEXT_DEFAULT);
+        .color(color::TEXT_PRIMARY);
 
     if let Some(icon) = icon {
         let icon = icon::filled(icon);

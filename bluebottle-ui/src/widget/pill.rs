@@ -59,13 +59,13 @@ where
 
 fn style(_theme: &Theme, status: button::Status) -> button::Style {
     let text_color = match status {
-        button::Status::Pressed => color::TEXT_PRIMARY,
+        button::Status::Pressed => color::primary(),
         _ => color::TEXT_SECONDARY,
     };
 
     let background_color = match status {
-        button::Status::Pressed => color::HOVER_HIGHLIGHT,
-        button::Status::Hovered => color::HOVER_HIGHLIGHT,
+        button::Status::Pressed => color::HOVER,
+        button::Status::Hovered => color::HOVER,
         _ => color::SECONDARY,
     };
 

@@ -2,9 +2,9 @@ use std::sync::LazyLock;
 
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
-use bluebottle_ui::{color, font, icon};
+use bluebottle_ui::{clickable, color, font, icon};
 use iced::widget::{column, container, image, row, text};
-use iced::{Center, Element, Length, Settings, padding};
+use iced::{Background, Border, Center, Color, Element, Length, Settings, padding};
 use snafu::ResultExt;
 
 static POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
@@ -41,7 +41,7 @@ fn main() -> Result<(), snafu::Whatever> {
 
     iced::application(Components::default, Components::update, Components::view)
         .title("Bluebottle UI Components")
-        .theme(color::theme())
+        .theme(|_state: &Components| color::theme())
         .settings(settings)
         .run()
         .whatever_context("run UI")?;
@@ -56,6 +56,7 @@ struct Components {
     smart_list_show: (Option<usize>, Option<usize>),
     smart_list_shown: Option<usize>,
     smart_list_hydrated: bool,
+    selected_accent: color::Accent,
 }
 
 impl Default for Components {
@@ -67,6 +68,7 @@ impl Default for Components {
             smart_list_show: (None, None),
             smart_list_shown: None,
             smart_list_hydrated: false,
+            selected_accent: color::Accent::Default,
         }
     }
 }
@@ -84,6 +86,7 @@ enum Message {
     SmartListShown(usize),
     SmartListHydrate,
     SmartListTargetFinished,
+    AccentSelected(color::Accent),
 }
 
 impl Components {
@@ -115,12 +118,17 @@ impl Components {
                 // jump button re-triggers the animation.
                 self.smart_list_show = (None, None);
             },
+            Message::AccentSelected(accent) => {
+                color::set_accent(accent);
+                self.selected_accent = accent;
+            },
             _ => {},
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
         let elements = column![
+            accent_picker(self.selected_accent),
             text_fonts(),
             ellipsis_text(),
             icons(),
@@ -161,6 +169,101 @@ impl Components {
         .spacing(16);
         bluebottle_ui::scrollable::scrollable(elements).into()
     }
+}
+
+fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
+    let entries: [(color::Accent, &'static str, [Color; 4]); 4] = [
+        (
+            color::Accent::Default,
+            "Default",
+            [
+                iced::color!(0x615FFF),
+                iced::color!(0x00BC7D),
+                iced::color!(0xFF2056),
+                iced::color!(0xFE9A00),
+            ],
+        ),
+        (
+            color::Accent::Pastel,
+            "Pastel",
+            [
+                iced::color!(0x7DD3FC),
+                iced::color!(0x34D399),
+                iced::color!(0xF472B6),
+                iced::color!(0xFBBF24),
+            ],
+        ),
+        (
+            color::Accent::Electric,
+            "Electric",
+            [
+                iced::color!(0xA78BFA),
+                iced::color!(0x22D3EE),
+                iced::color!(0xFB7185),
+                iced::color!(0xFACC15),
+            ],
+        ),
+        (
+            color::Accent::Candy,
+            "Candy",
+            [
+                iced::color!(0xF472B6),
+                iced::color!(0x10B981),
+                iced::color!(0x60A5FA),
+                iced::color!(0xF59E0B),
+            ],
+        ),
+    ];
+
+    let swatch = |c: Color| -> Element<'static, Message> {
+        container(text(""))
+            .width(Length::Fixed(14.0))
+            .height(Length::Fixed(14.0))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(c)),
+                border: Border::default().rounded(3),
+                ..container::Style::default()
+            })
+            .into()
+    };
+
+    let mut items: Vec<Element<'static, Message>> = Vec::with_capacity(4);
+    for (accent, label, swatches) in entries {
+        let strip = row![
+            swatch(swatches[0]),
+            swatch(swatches[1]),
+            swatch(swatches[2]),
+            swatch(swatches[3]),
+        ]
+        .spacing(4);
+
+        let inner = column![text(label).size(font::TEXT_SMALL), strip,]
+            .spacing(6)
+            .align_x(Center);
+
+        let is_selected = accent == selected;
+        let tint = if is_selected {
+            color::primary_soft()
+        } else {
+            color::HOVER
+        };
+
+        items.push(
+            clickable(inner)
+                .padding([8, 12])
+                .radius(8.0)
+                .tint(tint)
+                .on_press(Message::AccentSelected(accent))
+                .into(),
+        );
+    }
+
+    column![
+        text("Accent Theme").font(font::bold()),
+        row(items).spacing(8),
+    ]
+    .spacing(8)
+    .into()
 }
 
 fn text_fonts() -> Element<'static, Message> {
@@ -368,7 +471,7 @@ fn clickables() -> Element<'static, Message> {
             Element::<Message>::from(
                 clickable(text("Primary tint"))
                     .padding([6, 12])
-                    .tint(color::PRIMARY)
+                    .tint(color::primary())
                     .on_press(Message::Click),
             ),
             Element::<Message>::from(
@@ -559,7 +662,7 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
             let this_idx = idx;
             idx += 1;
 
-            let color = (this_idx == selected_icon).then_some(color::TEXT_PRIMARY);
+            let color = (this_idx == selected_icon).then_some(color::primary());
 
             row![
                 icon::filled(icon_name).size(20).color_maybe(color),
@@ -600,7 +703,7 @@ fn media_images() -> Element<'static, Message> {
     let play_overlay = || {
         container(
             icon::filled("play_arrow")
-                .color(color::TEXT_DEFAULT)
+                .color(color::TEXT_PRIMARY)
                 .size(48),
         )
         .width(Length::Fill)
@@ -647,7 +750,7 @@ fn media_images() -> Element<'static, Message> {
 
 fn clickable_card() -> Element<'static, Message> {
     let label_text =
-        |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_DEFAULT);
+        |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_PRIMARY);
     let subtext_text =
         |s: &'static str| text(s).size(font::TEXT_SMALL).color(color::TEXT_SECONDARY);
 
@@ -668,7 +771,7 @@ fn clickable_card() -> Element<'static, Message> {
     let play_overlay = || {
         container(
             icon::filled("play_arrow")
-                .color(color::TEXT_DEFAULT)
+                .color(color::TEXT_PRIMARY)
                 .size(48),
         )
         .width(Length::Fill)

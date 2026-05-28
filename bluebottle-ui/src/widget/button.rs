@@ -1,7 +1,7 @@
 //! Button widgets. Hover and press are eased by the design system's 100 ms
 //! [`Hover`](crate::animate::hover::Hover) primitive rather than iced's
 //! instant status-based styling. Hovering fades a pill tint in behind the
-//! content. Pressing eases the text and icon colour toward `PRIMARY` (or
+//! content. Pressing eases the text and icon colour toward `primary()` (or
 //! away from it for a selected `toggle_icon`). `standard`, `icon`, and
 //! `toggle_icon` are thin builders over
 //! [`clickable`](super::clickable::clickable). `nav` is its own custom
@@ -76,7 +76,7 @@ where
         .padding(STANDARD_PADDING)
         .on_press_maybe(message);
     if selected {
-        button = button.resting_color(color::TEXT_PRIMARY);
+        button = button.resting_color(color::primary());
     }
     button.into()
 }
@@ -149,7 +149,7 @@ where
         .padding(ICON_PADDING)
         .on_press_maybe(message);
     if selected {
-        button = button.resting_color(color::TEXT_PRIMARY);
+        button = button.resting_color(color::primary());
     }
     button.into()
 }
@@ -165,13 +165,13 @@ where
     Message: Clone + 'a,
 {
     if selected {
-        // Selected: icon sits at PRIMARY at rest and eases to TEXT_DEFAULT
+        // Selected: icon sits at primary at rest and eases to TEXT_PRIMARY
         // on press. The cascade drives the colour, so the icon must not
         // set an explicit `.color(...)`.
         clickable(icon::filled(selected_icon))
             .padding(ICON_PADDING)
-            .resting_color(color::TEXT_PRIMARY)
-            .press_color(color::TEXT_DEFAULT)
+            .resting_color(color::primary())
+            .press_color(color::TEXT_PRIMARY)
             .on_press(message)
             .into()
     } else {
@@ -210,10 +210,10 @@ where
         selected: bool,
         message: Message,
     ) -> Self {
-        // The label keeps an explicit TEXT_DEFAULT so the draw-time
+        // The label keeps an explicit TEXT_PRIMARY so the draw-time
         // cascade only reaches the icon glyph. The icon's colour is
         // driven entirely from `draw` via `text_color`, eased from
-        // TEXT_DEFAULT toward PRIMARY by the larger of `selected` and
+        // TEXT_PRIMARY toward primary by the larger of `selected` and
         // `press`. Owning the colour from `draw` (rather than baking it
         // into the icon Element here) keeps the icon in lockstep with
         // the animated pill when `selected` toggles.
@@ -221,7 +221,7 @@ where
         let label_text = text(label)
             .size(font::TEXT_SMALL)
             .align_x(Center)
-            .color(color::TEXT_DEFAULT);
+            .color(color::TEXT_PRIMARY);
 
         // Built once and owned so the widget tree state stays consistent
         // across frames. Rebuilding each call would hand `diff_children` a
@@ -306,14 +306,14 @@ where
                     },
                     ..Quad::default()
                 },
-                color::fade(color::HOVER_HIGHLIGHT, pill_factor),
+                color::fade(color::HOVER, pill_factor),
             );
         }
 
         let content_style = RendererStyle {
             text_color: color::ease(
-                color::TEXT_DEFAULT,
-                color::PRIMARY,
+                color::TEXT_PRIMARY,
+                color::primary(),
                 selected_factor.max(press_factor),
             ),
         };

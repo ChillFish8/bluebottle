@@ -15,7 +15,7 @@ where
 pub fn default_style(_theme: &Theme) -> container::Style {
     container::Style {
         text_color: None,
-        background: Some(Background::Color(color::HOVER_HIGHLIGHT)),
+        background: Some(Background::Color(color::HOVER)),
         border: Border::default().rounded(28),
         shadow: Default::default(),
         snap: true,
@@ -26,7 +26,7 @@ pub fn default_style(_theme: &Theme) -> container::Style {
 pub fn primary_style(_theme: &Theme) -> container::Style {
     container::Style {
         text_color: None,
-        background: Some(Background::Color(color::PRIMARY)),
+        background: Some(Background::Color(color::primary())),
         border: Border::default().rounded(28),
         shadow: Default::default(),
         snap: true,

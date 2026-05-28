@@ -245,7 +245,7 @@ where
             frame.stroke(
                 &track_path,
                 canvas::Stroke::default()
-                    .with_color(color::PRIMARY)
+                    .with_color(color::primary())
                     .with_width(self.bar_height),
             );
 

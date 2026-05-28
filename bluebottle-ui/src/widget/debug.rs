@@ -13,7 +13,7 @@ where
         .style(|_theme| widget::container::Style {
             text_color: None,
             background: None,
-            border: border::Border::default().width(1).color(color::PRIMARY),
+            border: border::Border::default().width(1).color(color::primary()),
             shadow: Default::default(),
             snap: true,
         })

@@ -5,7 +5,7 @@
 //! 100 ms hover animation. The tint quad fades in behind the content as
 //! the cursor enters. While the cursor holds down, the content's text and
 //! icon glyph colour eases from its resting tone toward [`press_color`]
-//! (default [`color::PRIMARY`]). Without `on_press` the widget is fully
+//! (default [`color::primary()`]). Without `on_press` the widget is fully
 //! inert. No affordances animate, no pointer cursor, no event capture.
 //!
 //! The colour animation rides on iced's cascading `text_color`. Wrapped
@@ -55,9 +55,9 @@ where
     Clickable {
         content: content.into(),
         on_press: None,
-        tint: color::HOVER_HIGHLIGHT,
+        tint: color::HOVER,
         resting_color: None,
-        press_color: color::PRIMARY,
+        press_color: color::primary(),
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
         width: Length::Shrink,
@@ -96,7 +96,7 @@ where
         self
     }
 
-    /// Sets the hover-tint colour. Defaults to [`color::HOVER_HIGHLIGHT`].
+    /// Sets the hover-tint colour. Defaults to [`color::HOVER`].
     pub fn tint(mut self, color: Color) -> Self {
         self.tint = color;
         self
@@ -111,7 +111,7 @@ where
 
     /// Sets the text and icon colour reached at full press. The resting
     /// colour eases toward this as the press factor lifts. Defaults to
-    /// [`color::PRIMARY`].
+    /// [`color::primary()`].
     pub fn press_color(mut self, color: Color) -> Self {
         self.press_color = color;
         self

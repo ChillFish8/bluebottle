@@ -161,7 +161,7 @@ where
                 },
                 ..Quad::default()
             },
-            Background::Color(color::PRIMARY),
+            Background::Color(color::primary()),
         );
 
         match state {

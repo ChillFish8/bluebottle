@@ -89,7 +89,7 @@ where
                 .height(Length::Fill),
         )
         .style(|_theme| container::Style {
-            background: Some(color::BORDER.into()),
+            background: Some(color::BORDER_STRONG.into()),
             ..container::Style::default()
         });
 
@@ -101,7 +101,7 @@ where
                 .height(Length::Fill)
                 .clip(true)
                 .style(|_theme| container::Style {
-                    background: Some(color::BACKGROUND.into()),
+                    background: Some(color::BG.into()),
                     shadow: style::PANEL_SHADOW,
                     ..container::Style::default()
                 });
@@ -213,7 +213,7 @@ where
                 bounds: layout.bounds(),
                 ..Quad::default()
             },
-            color::with_alpha(color::VEIL, color::VEIL.a * factor),
+            color::with_alpha(color::SCRIM, color::SCRIM.a * factor),
         );
 
         let offset = (1.0 - factor) * self.width;

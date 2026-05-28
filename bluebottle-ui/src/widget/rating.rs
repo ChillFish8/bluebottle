@@ -34,7 +34,7 @@ fn stars_fragment<'a, Message>(stars: &'a str) -> Element<'a, Message>
 where
     Message: 'a,
 {
-    let icon = icon::filled("star").size(18).color(color::WARNING);
+    let icon = icon::filled("star").size(18).color(color::GOLD);
     let rating = text_part(stars);
     let context = text_part("/ 10");
 

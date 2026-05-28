@@ -112,14 +112,14 @@ impl MainScreen {
             column![
                 text(heading.to_string())
                     .size(24)
-                    .color(color::TEXT_DEFAULT),
+                    .color(color::TEXT_PRIMARY),
                 posters,
             ]
             .spacing(12)
         };
 
         let body = column![
-            text("Bluebottle").size(40).color(color::TEXT_DEFAULT),
+            text("Bluebottle").size(40).color(color::TEXT_PRIMARY),
             section("Trending Now", &self.posters[0..5]),
             section("Recently Added", &self.posters[5..10]),
         ]
@@ -138,7 +138,7 @@ impl MainScreen {
         let header = row![
             text("Details")
                 .size(font::HEADING_1)
-                .color(color::TEXT_DEFAULT)
+                .color(color::TEXT_PRIMARY)
                 .width(Length::Fill),
             breadcrumb(&["Library", "Anime", "Dusk Beyond the End of the World"]),
             button::standard("✕", None, false, MainMsg::CloseSidebar),

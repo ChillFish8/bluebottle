@@ -48,7 +48,7 @@ where
                 .enumerate()
                 .flat_map(move |(index, crumb)| {
                     let color = if index == last {
-                        color::TEXT_DEFAULT
+                        color::TEXT_PRIMARY
                     } else {
                         color::TEXT_MUTED
                     };

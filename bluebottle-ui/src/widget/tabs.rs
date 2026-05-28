@@ -1,9 +1,9 @@
-//! A horizontal tab strip with an animated `PRIMARY` underline.
+//! A horizontal tab strip with an animated `primary()` underline.
 //!
 //! Each tab takes an arbitrary child element. The selected tab paints
-//! its content in [`color::TEXT_DEFAULT`] with the underline beneath it.
+//! its content in [`color::TEXT_PRIMARY`] with the underline beneath it.
 //! Unselected tabs paint in [`color::TEXT_SECONDARY`] and ease toward
-//! [`color::TEXT_DEFAULT`] on hover, matching the design system's 100 ms
+//! [`color::TEXT_PRIMARY`] on hover, matching the design system's 100 ms
 //! [`Hover`](crate::animate::hover::Hover) convention. The underline
 //! slides between tabs when [`Tabs::selected`] changes, with mid-flight
 //! reversal supported.
@@ -265,7 +265,7 @@ where
         {
             let slot = &state.tabs[i];
             let resting = if i == self.selected {
-                color::TEXT_DEFAULT
+                color::TEXT_PRIMARY
             } else {
                 color::TEXT_SECONDARY
             };
@@ -276,7 +276,7 @@ where
             };
 
             let cascade = RendererStyle {
-                text_color: color::ease(resting, color::TEXT_DEFAULT, factor),
+                text_color: color::ease(resting, color::TEXT_PRIMARY, factor),
             };
             let content_layout = tab_layout.children().next().expect("tab inner layout");
 
@@ -319,7 +319,7 @@ where
                 },
                 ..Quad::default()
             },
-            color::PRIMARY,
+            color::primary(),
         );
     }
 

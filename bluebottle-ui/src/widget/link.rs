@@ -2,7 +2,7 @@
 //!
 //! A `link` is a text button. Hovering animates an underline in beneath the
 //! text. Pressing the link (mouse held over it) tints the text and underline
-//! to [`color::PRIMARY`]. Releasing over it publishes the link's message.
+//! to [`color::primary()`]. Releasing over it publishes the link's message.
 //! Inert text should use [`iced::widget::text`] instead.
 
 use std::time::Instant;
@@ -59,7 +59,7 @@ where
         content: content.into_fragment(),
         size: Pixels(font::TEXT_MEDIUM),
         font: None,
-        color: color::TEXT_DEFAULT,
+        color: color::TEXT_PRIMARY,
         width: Length::Shrink,
         height: Length::Shrink,
         on_press,
@@ -94,7 +94,7 @@ where
     }
 
     /// Sets the idle text colour. The pressed state always shows
-    /// [`color::PRIMARY`]. Defaults to [`color::TEXT_DEFAULT`].
+    /// [`color::primary()`]. Defaults to [`color::TEXT_PRIMARY`].
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
@@ -192,7 +192,7 @@ where
         // while the user holds the mouse down on the link, and back when the
         // press ends (release, drag-off, or hover-off mid-press).
         let press_factor = state.press.press.current(now);
-        let active_color = color::ease(self.color, color::PRIMARY, press_factor);
+        let active_color = color::ease(self.color, color::primary(), press_factor);
 
         text_draw(
             renderer,

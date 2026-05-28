@@ -31,8 +31,8 @@ pub fn splash_panel(image: Option<Backdrop>) -> SplashBackground<Panel> {
     SplashBackground {
         image,
         look: Look {
-            base_top: Color::from_rgba8(28, 22, 60, 0.92),
-            base_bottom: Color::from_rgba8(20, 18, 42, 0.96),
+            base_top: color::GLASS_TOP,
+            base_bottom: color::GLASS_BASE,
             image_fade: 0.4,
             ..Look::default()
         },
@@ -140,8 +140,8 @@ pub struct Look {
 impl Default for Look {
     fn default() -> Self {
         Self {
-            base_top: color::BACKGROUND,
-            base_bottom: color::BACKGROUND,
+            base_top: color::BG,
+            base_bottom: color::BG,
             blur: style::IMAGE_BLUR,
             saturate: 1.4,
             image_opacity_start: 0.5,
@@ -154,7 +154,7 @@ impl Default for Look {
             bg_solid: 0.85,
             focus: 0.3,
             zoom: 1.15,
-            glow: color::GLOW,
+            glow: color::glow(),
             glow_strength: style::GLOW_STRENGTH,
         }
     }

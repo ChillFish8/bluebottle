@@ -22,14 +22,14 @@ fn input_style(
     status: widget::text_input::Status,
 ) -> widget::text_input::Style {
     let background_color = match status {
-        widget::text_input::Status::Hovered => color::HOVER_HIGHLIGHT,
-        widget::text_input::Status::Focused { .. } => color::HOVER_HIGHLIGHT,
+        widget::text_input::Status::Hovered => color::HOVER,
+        widget::text_input::Status::Focused { .. } => color::HOVER,
         _ => color::SECONDARY,
     };
 
     let border_color = match status {
-        widget::text_input::Status::Focused { .. } => color::PRIMARY,
-        _ => color::HOVER_HIGHLIGHT,
+        widget::text_input::Status::Focused { .. } => color::primary(),
+        _ => color::HOVER,
     };
 
     widget::text_input::Style {

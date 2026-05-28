@@ -288,7 +288,7 @@ where
                         },
                         ..Quad::default()
                     },
-                    color::with_alpha(color::BACKGROUND, TINT_ALPHA * factor),
+                    color::with_alpha(color::BG, TINT_ALPHA * factor),
                 );
             });
         }
@@ -338,7 +338,7 @@ where
                     Quad {
                         bounds: image_bounds,
                         border: Border {
-                            color: color::PRIMARY,
+                            color: color::primary(),
                             width: BORDER_WIDTH * factor,
                             radius: IMAGE_RADIUS.into(),
                         },
