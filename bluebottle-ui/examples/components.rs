@@ -59,6 +59,7 @@ enum Message {
     Click,
     CardLabel,
     CardSubtext,
+    LinkPressed(&'static str),
     SearchInput(String),
 }
 
@@ -67,6 +68,9 @@ impl Components {
         match message {
             Message::SearchInput(content) => {
                 self.search_content = content;
+            },
+            Message::LinkPressed(name) => {
+                println!("link pressed: {name}");
             },
             _ => {},
         }
@@ -86,6 +90,7 @@ impl Components {
             episodes(),
             albums(),
             persons(),
+            links(),
             clickable_card(),
             splash_backgrounds(),
             bars(),
@@ -440,6 +445,29 @@ fn persons() -> Element<'static, Message> {
     .into()
 }
 
+fn links() -> Element<'static, Message> {
+    column![
+        text("Links").font(font::bold()),
+        row![
+            bluebottle_ui::link("Default", Message::LinkPressed("default")),
+            bluebottle_ui::link(
+                "Large semibold",
+                Message::LinkPressed("large-semibold"),
+            )
+            .size(font::TEXT_LARGE)
+            .font(font::semibold()),
+            bluebottle_ui::link("Secondary tint", Message::LinkPressed("secondary"))
+                .size(font::TEXT_SMALL)
+                .color(color::TEXT_SECONDARY),
+            bluebottle_ui::link("Inline within a row", Message::LinkPressed("inline"),),
+        ]
+        .padding(padding::left(16))
+        .spacing(16),
+    ]
+    .spacing(4)
+    .into()
+}
+
 fn clickable_card() -> Element<'static, Message> {
     let label_text =
         |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_DEFAULT);
@@ -461,11 +489,15 @@ fn clickable_card() -> Element<'static, Message> {
     .on_press(Message::Click);
 
     let play_overlay = || {
-        container(icon::filled("play_arrow").color(color::TEXT_DEFAULT).size(48))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Center)
-            .align_y(Center)
+        container(
+            icon::filled("play_arrow")
+                .color(color::TEXT_DEFAULT)
+                .size(48),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Center)
+        .align_y(Center)
     };
 
     // Image + label + subtext, single shared press (legacy behaviour).
@@ -476,16 +508,25 @@ fn clickable_card() -> Element<'static, Message> {
             .subtext(subtext_text("Image / label / subtext all fire Click"))
             .on_press(Message::Click);
 
-    // Image + label + subtext with per-region presses. Underline animates on
-    // hover.
+    // Image + label + subtext where the label and subtext are clickable
+    // links. Each link has its own message, animates an underline on hover,
+    // and tints to primary while pressed.
     let per_region =
         bluebottle_ui::media_card(bluebottle_ui::image::square(SQUARE.clone()))
             .overlay(play_overlay())
-            .label(label_text("Per-region Press"))
-            .subtext(subtext_text("Each row has its own message"))
-            .on_press(Message::Click)
-            .on_label_press(Message::CardLabel)
-            .on_subtext_press(Message::CardSubtext);
+            .label(
+                bluebottle_ui::link("Per-region Press", Message::CardLabel)
+                    .size(font::TEXT_MEDIUM),
+            )
+            .subtext(
+                bluebottle_ui::link(
+                    "Each row has its own message",
+                    Message::CardSubtext,
+                )
+                .size(font::TEXT_SMALL)
+                .color(color::TEXT_SECONDARY),
+            )
+            .on_press(Message::Click);
 
     column![
         text("Clickable Card").font(font::bold()),

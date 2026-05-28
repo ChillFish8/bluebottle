@@ -1,15 +1,17 @@
 //! A media card with an image, optional label, and optional subtext.
 //!
-//! The image always publishes a click message. The label and subtext are
-//! optional Element slots so callers can render any content. Each may set its
-//! own press message. If unset they fall back to the image's. Label and
-//! subtext gain a hover-animated underline when they have their own press.
-//! Hovering the image animates in a primary border, a drop shadow, a
-//! background tint, and scales the optional overlay element in from the
-//! centre. iced 0.14 has no per-widget opacity, so the overlay uses a
-//! scale-from-centre animation rather than an alpha fade.
+//! The image publishes a click message. The label and subtext are optional
+//! Element slots so callers can render any content. A click anywhere on the
+//! card that is not captured by an interactive child (a [`link`] in the label
+//! slot, an overlay button) publishes the image's press message. For a
+//! clickable label or subtext with its own message and hover-underline, pass
+//! a [`link`](super::link::link) element. Hovering the image animates in a
+//! primary border, a drop shadow, a background tint, and scales the optional
+//! overlay element in from the centre. iced 0.14 has no per-widget opacity,
+//! so the overlay uses a scale-from-centre animation rather than an alpha
+//! fade.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use iced::advanced::renderer::{Quad, Style};
 use iced::advanced::widget::{Operation, Tree, tree};
@@ -26,21 +28,12 @@ use iced::{
     Rectangle,
     Size,
     Transformation,
-    border,
     mouse,
     window,
 };
 
-use crate::{color, easing, style};
-
-/// How long every hover animation in the card takes to fade in or out.
-const HOVER_FADE: Duration = Duration::from_millis(130);
-
-/// Thickness of the hover underline, in logical pixels.
-const UNDERLINE_THICKNESS: f32 = 1.0;
-
-/// Below this factor a hover effect counts as fully hidden.
-const EPSILON: f32 = 0.001;
+use crate::animate::hover::{EPSILON, Hover};
+use crate::{color, style};
 
 /// Vertical gap between the image, label, and subtext.
 const ROW_SPACING: f32 = 4.0;
@@ -60,9 +53,11 @@ const TINT_ALPHA: f32 = 0.75;
 const HOVER_RADIUS: f32 = super::skeleton::DEFAULT_RADIUS;
 
 /// Creates a media card around `image`. The card is non-interactive by
-/// default. Set `.on_press(...)` to make the image (and any rows without their
-/// own press) clickable. Optional `.label(...)`, `.subtext(...)`, and
-/// `.overlay(...)` extend the card.
+/// default. Set `.on_press(...)` to make the card publish a message when any
+/// part of it is clicked. Optional `.label(...)`, `.subtext(...)`, and
+/// `.overlay(...)` extend the card. For a clickable label or subtext with its
+/// own message and hover-animated underline, pass a
+/// [`link`](super::link::link) element in that slot.
 pub fn media_card<'a, Message>(
     image: impl Into<Element<'a, Message>>,
 ) -> MediaCard<'a, Message>
@@ -74,11 +69,7 @@ where
         overlay: None,
         label: None,
         subtext: None,
-        label_color: color::TEXT_DEFAULT,
-        subtext_color: color::TEXT_SECONDARY,
         on_press: None,
-        on_label_press: None,
-        on_subtext_press: None,
     }
 }
 
@@ -88,11 +79,7 @@ pub struct MediaCard<'a, Message> {
     overlay: Option<Element<'a, Message>>,
     label: Option<Element<'a, Message>>,
     subtext: Option<Element<'a, Message>>,
-    label_color: Color,
-    subtext_color: Color,
     on_press: Option<Message>,
-    on_label_press: Option<Message>,
-    on_subtext_press: Option<Message>,
 }
 
 impl<'a, Message> MediaCard<'a, Message>
@@ -117,37 +104,11 @@ where
         self
     }
 
-    /// Sets the colour of the label's hover underline. Defaults to
-    /// [`color::TEXT_DEFAULT`] so it matches the standard label typography.
-    pub fn label_color(mut self, color: Color) -> Self {
-        self.label_color = color;
-        self
-    }
-
-    /// Sets the colour of the subtext's hover underline. Defaults to
-    /// [`color::TEXT_SECONDARY`] so it matches the standard subtext typography.
-    pub fn subtext_color(mut self, color: Color) -> Self {
-        self.subtext_color = color;
-        self
-    }
-
-    /// Sets a press message for the image. Also the fallback message for any
-    /// label or subtext without its own press.
+    /// Sets the press message for the card. Any click that is not captured by
+    /// an interactive child (a [`link`](super::link::link) in the label slot,
+    /// an overlay button) publishes this message.
     pub fn on_press(mut self, message: Message) -> Self {
         self.on_press = Some(message);
-        self
-    }
-
-    /// Sets a press message for the label. The label gains a hover underline.
-    pub fn on_label_press(mut self, message: Message) -> Self {
-        self.on_label_press = Some(message);
-        self
-    }
-
-    /// Sets a press message for the subtext. The subtext gains a hover
-    /// underline.
-    pub fn on_subtext_press(mut self, message: Message) -> Self {
-        self.on_subtext_press = Some(message);
         self
     }
 }
@@ -176,11 +137,7 @@ where
         Element::new(Card {
             children,
             slots,
-            label_color: card.label_color,
-            subtext_color: card.subtext_color,
             on_press: card.on_press,
-            on_label_press: card.on_label_press,
-            on_subtext_press: card.on_subtext_press,
         })
     }
 }
@@ -261,35 +218,23 @@ where
     }
 }
 
-/// The actual widget. Holds the (already-composed) image element and the two
-/// optional row elements. Lays them out manually so it can publish per-region
-/// presses and draw hover underlines.
+/// The actual widget. Holds the image, an optional overlay, and the two
+/// optional row elements. Lays them out manually so it can publish a single
+/// press message for any non-captured click and animate image hover effects.
 struct Card<'a, Message> {
     children: Vec<Element<'a, Message>>,
     slots: Vec<Slot>,
-    label_color: Color,
-    subtext_color: Color,
     on_press: Option<Message>,
-    on_label_press: Option<Message>,
-    on_subtext_press: Option<Message>,
 }
 
 impl<'a, Message: Clone> Card<'a, Message> {
     /// Message to publish when the given slot is clicked, or `None` if the
-    /// slot has no message and no fallback. The overlay never publishes from
-    /// the card itself, its interactive children publish their own messages.
+    /// slot has no message. The overlay never publishes from the card itself,
+    /// its interactive children publish their own messages.
     fn press_for(&self, slot: Slot) -> Option<Message> {
         match slot {
-            Slot::Image => self.on_press.clone(),
+            Slot::Image | Slot::Label | Slot::Subtext => self.on_press.clone(),
             Slot::Overlay => None,
-            Slot::Label => self
-                .on_label_press
-                .clone()
-                .or_else(|| self.on_press.clone()),
-            Slot::Subtext => self
-                .on_subtext_press
-                .clone()
-                .or_else(|| self.on_press.clone()),
         }
     }
 
@@ -305,16 +250,31 @@ impl<'a, Message: Clone> Card<'a, Message> {
     }
 
     /// The layout node for `slot`, if any.
-    fn layout_of<'l>(
-        &self,
-        slot: Slot,
-        layout: &Layout<'l>,
-    ) -> Option<Layout<'l>> {
+    fn layout_of<'l>(&self, slot: Slot, layout: &Layout<'l>) -> Option<Layout<'l>> {
         self.slots
             .iter()
             .zip(layout.children())
             .find(|(s, _)| **s == slot)
             .map(|(_, l)| l)
+    }
+
+    /// Whether the overlay should receive events, focus, and pointer
+    /// feedback. True while the image hover factor is at least slightly
+    /// visible, or (on the entering frame, before the factor has lifted past
+    /// `EPSILON`) while the cursor is currently over an interactive image.
+    /// Centralised so update/operate/mouse_interaction share one rule.
+    fn overlay_alive(
+        &self,
+        tree: &Tree,
+        layout: &Layout<'_>,
+        cursor: mouse::Cursor,
+        now: Instant,
+    ) -> bool {
+        let cursor_over_image = self
+            .layout_of(Slot::Image, layout)
+            .is_some_and(|l| cursor.is_over(l.bounds()));
+        let factor = tree.state.downcast_ref::<State>().image.current(now);
+        factor > EPSILON || (self.image_interactive() && cursor_over_image)
     }
 }
 
@@ -326,72 +286,9 @@ enum Slot {
     Subtext,
 }
 
-/// The eased hover animation for one region. `current(now)` reads the live
-/// factor and `flip(hovering, now)` retargets without snapping. Storing
-/// `from`/`target`/`started` lets a mid-flight reversal continue from where
-/// the previous one left off. See sidebar's `State` for the same pattern.
-#[derive(Clone, Copy)]
-struct HoverAnim {
-    from: f32,
-    target: f32,
-    started: Instant,
-}
-
-impl Default for HoverAnim {
-    fn default() -> Self {
-        Self {
-            from: 0.0,
-            target: 0.0,
-            started: Instant::now() - HOVER_FADE,
-        }
-    }
-}
-
-impl HoverAnim {
-    /// The factor right now, eased from `from` toward `target` over
-    /// `HOVER_FADE`. Fade-in uses an emphasized decelerate (fast start, soft
-    /// settle) so the border, tint, shadow, and overlay reveal land within
-    /// the first half of the animation instead of bunching at the end.
-    /// Fade-out uses the matching accelerate curve, mirroring sidebar.
-    fn current(&self, now: Instant) -> f32 {
-        let raw = (now.duration_since(self.started).as_secs_f32()
-            / HOVER_FADE.as_secs_f32())
-        .clamp(0.0, 1.0);
-        let curve = if self.target >= self.from {
-            &easing::EMPHASIZED_DECELERATE
-        } else {
-            &easing::EMPHASIZED_ACCELERATE
-        };
-        let eased = curve.y_at_x(raw);
-        self.from + (self.target - self.from) * eased
-    }
-
-    /// Retargets to 1.0 if hovering, else 0.0. The new animation starts from
-    /// the live factor, so a reversal mid-flight is smooth.
-    fn flip(&mut self, hovering: bool, now: Instant) {
-        let target = if hovering { 1.0 } else { 0.0 };
-        if target == self.target {
-            return;
-        }
-        self.from = self.current(now);
-        self.target = target;
-        self.started = now;
-    }
-
-    /// Whether the region still has movement left.
-    fn animating(&self, now: Instant) -> bool {
-        now.duration_since(self.started) < HOVER_FADE
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 struct State {
-    image: HoverAnim,
-    image_hovering: bool,
-    label: HoverAnim,
-    label_hovering: bool,
-    subtext: HoverAnim,
-    subtext_hovering: bool,
+    image: Hover,
     /// Whether a left button press started over the card. Releases without a
     /// matching press are ignored.
     pressed: bool,
@@ -417,7 +314,8 @@ where
         let inner = limits.shrink(Size::new(CARD_PADDING * 2.0, CARD_PADDING * 2.0));
 
         // Image first so the overlay knows its target size.
-        let mut nodes: Vec<Option<layout::Node>> = (0..self.children.len()).map(|_| None).collect();
+        let mut nodes: Vec<Option<layout::Node>> =
+            (0..self.children.len()).map(|_| None).collect();
         let mut image_size = Size::ZERO;
 
         for (i, (child, child_tree)) in self
@@ -481,8 +379,7 @@ where
                 },
                 Slot::Overlay => {
                     // Overlay sits on the image, not in the row stack.
-                    positioned
-                        .push(node.move_to(Point::new(CARD_PADDING, image_y)));
+                    positioned.push(node.move_to(Point::new(CARD_PADDING, image_y)));
                 },
                 Slot::Label | Slot::Subtext => {
                     if started_rows {
@@ -495,8 +392,7 @@ where
             }
         }
 
-        let total =
-            Size::new(max_row_width + CARD_PADDING * 2.0, y + CARD_PADDING);
+        let total = Size::new(max_row_width + CARD_PADDING * 2.0, y + CARD_PADDING);
 
         layout::Node::with_children(total, positioned)
     }
@@ -528,10 +424,7 @@ where
                         radius: HOVER_RADIUS.into(),
                         ..Border::default()
                     },
-                    shadow: style::scale_shadow(
-                        style::ELEVATION_SHADOW,
-                        image_factor,
-                    ),
+                    shadow: style::scale_shadow(style::ELEVATION_SHADOW, image_factor),
                     ..Quad::default()
                 },
                 Color::TRANSPARENT,
@@ -611,10 +504,7 @@ where
                             },
                             ..Quad::default()
                         },
-                        color::with_alpha(
-                            color::BACKGROUND,
-                            TINT_ALPHA * image_factor,
-                        ),
+                        color::with_alpha(color::BACKGROUND, TINT_ALPHA * image_factor),
                     );
                 });
             }
@@ -641,41 +531,6 @@ where
                     Color::TRANSPARENT,
                 );
             });
-        }
-
-        // Underlines for the text rows.
-        for (slot, child_layout) in self.slots.iter().zip(layout.children()) {
-            let (anim, tint) = match slot {
-                Slot::Label if self.on_label_press.is_some() => {
-                    (&state.label, self.label_color)
-                },
-                Slot::Subtext if self.on_subtext_press.is_some() => {
-                    (&state.subtext, self.subtext_color)
-                },
-                _ => continue,
-            };
-
-            let factor = anim.current(now);
-            if factor <= EPSILON {
-                continue;
-            }
-
-            let bounds = child_layout.bounds();
-            let line = Rectangle {
-                x: bounds.x,
-                y: bounds.y + bounds.height,
-                width: bounds.width * factor,
-                height: UNDERLINE_THICKNESS,
-            };
-
-            renderer.fill_quad(
-                Quad {
-                    bounds: line,
-                    border: border::rounded(UNDERLINE_THICKNESS / 2.0),
-                    ..Quad::default()
-                },
-                color::with_alpha(tint, tint.a * factor),
-            );
         }
     }
 
@@ -706,8 +561,12 @@ where
         // land on an invisible interactive widget. iced runs `operate` for
         // things like Tab focus and accessibility scans, both of which would
         // otherwise visit children the user cannot see.
-        let overlay_alive =
-            tree.state.downcast_ref::<State>().image.current(Instant::now()) > EPSILON;
+        let overlay_alive = tree
+            .state
+            .downcast_ref::<State>()
+            .image
+            .current(Instant::now())
+            > EPSILON;
 
         for ((slot, child), (child_tree, child_layout)) in self
             .slots
@@ -737,20 +596,7 @@ where
         viewport: &Rectangle,
     ) {
         let now = Instant::now();
-        let image_bounds = self.layout_of(Slot::Image, &layout).map(|l| l.bounds());
-        let cursor_over_image = image_bounds
-            .is_some_and(|b| cursor.is_over(b));
-        // Forward to overlay whenever it is at least partly visible OR the
-        // cursor is currently over the image bounds. The second condition
-        // catches the very first CursorMoved on hover-in, before the animation
-        // has had a chance to lift the factor above EPSILON. Without it, the
-        // overlay's interactive children would miss the entry event and start
-        // a frame late on their own hover state.
-        let overlay_alive = {
-            let state = tree.state.downcast_ref::<State>();
-            state.image.current(now) > EPSILON
-                || (self.image_interactive() && cursor_over_image)
-        };
+        let overlay_alive = self.overlay_alive(tree, &layout, cursor, now);
 
         // Forward to children first so anything interactive inside (e.g. an
         // overlay button) can capture the event. The overlay only sees events
@@ -778,49 +624,26 @@ where
             );
         }
 
-        let state = tree.state.downcast_mut::<State>();
-
-        if let Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
-            // Image hover drives the border, shadow, tint, and overlay.
-            if self.image_interactive()
-                && let Some(image_layout) = self.layout_of(Slot::Image, &layout)
-            {
-                let over = cursor.is_over(image_layout.bounds());
-                if over != state.image_hovering {
-                    state.image_hovering = over;
-                    state.image.flip(over, now);
-                    shell.request_redraw();
-                }
-            }
-
-            for (slot, child_layout) in self.slots.iter().zip(layout.children()) {
-                let over = cursor.is_over(child_layout.bounds());
-
-                match slot {
-                    Slot::Label
-                        if self.on_label_press.is_some()
-                            && over != state.label_hovering =>
-                    {
-                        state.label_hovering = over;
-                        state.label.flip(over, now);
-                        shell.request_redraw();
-                    },
-                    Slot::Subtext
-                        if self.on_subtext_press.is_some()
-                            && over != state.subtext_hovering =>
-                    {
-                        state.subtext_hovering = over;
-                        state.subtext.flip(over, now);
-                        shell.request_redraw();
-                    },
-                    _ => {},
-                }
+        // Reconcile image hover with the live cursor on every event, not just
+        // CursorMoved. This catches the case where a scroll or layout change
+        // moves the card out from under (or back under) a stationary cursor
+        // without iced emitting a CursorMoved. `Hover::flip` is idempotent
+        // and reports back when the target actually changes.
+        if self.image_interactive()
+            && let Some(image_layout) = self.layout_of(Slot::Image, &layout)
+        {
+            let over = cursor.is_over(image_layout.bounds());
+            let state = tree.state.downcast_mut::<State>();
+            if state.image.flip(over, now) {
+                shell.request_redraw();
             }
         }
 
         if shell.is_event_captured() {
             return;
         }
+
+        let state = tree.state.downcast_mut::<State>();
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
@@ -851,17 +674,10 @@ where
                 }
             },
 
-            Event::Window(window::Event::RedrawRequested(_)) => {
-                let image_animating =
-                    self.image_interactive() && state.image.animating(now);
-                let label_animating =
-                    self.on_label_press.is_some() && state.label.animating(now);
-                let subtext_animating =
-                    self.on_subtext_press.is_some() && state.subtext.animating(now);
-
-                if image_animating || label_animating || subtext_animating {
-                    shell.request_redraw();
-                }
+            Event::Window(window::Event::RedrawRequested(_))
+                if self.image_interactive() && state.image.animating(now) =>
+            {
+                shell.request_redraw();
             },
 
             _ => {},
@@ -876,16 +692,7 @@ where
         viewport: &Rectangle,
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
-        let image_bounds = self.layout_of(Slot::Image, &layout).map(|l| l.bounds());
-        let cursor_over_image = image_bounds
-            .is_some_and(|b| cursor.is_over(b));
-        let overlay_alive = tree
-            .state
-            .downcast_ref::<State>()
-            .image
-            .current(Instant::now())
-            > EPSILON
-            || (self.image_interactive() && cursor_over_image);
+        let overlay_alive = self.overlay_alive(tree, &layout, cursor, Instant::now());
 
         // If a visible child wants a non-default cursor, let it win.
         for ((slot, child), (child_tree, child_layout)) in self

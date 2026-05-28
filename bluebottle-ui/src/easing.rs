@@ -45,9 +45,13 @@ pub static STANDARD_ACCELERATE: LazyLock<Easing> = LazyLock::new(|| {
         .build()
 });
 
+/// Number of samples in each easing's precomputed lookup table. A power of
+/// two gives a precise enough curve for 100-300ms animations at 60 fps and
+/// keeps the table small (1 KiB per easing).
+const LUT_SIZE: usize = 256;
+
 pub struct Easing {
-    path: Path,
-    measurements: PathMeasurements,
+    lut: [f32; LUT_SIZE],
 }
 
 impl Easing {
@@ -55,14 +59,18 @@ impl Easing {
         Builder::new()
     }
 
+    /// Looks up the eased y for x in [0, 1] via linear interpolation between
+    /// two adjacent samples in the precomputed table. Avoids reconstructing a
+    /// lyon path sampler on every call, which would otherwise dominate the
+    /// hover/press animation hot path.
     pub fn y_at_x(&self, x: f32) -> f32 {
-        let mut sampler = self.measurements.create_sampler(
-            &self.path,
-            lyon_algorithms::measure::SampleType::Normalized,
-        );
-        let sample = sampler.sample(x);
-
-        sample.position().y
+        let x = x.clamp(0.0, 1.0);
+        let max = (LUT_SIZE - 1) as f32;
+        let idx_f = x * max;
+        let lo = idx_f.floor() as usize;
+        let hi = (lo + 1).min(LUT_SIZE - 1);
+        let t = idx_f - lo as f32;
+        self.lut[lo] * (1.0 - t) + self.lut[hi] * t
     }
 }
 
@@ -114,8 +122,17 @@ impl Builder {
 
         let path = self.0.build();
         let measurements = PathMeasurements::from_path(&path, 0.0);
+        let mut sampler = measurements
+            .create_sampler(&path, lyon_algorithms::measure::SampleType::Normalized);
 
-        Easing { path, measurements }
+        let mut lut = [0.0_f32; LUT_SIZE];
+        let max = (LUT_SIZE - 1) as f32;
+        for (i, slot) in lut.iter_mut().enumerate() {
+            let x = i as f32 / max;
+            *slot = sampler.sample(x).position().y;
+        }
+
+        Easing { lut }
     }
 
     fn point(p: impl Into<Point>) -> lyon_algorithms::geom::Point<f32> {
