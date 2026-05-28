@@ -1,5 +1,14 @@
 use bluebottle_ui::splash_background::Backdrop;
-use bluebottle_ui::{button, color, image, scrollable, sidebar, splash_background};
+use bluebottle_ui::{
+    breadcrumb,
+    button,
+    color,
+    font,
+    image,
+    scrollable,
+    sidebar,
+    splash_background,
+};
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{column, container, row, stack, text};
 use iced::{Element, Length};
@@ -128,9 +137,10 @@ impl MainScreen {
     fn drawer_body(&self) -> Element<'_, MainMsg> {
         let header = row![
             text("Details")
-                .size(20)
+                .size(font::HEADING_1)
                 .color(color::TEXT_DEFAULT)
                 .width(Length::Fill),
+            breadcrumb(&["Library", "Anime", "Dusk Beyond the End of the World"]),
             button::standard("✕", None, false, MainMsg::CloseSidebar),
         ]
         .align_y(Vertical::Center);

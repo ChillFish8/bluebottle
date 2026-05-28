@@ -12,8 +12,11 @@ pub fn small<'a, Message>(
 where
     Message: 'a,
 {
-    let label = text(label).size(12).line_height(1.0).font(font::regular());
-    let icon = icon.map(|name| icon::filled(name).size(12));
+    let label = text(label)
+        .size(font::TEXT_SMALL)
+        .line_height(1.0)
+        .font(font::regular());
+    let icon = icon.map(|name| icon::filled(name).size(font::TEXT_SMALL));
     pill(label, icon)
 }
 
@@ -25,11 +28,14 @@ pub fn regular<'a, Message>(
 where
     Message: 'a,
 {
-    let label = text(label).size(14).line_height(1.0).font(font::regular());
+    let label = text(label)
+        .size(font::TEXT_MEDIUM)
+        .line_height(1.0)
+        .font(font::regular());
     // We pad by +1 px here because the "Optical" center of the text on the horizonal axis
     // is one px higher than Iced will align it.
     let label_container = container(label).padding(Padding::default().bottom(1));
-    let icon = icon.map(|name| icon::filled(name).size(14));
+    let icon = icon.map(|name| icon::filled(name).size(font::TEXT_MEDIUM));
     pill(label_container, icon)
 }
 

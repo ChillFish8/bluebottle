@@ -18,6 +18,9 @@ pub const DISABLED: iced::Color = iced::color!(0x364153);
 pub const TEXT_DEFAULT: iced::Color = iced::color!(0xFFFFFF);
 pub const TEXT_PRIMARY: iced::Color = PRIMARY;
 pub const TEXT_SECONDARY: iced::Color = iced::color!(0x62748E);
+/// A muted text colour. Sits between [`TEXT_DEFAULT`] and [`TEXT_SECONDARY`]
+/// so de-emphasised text still reads as legible foreground.
+pub const TEXT_MUTED: iced::Color = mix(TEXT_SECONDARY, TEXT_DEFAULT, 0.35);
 pub const TEXT_DARK: iced::Color = DISABLED;
 pub const TEXT_DARKER: iced::Color = HOVER_HIGHLIGHT;
 

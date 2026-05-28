@@ -638,6 +638,18 @@ fn breadcrumbs() -> Element<'static, Message> {
             "Anime",
             "Dusk Beyond the End of the World",
         ]),
+        bluebottle_ui::breadcrumb::breadcrumb(&[
+            "Library",
+            "Anime",
+            "Dusk Beyond the End of the World",
+        ])
+        .size(20),
+        bluebottle_ui::breadcrumb::breadcrumb(&[
+            "Library",
+            "Anime",
+            "Dusk Beyond the End of the World",
+        ])
+        .size(font::TEXT_SMALL),
     ]
     .spacing(8)
     .into()

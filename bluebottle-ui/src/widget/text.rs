@@ -10,7 +10,7 @@ where
     Message: 'a,
 {
     let title = text(title)
-        .size(20)
+        .size(font::HEADING_1)
         .font(font::semibold())
         .color(color::TEXT_DEFAULT);
 
@@ -24,7 +24,7 @@ where
 
 /// A text sub heading.
 pub fn subheading<'a>(content: impl IntoFragment<'a>) -> Text<'a> {
-    text(content).font(font::regular()).size(18)
+    text(content).font(font::regular()).size(font::HEADING_2)
 }
 
 /// A text paragraph.
@@ -35,7 +35,7 @@ pub fn paragraph<'a>(content: impl IntoFragment<'a>) -> Text<'a> {
 /// A label for form fields.
 pub fn label<'a>(content: impl IntoFragment<'a>) -> Text<'a> {
     text(content)
-        .size(12)
+        .size(font::TEXT_SMALL)
         .font(font::semibold())
         .color(color::TEXT_SECONDARY)
 }

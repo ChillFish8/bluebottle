@@ -12,7 +12,7 @@ where
     Message: 'a,
 {
     let label = text(label)
-        .size(14)
+        .size(font::TEXT_MEDIUM)
         .color(color::TEXT_DARK)
         .font(font::regular());
 

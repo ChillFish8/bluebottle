@@ -59,7 +59,7 @@ where
 
 fn text_part(display: &str) -> Text<'_> {
     text(display)
-        .size(14)
+        .size(font::TEXT_MEDIUM)
         .color(color::TEXT_SECONDARY)
         .font(font::semibold())
 }

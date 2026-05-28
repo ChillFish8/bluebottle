@@ -2,7 +2,7 @@ pub use button::{Status, Style};
 use iced::widget::{Text, button, column, container, hover, row, text};
 use iced::{Background, Center, Color, Element, Theme, border};
 
-use crate::{color, icon};
+use crate::{color, font, icon};
 
 /// A navbar button.
 ///
@@ -44,7 +44,7 @@ where
 
     fn label_text(label: &str) -> Text<'_> {
         text(label)
-            .size(12)
+            .size(font::TEXT_SMALL)
             .align_x(Center)
             .style(text_forced_default)
     }

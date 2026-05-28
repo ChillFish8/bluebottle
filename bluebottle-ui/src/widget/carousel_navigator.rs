@@ -19,7 +19,7 @@ where
     let label = text(format!("{current_page} / {total_pages}"))
         .font(font::regular())
         .color(color::TEXT_SECONDARY)
-        .size(14)
+        .size(font::TEXT_MEDIUM)
         .width(32)
         .align_x(Center);
 

@@ -4,6 +4,7 @@ use iced::{Center, Element, Length, Theme};
 use super::button;
 use super::ellipsis_text::ellipsis_text;
 use crate::color::{TEXT_DEFAULT, TEXT_SECONDARY};
+use crate::font;
 
 /// Creates a new widget that forms the core structure of the card button.
 pub fn card<'a, Message>(
@@ -19,9 +20,12 @@ where
     let display = display.into();
     let overlay = overlay.into();
 
-    let label = ellipsis_text(label).size(14).color(TEXT_DEFAULT).height(16);
+    let label = ellipsis_text(label)
+        .size(font::TEXT_MEDIUM)
+        .color(TEXT_DEFAULT)
+        .height(16);
     let subtext = ellipsis_text(subtext)
-        .size(12)
+        .size(font::TEXT_SMALL)
         .color(TEXT_SECONDARY)
         .height(14);
 

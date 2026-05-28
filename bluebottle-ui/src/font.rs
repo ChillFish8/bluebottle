@@ -3,6 +3,26 @@ use std::borrow::Cow;
 use iced::Font;
 use iced::font::{Family, Weight};
 
+/// Body text size for primary content. Bar labels, breadcrumbs, anything that
+/// needs to read like running text.
+pub const TEXT_LARGE: f32 = 16.0;
+
+/// Body text size for compact rows. Card labels, pills, ratings, navigation.
+pub const TEXT_MEDIUM: f32 = 14.0;
+
+/// Body text size for captions and de-emphasised meta lines. Form labels,
+/// pill captions, card sub-labels.
+pub const TEXT_SMALL: f32 = 12.0;
+
+/// Top-level heading size. Screen titles and bar titles.
+pub const HEADING_1: f32 = 20.0;
+
+/// Section heading size. Subheadings inside a screen.
+pub const HEADING_2: f32 = 18.0;
+
+/// Minor heading size. Card group titles and inline headings.
+pub const HEADING_3: f32 = 16.0;
+
 /// Noto Sans English & Latin
 static NOTO_DEFAULT: &'static [u8] =
     include_bytes!("../assets/Noto/NotoSans-VariableFont_wdth,wght.ttf");

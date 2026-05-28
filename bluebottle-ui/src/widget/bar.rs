@@ -11,9 +11,11 @@ pub fn top<'a, Message>(
 where
     Message: 'a,
 {
-    let title = text("Bluebottle").size(18).font(font::semibold());
+    let title = text("Bluebottle")
+        .size(font::HEADING_2)
+        .font(font::semibold());
     let active_library = text(active_library)
-        .size(16)
+        .size(font::TEXT_LARGE)
         .font(font::semibold())
         .color(color::TEXT_SECONDARY);
 
