@@ -326,6 +326,12 @@ where
                 shell.capture_event();
             }
         }
+
+        // Keep the covered content from scrolling while the sidebar is open. The
+        // drawer already had the event, so capturing only blocks the background.
+        if let Event::Mouse(mouse::Event::WheelScrolled { .. }) = event {
+            shell.capture_event();
+        }
     }
 
     fn mouse_interaction(
