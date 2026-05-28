@@ -25,17 +25,14 @@ pub fn splash_background(image: Option<Backdrop>) -> SplashBackground<Background
     }
 }
 
-/// The background for an overlay panel, leaning toward the surface tint and
-/// settling by mid-height so it reads as a distinct shade.
+/// The page-background look re-tinted onto the surface colour. The image wash
+/// eases out a touch earlier so the panel reads as a distinct shade.
 pub fn splash_panel(image: Option<Backdrop>) -> SplashBackground<Panel> {
     SplashBackground {
         image,
         look: Look {
             base: color::SURFACE,
-            image_fade: 0.45,
-            bg_end: 0.5,
-            bg_solid: 0.5,
-            focus: 0.5,
+            image_fade: 0.4,
             ..Look::default()
         },
         kind: PhantomData,
@@ -142,15 +139,15 @@ impl Default for Look {
             base: color::BACKGROUND,
             blur: style::IMAGE_BLUR,
             saturate: 1.4,
-            image_opacity_start: 0.3,
+            image_opacity_start: 0.5,
             image_opacity_end: 0.0,
             bg_opacity_start: 0.0,
             bg_opacity_end: 1.0,
             image_fade: 0.5,
-            bg_start: 0.0,
-            bg_end: 0.6,
-            bg_solid: 0.6,
-            focus: 0.7,
+            bg_start: 0.45,
+            bg_end: 0.85,
+            bg_solid: 0.85,
+            focus: 0.3,
             zoom: 1.15,
             glow: color::GLOW,
             glow_strength: style::GLOW_STRENGTH,

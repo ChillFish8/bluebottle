@@ -37,7 +37,7 @@ pub const BORDER: iced::Color = with_alpha(scale(PRIMARY, 0.6), 0.4);
 
 /// Full-screen wash dimming content behind an overlay. Its alpha is the wash at
 /// full reveal. Callers scale it by the overlay's reveal animation.
-pub const VEIL: iced::Color = with_alpha(BACKGROUND, 0.9);
+pub const VEIL: iced::Color = with_alpha(BACKGROUND, 0.55);
 
 /// Glow color for the image-less background gradient. The primary tinted down
 /// so it reads as a soft wash rather than a high-contrast highlight.

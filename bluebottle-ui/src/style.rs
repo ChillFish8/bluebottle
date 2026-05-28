@@ -6,7 +6,7 @@ use crate::color;
 
 /// Blur radius for frosted image backdrops (the page background and overlay
 /// panels), in source pixels.
-pub const IMAGE_BLUR: f32 = 45.0;
+pub const IMAGE_BLUR: f32 = 35.0;
 
 /// How long the background takes to fade in or crossfade between images.
 pub const CROSSFADE: Duration = Duration::from_millis(300);
