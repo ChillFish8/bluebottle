@@ -44,7 +44,7 @@ struct VsOut {
     @location(0) uv: vec2<f32>,
 }
 
-// A full-screen triangle; the pass viewport clips it to the box.
+// A full-screen triangle, the pass viewport clips it to the box.
 @vertex
 fn vs_fullscreen(@builtin(vertex_index) index: u32) -> VsOut {
     var corners = array<vec2<f32>, 3>(

@@ -7,6 +7,7 @@ pub mod util;
 mod widget;
 
 pub use self::widget::breadcrumb::breadcrumb;
+pub use self::widget::media_card::media_card;
 pub use self::widget::scrollable::scrollable;
 pub use self::widget::sidebar::sidebar;
 pub use self::widget::skeleton::skeleton;

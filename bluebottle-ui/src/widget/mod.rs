@@ -1,12 +1,12 @@
 pub mod bar;
 pub mod breadcrumb;
 pub mod button;
-pub mod card;
 pub mod carousel_navigator;
 pub mod debug;
 pub mod ellipsis_text;
 pub mod image;
 pub mod input;
+pub mod media_card;
 pub mod pill;
 pub mod pill_box;
 pub mod rating;

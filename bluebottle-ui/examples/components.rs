@@ -57,6 +57,8 @@ struct Components {
 #[derive(Debug, Clone)]
 enum Message {
     Click,
+    CardLabel,
+    CardSubtext,
     SearchInput(String),
 }
 
@@ -439,50 +441,67 @@ fn persons() -> Element<'static, Message> {
 }
 
 fn clickable_card() -> Element<'static, Message> {
-    let poster = POSTER.clone();
-    let thumbnail = THUMBNAIL.clone();
-    let square = SQUARE.clone();
+    let label_text =
+        |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_DEFAULT);
+    let subtext_text =
+        |s: &'static str| text(s).size(font::TEXT_SMALL).color(color::TEXT_SECONDARY);
+
+    // Bare image, no click.
+    let non_interactive = bluebottle_ui::media_card(bluebottle_ui::image::poster(
+        POSTER.clone(),
+        PosterSize::Small,
+    ));
+
+    // Image + label only, single press.
+    let image_only = bluebottle_ui::media_card(bluebottle_ui::image::poster(
+        POSTER.clone(),
+        PosterSize::Small,
+    ))
+    .label(label_text("Poster Only"))
+    .on_press(Message::Click);
+
+    let play_overlay = || {
+        container(icon::filled("play_arrow").color(color::TEXT_DEFAULT).size(48))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Center)
+            .align_y(Center)
+    };
+
+    // Image + label + subtext, single shared press (legacy behaviour).
+    let shared_press =
+        bluebottle_ui::media_card(bluebottle_ui::image::thumbnail(THUMBNAIL.clone()))
+            .overlay(play_overlay())
+            .label(label_text("Shared Press"))
+            .subtext(subtext_text("Image / label / subtext all fire Click"))
+            .on_press(Message::Click);
+
+    // Image + label + subtext with per-region presses. Underline animates on
+    // hover.
+    let per_region =
+        bluebottle_ui::media_card(bluebottle_ui::image::square(SQUARE.clone()))
+            .overlay(play_overlay())
+            .label(label_text("Per-region Press"))
+            .subtext(subtext_text("Each row has its own message"))
+            .on_press(Message::Click)
+            .on_label_press(Message::CardLabel)
+            .on_subtext_press(Message::CardSubtext);
 
     column![
         text("Clickable Card").font(font::bold()),
         row![
-            bluebottle_ui::card::card(
-                "Example Poster",
-                "Sample text",
-                bluebottle_ui::image::poster(poster, PosterSize::Small),
-                icon::filled("replay").color(color::TEXT_PRIMARY),
-                Message::Click,
-            ),
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::poster_skeleton(
+            non_interactive,
+            image_only,
+            shared_press,
+            per_region,
+            bluebottle_ui::media_card::skeleton(bluebottle_ui::image::poster_skeleton(
                 PosterSize::Small
-            )),
+            ))
+            .label()
+            .subtext(),
         ]
         .padding(8)
         .spacing(8),
-        row![
-            bluebottle_ui::card::card(
-                "Example Thumbnail",
-                "Sample text",
-                bluebottle_ui::image::thumbnail(thumbnail),
-                icon::filled("replay").color(color::TEXT_PRIMARY),
-                Message::Click,
-            ),
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::thumbnail_skeleton()),
-        ]
-        .padding(8)
-        .spacing(8),
-        row![
-            bluebottle_ui::card::card(
-                "Example Square",
-                "Sample text",
-                bluebottle_ui::image::square(square),
-                icon::filled("replay").color(color::TEXT_PRIMARY),
-                Message::Click,
-            ),
-            bluebottle_ui::card::skeleton(bluebottle_ui::image::square_skeleton()),
-        ]
-        .padding(8)
-        .spacing(8)
     ]
     .spacing(4)
     .into()

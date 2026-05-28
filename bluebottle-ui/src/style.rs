@@ -23,3 +23,23 @@ pub const PANEL_SHADOW: Shadow = Shadow {
     offset: Vector { x: -8.0, y: 0.0 },
     blur_radius: 24.0,
 };
+
+/// A subtle drop shadow used to lift small surfaces (cards, popovers,
+/// tooltips) when they enter a hover or focus state. Animated effects scale
+/// it with [`scale_shadow`].
+pub const ELEVATION_SHADOW: Shadow = Shadow {
+    color: color::with_alpha(iced::Color::BLACK, 0.35),
+    offset: Vector { x: 0.0, y: 2.0 },
+    blur_radius: 6.0,
+};
+
+/// Returns `shadow` with its colour alpha, offset, and blur radius all scaled
+/// by `factor`. Use this to animate a standard [`Shadow`] from no elevation
+/// at `factor = 0.0` to full elevation at `factor = 1.0`.
+pub fn scale_shadow(shadow: Shadow, factor: f32) -> Shadow {
+    Shadow {
+        color: color::with_alpha(shadow.color, shadow.color.a * factor),
+        offset: Vector::new(shadow.offset.x * factor, shadow.offset.y * factor),
+        blur_radius: shadow.blur_radius * factor,
+    }
+}
