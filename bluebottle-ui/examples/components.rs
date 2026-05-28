@@ -53,6 +53,9 @@ struct Components {
     search_content: String,
     selected_tab: usize,
     selected_icon_tab: usize,
+    smart_list_show: (Option<usize>, Option<usize>),
+    smart_list_shown: Option<usize>,
+    smart_list_hydrated: bool,
 }
 
 impl Default for Components {
@@ -61,6 +64,9 @@ impl Default for Components {
             search_content: String::new(),
             selected_tab: 0,
             selected_icon_tab: 1,
+            smart_list_show: (None, None),
+            smart_list_shown: None,
+            smart_list_hydrated: false,
         }
     }
 }
@@ -74,6 +80,10 @@ enum Message {
     SearchInput(String),
     TabSelected(usize),
     IconTabSelected(usize),
+    SmartListJump(Option<usize>, Option<usize>),
+    SmartListShown(usize),
+    SmartListHydrate,
+    SmartListTargetFinished,
 }
 
 impl Components {
@@ -90,6 +100,20 @@ impl Components {
             },
             Message::IconTabSelected(i) => {
                 self.selected_icon_tab = i;
+            },
+            Message::SmartListJump(group, child) => {
+                self.smart_list_show = (group, child);
+            },
+            Message::SmartListShown(index) => {
+                self.smart_list_shown = Some(index);
+            },
+            Message::SmartListHydrate => {
+                self.smart_list_hydrated = !self.smart_list_hydrated;
+            },
+            Message::SmartListTargetFinished => {
+                // Clear the sticky show_group so the next click on the same
+                // jump button re-triggers the animation.
+                self.smart_list_show = (None, None);
             },
             _ => {},
         }
@@ -126,6 +150,11 @@ impl Components {
             spinners(),
             skeletons(),
             separators(),
+            smart_list_demo(
+                self.smart_list_show,
+                self.smart_list_shown,
+                self.smart_list_hydrated,
+            ),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -897,6 +926,99 @@ fn spinners() -> Element<'static, Message> {
         text("Spinners").font(font::bold()),
         bluebottle_ui::spinner::linear(),
         bluebottle_ui::spinner::circle().size(40),
+    ]
+    .spacing(8)
+    .into()
+}
+
+fn smart_list_demo(
+    show: (Option<usize>, Option<usize>),
+    shown: Option<usize>,
+    hydrated: bool,
+) -> Element<'static, Message> {
+    use bluebottle_ui::{skeleton, smart_group, smart_list};
+
+    let group_labels = [
+        "Recently Added",
+        "Trending",
+        "Continue Watching",
+        "Editor's Picks",
+    ];
+    let row_count = [6_usize, 8, 5, 7];
+
+    let groups = (0..group_labels.len()).map(|gi| {
+        let header = text(group_labels[gi])
+            .size(font::TEXT_LARGE)
+            .font(font::semibold());
+
+        let children: Vec<Element<'static, Message>> = (0..row_count[gi])
+            .map(|ci| {
+                if hydrated {
+                    container(text(format!("Group {gi} \u{2022} Row {ci}")))
+                        .padding(padding::all(8))
+                        .height(Length::Fixed(36.0))
+                        .width(Length::Fill)
+                        .into()
+                } else {
+                    container(skeleton::skeleton().height(20).width(Length::Fill))
+                        .padding(padding::all(8))
+                        .height(Length::Fixed(72.0))
+                        .width(Length::Fill)
+                        .into()
+                }
+            })
+            .collect();
+
+        smart_group(header, children)
+    });
+
+    let list = smart_list(groups, Message::SmartListShown)
+        .show_group(show.0)
+        .show_child(show.1)
+        .on_target_finished(|| Message::SmartListTargetFinished)
+        .spacing(20.0);
+
+    let controls = row![
+        bluebottle_ui::button::standard(
+            "Jump to Trending header",
+            None,
+            false,
+            Message::SmartListJump(Some(1), None),
+        ),
+        bluebottle_ui::button::standard(
+            "Centre on Picks / row 4",
+            None,
+            false,
+            Message::SmartListJump(Some(3), Some(4)),
+        ),
+        bluebottle_ui::button::standard(
+            if hydrated {
+                "Show skeletons"
+            } else {
+                "Hydrate"
+            },
+            None,
+            false,
+            Message::SmartListHydrate,
+        ),
+    ]
+    .padding(padding::left(16))
+    .spacing(8);
+
+    let shown_text = shown
+        .map(|i| format!("Shown group: {i} ({})", group_labels[i]))
+        .unwrap_or_else(|| "Shown group: none yet".into());
+
+    column![
+        text("Smart List").font(font::bold()),
+        controls,
+        text(shown_text)
+            .size(font::TEXT_SMALL)
+            .color(color::TEXT_SECONDARY),
+        container(list)
+            .height(Length::Fixed(320.0))
+            .width(Length::Fill)
+            .padding(padding::left(16)),
     ]
     .spacing(8)
     .into()
