@@ -1,7 +1,7 @@
 use bluebottle_ui::splash_background::Backdrop;
-use bluebottle_ui::{button, color, image, sidebar, splash_background};
+use bluebottle_ui::{button, color, image, scrollable, sidebar, splash_background};
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{column, container, row, scrollable, stack, text};
+use iced::widget::{column, container, row, stack, text};
 use iced::{Element, Length};
 
 use crate::backdrop;

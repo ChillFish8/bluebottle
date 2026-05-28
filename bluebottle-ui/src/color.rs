@@ -43,6 +43,12 @@ pub const VEIL: iced::Color = with_alpha(BACKGROUND, 0.9);
 /// so it reads as a soft wash rather than a high-contrast highlight.
 pub const GLOW: iced::Color = scale(PRIMARY, 0.4);
 
+/// The overlay scrollbar when shown, a mid-gray.
+pub const SCROLLBAR: iced::Color = iced::color!(0x64748B);
+
+/// The scrollbar while hovered or grabbed, a lighter gray for contrast.
+pub const SCROLLBAR_HOVER: iced::Color = iced::color!(0x94A3B8);
+
 /// Linearly interpolates `from` → `to` by `t` in `[0, 1]`, in sRGB components.
 pub const fn mix(from: iced::Color, to: iced::Color, t: f32) -> iced::Color {
     iced::Color {
