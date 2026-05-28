@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use bluebottle_ui::image::{PersonSize, PosterSize};
+use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
 use bluebottle_ui::{color, font, icon};
 use iced::widget::{column, container, image, row, text};
 use iced::{Center, Element, Length, Settings, padding};
@@ -17,6 +18,16 @@ static PERSON_POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
 });
 static SQUARE: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg")
+});
+static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> = LazyLock::new(|| {
+    let path = "bluebottle-ui/assets/examples/poster1.jpg";
+    let reader = ::image::ImageReader::open(path)
+        .ok()?
+        .with_guessed_format()
+        .ok()?;
+    let rgba = reader.decode().ok()?.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Some(Backdrop::new(rgba.into_raw(), width, height))
 });
 
 fn main() -> Result<(), snafu::Whatever> {
@@ -74,6 +85,7 @@ impl Components {
             albums(),
             persons(),
             clickable_card(),
+            splash_backgrounds(),
             bars(),
             pills(),
             pillboxes(),
@@ -470,6 +482,26 @@ fn clickable_card() -> Element<'static, Message> {
         ]
         .padding(8)
         .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn splash_backgrounds() -> Element<'static, Message> {
+    let backdrop = SPLASH_BACKDROP.clone();
+
+    column![
+        text("Splash Backgrounds").font(font::bold()),
+        row![
+            container(splash_background(backdrop.clone()))
+                .width(Length::FillPortion(1))
+                .height(320),
+            container(splash_panel(backdrop))
+                .width(Length::FillPortion(1))
+                .height(320),
+        ]
+        .spacing(8)
+        .padding(padding::left(16)),
     ]
     .spacing(4)
     .into()

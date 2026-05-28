@@ -377,6 +377,7 @@ dependencies = [
  "bytemuck",
  "iced",
  "iced_palace",
+ "image",
  "lyon_algorithms",
  "phf",
  "phf_codegen",

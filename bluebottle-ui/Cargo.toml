@@ -11,6 +11,7 @@ lyon_algorithms = { workspace = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]
+image = { workspace = true }
 snafu = { workspace = true }
 tracing-subscriber = { workspace = true }
 
