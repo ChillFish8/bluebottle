@@ -553,10 +553,16 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
         text(label).size(font::TEXT_MEDIUM).into()
     };
 
-    let icon_tab =
+    let mut idx = 0;
+    let mut icon_tab =
         |icon_name: &'static str, label: &'static str| -> Element<'static, Message> {
+            let this_idx = idx;
+            idx += 1;
+
+            let color = (this_idx == selected_icon).then_some(color::TEXT_PRIMARY);
+
             row![
-                icon::filled(icon_name).size(20),
+                icon::filled(icon_name).size(20).color_maybe(color),
                 text(label).size(font::TEXT_MEDIUM),
             ]
             .spacing(8)
