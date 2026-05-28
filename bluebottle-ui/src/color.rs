@@ -27,19 +27,19 @@ pub const SHIMMER: iced::Color = iced::color!(0x182236);
 // Derived shades. The single source of truth for tinted surfaces and accents,
 // so the same colour is never recomputed ad hoc across the app.
 
-/// An elevated overlay surface: the background leaned slightly toward primary so
+/// An elevated overlay surface. The background leaned slightly toward primary so
 /// panels (e.g. the sidebar) read as a distinct shade from the page.
 pub const SURFACE: iced::Color = mix(BACKGROUND, PRIMARY, 0.10);
 
-/// Leading-edge accent line on overlay panels: the primary darkened and held at
+/// Leading-edge accent line on overlay panels. The primary darkened and held at
 /// low opacity.
 pub const BORDER: iced::Color = with_alpha(scale(PRIMARY, 0.6), 0.4);
 
 /// Full-screen wash dimming content behind an overlay. Its alpha is the wash at
-/// full reveal; callers scale it by the overlay's reveal animation.
-pub const SCRIM: iced::Color = with_alpha(BACKGROUND, 0.9);
+/// full reveal. Callers scale it by the overlay's reveal animation.
+pub const VEIL: iced::Color = with_alpha(BACKGROUND, 0.9);
 
-/// Glow color for the image-less background gradient: the primary tinted down
+/// Glow color for the image-less background gradient. The primary tinted down
 /// so it reads as a soft wash rather than a high-contrast highlight.
 pub const GLOW: iced::Color = scale(PRIMARY, 0.4);
 

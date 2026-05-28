@@ -76,10 +76,7 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
-            iced::event::listen_with(toggle_on_space),
-            self.main.subscription().map(Message::Main),
-        ])
+        iced::event::listen_with(toggle_on_space)
     }
 }
 

@@ -12,6 +12,7 @@ pub mod rating;
 pub mod scrollable;
 pub mod search;
 pub mod separator;
+pub mod sidebar;
 pub mod skeleton;
 pub mod spinner;
 pub mod splash_background;
