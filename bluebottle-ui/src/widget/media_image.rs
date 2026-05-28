@@ -256,7 +256,7 @@ where
                         radius: IMAGE_RADIUS.into(),
                         ..Border::default()
                     },
-                    shadow: style::scale_shadow(style::ELEVATION_SHADOW, factor),
+                    shadow: style::scale_shadow(style::ELEVATION_RESTING, factor),
                     ..Quad::default()
                 },
                 Color::TRANSPARENT,

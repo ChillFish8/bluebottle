@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::{Shadow, Vector};
+use iced::{Border, Color, Shadow, Vector};
 
 use crate::color;
 
@@ -15,23 +15,62 @@ pub const CROSSFADE: Duration = Duration::from_millis(300);
 pub const GLOW_STRENGTH: f32 = 0.6;
 
 /// Width of an overlay panel's leading-edge accent line, in logical pixels.
-pub const BORDER_WIDTH: f32 = 1.5;
+pub const BORDER_WIDTH: f32 = 1.0;
 
-/// Elevation shadow an overlay panel casts off its leading (left) edge.
-pub const PANEL_SHADOW: Shadow = Shadow {
-    color: color::with_alpha(color::BG, 0.5),
-    offset: Vector { x: -8.0, y: 0.0 },
-    blur_radius: 24.0,
+// Shadow policy. Three recipes drive every elevated surface.
+//
+// 1. Neutral elevation. Soft black drop. The CSS source uses a negative
+//    `spread` to keep the blur tucked under the element. iced's `Shadow` has
+//    no spread, so each tier records `blur - |spread|` as the blur radius
+//    instead. The shadow reads a touch larger than the CSS equivalent but
+//    stays in the same family.
+//
+// 2. Accent glow. The active accent at a fixed alpha. Built at frame time
+//    via [`glow`] so it tracks accent swaps.
+//
+// 3. Hairline ring. A 1px coloured outline. iced has no inset/spread shadow,
+//    so rings are applied as a `Border` via [`hairline`], not a `Shadow`.
+
+/// Sidebar drawer's tucked edge shadow.
+/// CSS `-14px 0 38px -18px rgba(0,0,0,.4)`.
+pub const SIDEBAR_DROP: Shadow = Shadow {
+    color: color::with_alpha(Color::BLACK, 0.4),
+    offset: Vector { x: -14.0, y: 0.0 },
+    blur_radius: 20.0,
 };
 
-/// A subtle drop shadow used to lift small surfaces (cards, popovers,
-/// tooltips) when they enter a hover or focus state. Animated effects scale
-/// it with [`scale_shadow`].
-pub const ELEVATION_SHADOW: Shadow = Shadow {
-    color: color::with_alpha(iced::Color::BLACK, 0.35),
-    offset: Vector { x: 0.0, y: 2.0 },
-    blur_radius: 6.0,
+/// Resting card / popover elevation.
+/// CSS `0 12px 24px -8px rgba(0,0,0,.5)`.
+pub const ELEVATION_RESTING: Shadow = Shadow {
+    color: color::with_alpha(Color::BLACK, 0.5),
+    offset: Vector { x: 0.0, y: 12.0 },
+    blur_radius: 16.0,
 };
+
+/// Hovered / lifted card elevation.
+/// CSS `0 30px 60px -10px rgba(0,0,0,.7)`.
+pub const ELEVATION_LIFTED: Shadow = Shadow {
+    color: color::with_alpha(Color::BLACK, 0.7),
+    offset: Vector { x: 0.0, y: 30.0 },
+    blur_radius: 50.0,
+};
+
+/// Accent glow at `alpha`. Use 0.40 for primary buttons, 0.53 for hovered
+/// posters, 0.67 for play FABs. Reads the active accent at call time.
+pub fn glow(alpha: f32) -> Shadow {
+    Shadow {
+        color: color::with_alpha(color::primary(), alpha),
+        offset: Vector { x: 0.0, y: 10.0 },
+        blur_radius: 24.0,
+    }
+}
+
+/// 1px hairline ring. Pair with a [`Shadow`] for the "drop + ring" recipe.
+/// Pass [`color::BORDER`] or [`color::BORDER_STRONG`] for neutral rings, or
+/// [`color::primary()`] for selection / hover accents.
+pub fn hairline(color: Color) -> Border {
+    Border::default().width(1.0).color(color)
+}
 
 /// Returns `shadow` with its colour alpha, offset, and blur radius all scaled
 /// by `factor`. Use this to animate a standard [`Shadow`] from no elevation

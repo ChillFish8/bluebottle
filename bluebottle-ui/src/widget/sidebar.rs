@@ -89,7 +89,7 @@ where
                 .height(Length::Fill),
         )
         .style(|_theme| container::Style {
-            background: Some(color::BORDER_STRONG.into()),
+            background: Some(color::with_alpha(color::primary(), 0.27).into()),
             ..container::Style::default()
         });
 
@@ -102,7 +102,7 @@ where
                 .clip(true)
                 .style(|_theme| container::Style {
                     background: Some(color::BG.into()),
-                    shadow: style::PANEL_SHADOW,
+                    shadow: style::SIDEBAR_DROP,
                     ..container::Style::default()
                 });
 
