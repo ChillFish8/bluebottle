@@ -91,6 +91,7 @@ impl Components {
             albums(),
             persons(),
             links(),
+            media_images(),
             clickable_card(),
             splash_backgrounds(),
             bars(),
@@ -468,6 +469,55 @@ fn links() -> Element<'static, Message> {
     .into()
 }
 
+fn media_images() -> Element<'static, Message> {
+    let play_overlay = || {
+        container(
+            icon::filled("play_arrow")
+                .color(color::TEXT_DEFAULT)
+                .size(48),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Center)
+        .align_y(Center)
+    };
+
+    // Inert. No press, no hover affordances, no pointer cursor.
+    let inert = bluebottle_ui::media_image(bluebottle_ui::image::poster(
+        POSTER.clone(),
+        PosterSize::Small,
+    ));
+
+    // Clickable with the default primary border on hover.
+    let clickable = bluebottle_ui::media_image(bluebottle_ui::image::poster(
+        POSTER.clone(),
+        PosterSize::Small,
+    ))
+    .on_press(Message::LinkPressed("media-image-default"));
+
+    // Clickable, border disabled. Shadow, tint, and overlay scale-in still
+    // animate.
+    let no_border =
+        bluebottle_ui::media_image(bluebottle_ui::image::thumbnail(THUMBNAIL.clone()))
+            .on_press(Message::LinkPressed("media-image-no-border"))
+            .border(false);
+
+    // Clickable with an overlay that scales in from the centre on hover.
+    let with_overlay =
+        bluebottle_ui::media_image(bluebottle_ui::image::square(SQUARE.clone()))
+            .overlay(play_overlay())
+            .on_press(Message::LinkPressed("media-image-overlay"));
+
+    column![
+        text("Media Images").font(font::bold()),
+        row![inert, clickable, no_border, with_overlay,]
+            .padding(8)
+            .spacing(8),
+    ]
+    .spacing(4)
+    .into()
+}
+
 fn clickable_card() -> Element<'static, Message> {
     let label_text =
         |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_DEFAULT);
@@ -500,12 +550,12 @@ fn clickable_card() -> Element<'static, Message> {
         .align_y(Center)
     };
 
-    // Image + label + subtext, single shared press (legacy behaviour).
-    let shared_press =
+    // Image + overlay + label + subtext, press fires only on the image.
+    let with_overlay =
         bluebottle_ui::media_card(bluebottle_ui::image::thumbnail(THUMBNAIL.clone()))
             .overlay(play_overlay())
-            .label(label_text("Shared Press"))
-            .subtext(subtext_text("Image / label / subtext all fire Click"))
+            .label(label_text("With Overlay"))
+            .subtext(subtext_text("Only the image fires Click"))
             .on_press(Message::Click);
 
     // Image + label + subtext where the label and subtext are clickable
@@ -533,7 +583,7 @@ fn clickable_card() -> Element<'static, Message> {
         row![
             non_interactive,
             image_only,
-            shared_press,
+            with_overlay,
             per_region,
             bluebottle_ui::media_card::skeleton(bluebottle_ui::image::poster_skeleton(
                 PosterSize::Small
