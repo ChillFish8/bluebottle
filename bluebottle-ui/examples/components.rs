@@ -49,9 +49,20 @@ fn main() -> Result<(), snafu::Whatever> {
     Ok(())
 }
 
-#[derive(Default)]
 struct Components {
     search_content: String,
+    selected_tab: usize,
+    selected_icon_tab: usize,
+}
+
+impl Default for Components {
+    fn default() -> Self {
+        Self {
+            search_content: String::new(),
+            selected_tab: 0,
+            selected_icon_tab: 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +72,8 @@ enum Message {
     CardSubtext,
     LinkPressed(&'static str),
     SearchInput(String),
+    TabSelected(usize),
+    IconTabSelected(usize),
 }
 
 impl Components {
@@ -71,6 +84,12 @@ impl Components {
             },
             Message::LinkPressed(name) => {
                 println!("link pressed: {name}");
+            },
+            Message::TabSelected(i) => {
+                self.selected_tab = i;
+            },
+            Message::IconTabSelected(i) => {
+                self.selected_icon_tab = i;
             },
             _ => {},
         }
@@ -92,6 +111,7 @@ impl Components {
             albums(),
             persons(),
             links(),
+            tabs(self.selected_tab, self.selected_icon_tab),
             media_images(),
             clickable_card(),
             splash_backgrounds(),
@@ -496,6 +516,48 @@ fn links() -> Element<'static, Message> {
         .spacing(16),
     ]
     .spacing(4)
+    .into()
+}
+
+fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
+    let text_tab = |label: &'static str| -> Element<'static, Message> {
+        text(label).size(font::TEXT_MEDIUM).into()
+    };
+
+    let icon_tab =
+        |icon_name: &'static str, label: &'static str| -> Element<'static, Message> {
+            row![
+                icon::filled(icon_name).size(20),
+                text(label).size(font::TEXT_MEDIUM),
+            ]
+            .spacing(8)
+            .align_y(Center)
+            .into()
+        };
+
+    column![
+        text("Tabs").font(font::bold()),
+        bluebottle_ui::tabs(
+            [
+                text_tab("Overview"),
+                text_tab("Episodes"),
+                text_tab("Reviews"),
+            ],
+            selected,
+            Message::TabSelected,
+        ),
+        bluebottle_ui::tabs(
+            [
+                icon_tab("home", "Home"),
+                icon_tab("movie", "Movies"),
+                icon_tab("tv", "Shows"),
+                icon_tab("music_note", "Music"),
+            ],
+            selected_icon,
+            Message::IconTabSelected,
+        ),
+    ]
+    .spacing(12)
     .into()
 }
 

@@ -20,4 +20,5 @@ pub mod sidebar;
 pub mod skeleton;
 pub mod spinner;
 pub mod splash_background;
+pub mod tabs;
 pub mod text;
