@@ -1,5 +1,5 @@
 use iced::widget::{self, column, container, hover, row, space};
-use iced::{Center, Element, Length, Theme, border};
+use iced::{Center, Element, Length, Theme};
 
 use super::button;
 use super::ellipsis_text::ellipsis_text;
@@ -46,7 +46,7 @@ where
         space().width(Length::FillPortion(1)),
         super::skeleton::skeleton()
             .height(14)
-            .border(border::rounded(2))
+            .radius(2.0)
             .width(Length::FillPortion(4)),
         space().width(Length::FillPortion(1)),
     ]
@@ -56,7 +56,7 @@ where
         space().width(Length::FillPortion(1)),
         super::skeleton::skeleton()
             .height(12)
-            .border(border::rounded(2))
+            .radius(2.0)
             .width(Length::FillPortion(2)),
         space().width(Length::FillPortion(1)),
     ]

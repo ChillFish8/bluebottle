@@ -8,5 +8,6 @@ mod widget;
 
 pub use self::widget::scrollable::scrollable;
 pub use self::widget::sidebar::sidebar;
+pub use self::widget::skeleton::skeleton;
 pub use self::widget::splash_background::{splash_background, splash_panel};
 pub use self::widget::*;
