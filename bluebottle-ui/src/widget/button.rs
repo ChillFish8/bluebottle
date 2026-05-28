@@ -101,8 +101,8 @@ pub fn disabled<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    if icon.is_some() && label.is_none() {
-        let inner = icon::filled(icon.unwrap()).size(24).color(color::TEXT_DARK);
+    if let (Some(icon), None) = (icon, label) {
+        let inner = icon::filled(icon).size(24).color(color::TEXT_DARK);
         return button(inner).padding(4).style(disabled_button_style).into();
     }
 

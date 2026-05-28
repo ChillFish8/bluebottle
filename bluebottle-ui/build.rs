@@ -29,7 +29,7 @@ fn main() {
         map.build()
     )
     .unwrap();
-    write!(&mut file, ";\n").unwrap();
+    writeln!(&mut file, ";").unwrap();
 
     let filled_codepoints =
         include_str!("assets/MaterialIcons/MaterialIcons-Regular.codepoints");
@@ -46,5 +46,5 @@ fn main() {
         map.build()
     )
     .unwrap();
-    write!(&mut file, ";\n").unwrap();
+    writeln!(&mut file, ";").unwrap();
 }

@@ -17,5 +17,8 @@ run-components-example:
 test:
     cargo nextest run --workspace
 
+clippy:
+    cargo clippy
+
 format:
     cargo +nightly fmt --all
