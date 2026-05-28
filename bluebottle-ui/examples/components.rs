@@ -657,16 +657,18 @@ fn bars() -> Element<'static, Message> {
         bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
         bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
     ]
+    .spacing(8.0)
     .align_x(Center);
 
     let bottom_buttons = column![
         bluebottle_ui::button::nav("Library", "storage", false, Message::Click),
         bluebottle_ui::button::nav("Settings", "settings", false, Message::Click),
     ]
+    .spacing(8.0)
     .align_x(Center);
 
     let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
-    let sidebar_container = container(sidebar).height(120);
+    let sidebar_container = container(sidebar).height(600);
 
     column![
         text("Topbar").font(font::bold()),
