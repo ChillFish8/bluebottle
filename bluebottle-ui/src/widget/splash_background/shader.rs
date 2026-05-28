@@ -685,17 +685,22 @@ fn composite_uniform(
     source_size: [f32; 2],
     bounds: &Rectangle,
 ) -> [f32; COMPOSITE_UNIFORM_LEN] {
-    let base = look.base.into_linear();
+    let base_top = look.base_top.into_linear();
+    let base_bottom = look.base_bottom.into_linear();
     let glow = look.glow.into_linear();
     [
         bounds.width,
         bounds.height,
         source_size[0],
         source_size[1],
-        base[0],
-        base[1],
-        base[2],
-        base[3],
+        base_top[0],
+        base_top[1],
+        base_top[2],
+        base_top[3],
+        base_bottom[0],
+        base_bottom[1],
+        base_bottom[2],
+        base_bottom[3],
         glow[0],
         glow[1],
         glow[2],
@@ -720,7 +725,7 @@ fn composite_uniform(
 }
 
 /// Length of the packed `Composite` uniform; see `background.wgsl`.
-const COMPOSITE_UNIFORM_LEN: usize = 28;
+const COMPOSITE_UNIFORM_LEN: usize = 32;
 /// Byte size of the `Composite` uniform.
 const COMPOSITE_UNIFORM_SIZE: u64 = (COMPOSITE_UNIFORM_LEN * 4) as u64;
 /// 8 `f32`s; see the `Blur` struct in `shader_common.wgsl`.

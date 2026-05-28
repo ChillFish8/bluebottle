@@ -101,6 +101,7 @@ where
                 .height(Length::Fill)
                 .clip(true)
                 .style(|_theme| container::Style {
+                    background: Some(color::BACKGROUND.into()),
                     shadow: style::PANEL_SHADOW,
                     ..container::Style::default()
                 });

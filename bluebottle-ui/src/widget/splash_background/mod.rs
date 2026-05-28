@@ -25,13 +25,14 @@ pub fn splash_background(image: Option<Backdrop>) -> SplashBackground<Background
     }
 }
 
-/// The page-background look re-tinted onto the surface colour. The image wash
+/// The page-background look re-tinted onto a deep gradient. The image wash
 /// eases out a touch earlier so the panel reads as a distinct shade.
 pub fn splash_panel(image: Option<Backdrop>) -> SplashBackground<Panel> {
     SplashBackground {
         image,
         look: Look {
-            base: color::SURFACE,
+            base_top: Color::from_rgba8(28, 22, 60, 0.92),
+            base_bottom: Color::from_rgba8(20, 18, 42, 0.96),
             image_fade: 0.4,
             ..Look::default()
         },
@@ -98,11 +99,14 @@ impl fmt::Debug for Backdrop {
 ///
 /// The image is a faint wash that eases out to the base color by `image_fade`,
 /// and the base color eases in over the wash between `bg_start` and `bg_end`,
-/// snapping fully solid at `bg_solid`.
+/// snapping fully solid at `bg_solid`. The base is a vertical gradient from
+/// `base_top` to `base_bottom`. Set both to the same colour for a flat base.
 #[derive(Debug, Clone, Copy)]
 pub struct Look {
-    /// Solid color the surface settles into.
-    pub base: Color,
+    /// Base colour at the top of the surface.
+    pub base_top: Color,
+    /// Base colour at the bottom of the surface.
+    pub base_bottom: Color,
     /// Blur radius, in source pixels.
     pub blur: f32,
     /// Saturation multiplier for the image wash.
@@ -136,7 +140,8 @@ pub struct Look {
 impl Default for Look {
     fn default() -> Self {
         Self {
-            base: color::BACKGROUND,
+            base_top: color::BACKGROUND,
+            base_bottom: color::BACKGROUND,
             blur: style::IMAGE_BLUR,
             saturate: 1.4,
             image_opacity_start: 0.5,
@@ -192,9 +197,17 @@ pub struct SplashBackground<K> {
 }
 
 impl<K> SplashBackground<K> {
-    /// Sets the color the surface settles into.
+    /// Sets a flat base colour the surface settles into.
     pub fn base(mut self, base: Color) -> Self {
-        self.look.base = base;
+        self.look.base_top = base;
+        self.look.base_bottom = base;
+        self
+    }
+
+    /// Sets a vertical gradient base, eased from `top` to `bottom`.
+    pub fn gradient(mut self, top: Color, bottom: Color) -> Self {
+        self.look.base_top = top;
+        self.look.base_bottom = bottom;
         self
     }
 

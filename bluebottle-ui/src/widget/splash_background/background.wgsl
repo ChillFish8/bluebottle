@@ -9,8 +9,9 @@
 struct Composite {
     target_size: vec2<f32>,
     source_size: vec2<f32>,
-    // Linear base colour the surface settles into.
-    base_color: vec4<f32>,
+    // Linear base colours, eased vertically from top to bottom.
+    base_top: vec4<f32>,
+    base_bottom: vec4<f32>,
     // Linear glow colour for the image-less gradient.
     glow: vec4<f32>,
     // Saturation multiplier applied to the poster wash.
@@ -71,7 +72,9 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     // Composite in sRGB (display) space to match CSS gradient interpolation:
     // blur and saturate run in linear, then everything converts to sRGB for the
     // opacity/coverage mixes and back to linear for output.
-    let base = linear_to_srgb(comp.base_color.rgb);
+    let base_rgb_lin = mix(comp.base_top.rgb, comp.base_bottom.rgb, in.uv.y);
+    let base_a = mix(comp.base_top.a, comp.base_bottom.a, in.uv.y);
+    let base = linear_to_srgb(base_rgb_lin);
 
     // The wash at the top: the image knocked back by its opacity so the base
     // shows through, or a soft glow over the base.
@@ -111,5 +114,8 @@ fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     // Dither one 8-bit step in sRGB, then convert to linear so the surface's
     // hardware sRGB encode lands back on the dithered value.
     rgb = rgb + dither(in.position.xy) / 255.0;
-    return vec4<f32>(srgb_to_linear(rgb), comp.opacity);
+    // Wash is treated as opaque. Base contributes its own alpha, so the
+    // surface fades to translucent only as the base takes over.
+    let alpha = comp.opacity * mix(1.0, base_a, coverage);
+    return vec4<f32>(srgb_to_linear(rgb), alpha);
 }
