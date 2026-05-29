@@ -50,28 +50,35 @@ pub fn heading_medium(input: &str) -> Text<'_> {
         .color(color::TEXT_PRIMARY)
 }
 
+/// Title Small
+///
+/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
+pub fn title_small(input: &str) -> Text<'_> {
+    // TODO: Handle the letter spacing.
+    text(input)
+        .font(font::bold())
+        .size(18)
+        .color(color::TEXT_PRIMARY)
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
-/// The colour context decides what colour the text should if
+/// The context decides what variant the text should form to if
 /// the given text has alt variants.
-pub enum ColourVariant {
+pub enum Variant {
     #[default]
-    /// Primary colour.
-    ///
-    /// NOTE: Does not mean the colour will be [color::TEXT_PRIMARY].
+    /// Primary format.
     Main,
-    /// Secondary colour.
-    ///
-    /// NOTE: Does not mean the colour will be [color::TEXT_SECONDARY].
+    /// Secondary format.
     Alt,
 }
 
 /// Subtitle
 ///
 /// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
-pub fn subtitle(input: &str, ctx: ColourVariant) -> Text<'_> {
+pub fn subtitle(input: &str, ctx: Variant) -> Text<'_> {
     let color = match ctx {
-        ColourVariant::Main => color::TEXT_PRIMARY,
-        ColourVariant::Alt => color::TEXT_SECONDARY,
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::TEXT_SECONDARY,
     };
 
     text(input)
@@ -84,10 +91,10 @@ pub fn subtitle(input: &str, ctx: ColourVariant) -> Text<'_> {
 /// Lead
 ///
 /// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
-pub fn lead(input: &str, ctx: ColourVariant) -> Text<'_> {
+pub fn lead(input: &str, ctx: Variant) -> Text<'_> {
     let color = match ctx {
-        ColourVariant::Main => color::with_alpha(color::TEXT_PRIMARY, 0.78),
-        ColourVariant::Alt => color::TEXT_SECONDARY,
+        Variant::Main => color::with_alpha(color::TEXT_PRIMARY, 0.78),
+        Variant::Alt => color::TEXT_SECONDARY,
     };
 
     text(input)
@@ -97,13 +104,22 @@ pub fn lead(input: &str, ctx: ColourVariant) -> Text<'_> {
         .color(color)
 }
 
+/// Body
+pub fn body(input: &str) -> Text<'_> {
+    text(input)
+        .font(font::regular())
+        .size(14)
+        .line_height(1.6)
+        .color(color::with_alpha(color::TEXT_PRIMARY, 0.82))
+}
+
 /// Section Heading
 ///
 /// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
 pub fn section_heading(input: &str) -> Text<'_> {
     // TODO: Handle the letter spacing.
     text(input)
-        .font(font::regular())
+        .font(font::bold())
         .size(14)
         .color(color::TEXT_PRIMARY)
 }
@@ -117,13 +133,13 @@ pub fn card_title(input: &str) -> Text<'_> {
 
 /// Label
 ///
-/// Design note: When inactive, labels should use [ColourVariant::Alt].
+/// Design note: When inactive, labels should use [Variant::Alt].
 ///
 /// The interface's center of gravity. Card titles, list rows, buttons, queue items. Most text lives here.
-pub fn label(input: &str, ctx: ColourVariant) -> Text<'_> {
+pub fn label(input: &str, ctx: Variant) -> Text<'_> {
     let color = match ctx {
-        ColourVariant::Main => color::TEXT_PRIMARY,
-        ColourVariant::Alt => color::TEXT_SECONDARY,
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::TEXT_SECONDARY,
     };
 
     text(input).size(12).color(color)
@@ -146,10 +162,44 @@ pub fn caption(input: &str) -> Text<'_> {
 ///
 /// The smallest text. Sub-captions, counts, badges and the all-caps eyebrows
 /// that label every section.
-pub fn eyebrow(input: &str) -> Text<'_> {
+pub fn eyebrow(input: &str, ctx: Variant) -> Text<'_> {
+    let color = match ctx {
+        Variant::Main => color::primary(),
+        Variant::Alt => color::TEXT_SECONDARY,
+    };
+
+    let size = match ctx {
+        Variant::Main => 10,
+        Variant::Alt => 11,
+    };
+
+    let font = match ctx {
+        Variant::Main => font::bold(),
+        Variant::Alt => font::semibold(),
+    };
+
+    // TODO: Handle the letter spacing.
+    text(input).font(font).size(size).color(color)
+}
+
+/// Lyric
+///
+/// Note: Main refers to the active lyric (full opacity) and alt is for queued entries.
+pub fn lyric(input: &str, ctx: Variant) -> Text<'_> {
+    let color = match ctx {
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::with_alpha(color::TEXT_PRIMARY, 0.5),
+    };
+
+    // TODO: Handle the letter spacing.
+    text(input).font(font::semibold()).size(22).color(color)
+}
+
+/// Media Overlay
+pub fn media_overlay(input: &str) -> Text<'_> {
     // TODO: Handle the letter spacing.
     text(input)
         .font(font::bold())
         .size(10)
-        .color(color::TEXT_SECONDARY)
+        .color(color::with_alpha(color::TEXT_PRIMARY, 0.78))
 }
