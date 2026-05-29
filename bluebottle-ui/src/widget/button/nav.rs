@@ -3,11 +3,11 @@ use std::time::Instant;
 use iced::advanced::renderer::{Quad, Style as RendererStyle};
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Layout, Renderer, Shell, Widget, layout};
-use iced::widget::{column, container, text};
+use iced::widget::{column, container};
 use iced::{Border, Center, Element, Event, Length, Rectangle, Size, mouse, window};
 
 use crate::animate::hover::{EPSILON, Hover, PressState};
-use crate::{color, font, icon};
+use crate::{color, icon, text};
 
 const NAV_ICON_PADDING: [u16; 2] = [4, 16];
 const NAV_PILL_RADIUS: f32 = 28.0;
@@ -46,24 +46,14 @@ where
         selected: bool,
         message: Message,
     ) -> Self {
-        // The label keeps an explicit TEXT_PRIMARY so the draw-time
-        // cascade only reaches the icon glyph. The icon's colour is
-        // driven entirely from `draw` via `text_color`, eased from
-        // TEXT_PRIMARY toward primary by the larger of `selected` and
-        // `press`. Owning the colour from `draw` (rather than baking it
-        // into the icon Element here) keeps the icon in lockstep with
-        // the animated pill when `selected` toggles.
         let icon_text = icon::filled(icon_name);
-        let label_text = text(label)
-            .size(font::TEXT_SMALL)
-            .align_x(Center)
-            .color(color::TEXT_PRIMARY);
+        let label_text = text::micro_label(label).align_x(Center);
 
         // Built once and owned so the widget tree state stays consistent
         // across frames. Rebuilding each call would hand `diff_children` a
         // fresh Element every frame and lose the animated state.
-        let content: Element<'a, Message> =
-            column![container(icon_text).padding(NAV_ICON_PADDING), label_text,]
+        let content =
+            column![container(icon_text).padding(NAV_ICON_PADDING), label_text]
                 .align_x(Center)
                 .into();
 

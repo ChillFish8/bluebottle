@@ -1,7 +1,7 @@
-use iced::widget::{row, text};
+use iced::widget::row;
 use iced::{Center, Element};
 
-use crate::{button, color, font};
+use crate::{button, font, text};
 
 /// The carousel navigator for switching pages.
 pub fn navigator<'a, Message>(
@@ -16,10 +16,8 @@ where
     let on_back = (current_page > 1).then_some(on_back);
     let on_forward = (current_page < total_pages).then_some(on_forward);
 
-    let label = text(format!("{current_page} / {total_pages}"))
-        .font(font::regular())
-        .color(color::TEXT_SECONDARY)
-        .size(font::TEXT_MEDIUM)
+    let label = text::caption(format!("{current_page} / {total_pages}"))
+        .font(font::bold())
         .width(32)
         .align_x(Center);
 

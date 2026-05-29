@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
-use iced::widget::{Row, text};
-use iced::{Center, Element, Pixels};
+use iced::widget::Row;
+use iced::{Center, Element};
 
-use crate::{color, font};
+use crate::{color, text};
 
 /// A breadcrumb trail. The last entry reads as the current section in the
 /// default text colour. Earlier entries and the separators read muted.
@@ -13,7 +13,6 @@ where
 {
     Breadcrumb {
         crumbs,
-        size: font::TEXT_MEDIUM.into(),
         _message: PhantomData,
     }
 }
@@ -21,16 +20,7 @@ where
 /// A configurable breadcrumb, built by [`breadcrumb`].
 pub struct Breadcrumb<'a, Message> {
     crumbs: &'a [&'a str],
-    size: Pixels,
     _message: PhantomData<Message>,
-}
-
-impl<'a, Message> Breadcrumb<'a, Message> {
-    /// Sets the text size for every crumb and separator.
-    pub fn size(mut self, size: impl Into<Pixels>) -> Self {
-        self.size = size.into();
-        self
-    }
 }
 
 impl<'a, Message> From<Breadcrumb<'a, Message>> for Element<'a, Message>
@@ -39,7 +29,6 @@ where
 {
     fn from(breadcrumb: Breadcrumb<'a, Message>) -> Self {
         let last = breadcrumb.crumbs.len().saturating_sub(1);
-        let size = breadcrumb.size;
 
         let items =
             breadcrumb
@@ -53,20 +42,19 @@ where
                         color::TEXT_MUTED
                     };
 
-                    let crumb: Element<'a, Message> =
-                        text(*crumb).size(size).color(color).into();
+                    let crumb = text::caption(*crumb).color(color).into();
 
                     if index == 0 {
                         vec![crumb]
                     } else {
-                        let sep: Element<'a, Message> =
-                            text("/").size(size).color(color::TEXT_MUTED).into();
+                        let sep = text::caption("/").color(color::TEXT_MUTED).into();
+
                         vec![sep, crumb]
                     }
                 });
 
         Row::with_children(items)
-            .spacing(size.0 * 0.5)
+            .spacing(5.5)
             .align_y(Center)
             .into()
     }

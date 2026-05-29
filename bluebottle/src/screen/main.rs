@@ -3,7 +3,6 @@ use bluebottle_ui::{
     breadcrumb,
     button,
     color,
-    font,
     image,
     scrollable,
     sidebar,
@@ -137,7 +136,7 @@ impl MainScreen {
     fn drawer_body(&self) -> Element<'_, MainMsg> {
         let header = row![
             text("Details")
-                .size(font::HEADING_1)
+                .size(20)
                 .color(color::TEXT_PRIMARY)
                 .width(Length::Fill),
             breadcrumb(&["Library", "Anime", "Dusk Beyond the End of the World"]),

@@ -238,7 +238,7 @@ fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
         ]
         .spacing(4);
 
-        let inner = column![text(label).size(font::TEXT_SMALL), strip,]
+        let inner = column![text(label).size(12), strip,]
             .spacing(6)
             .align_x(Center);
 
@@ -651,17 +651,27 @@ fn links() -> Element<'static, Message> {
     column![
         text("Links").font(font::bold()),
         row![
-            bluebottle_ui::link("Default", Message::LinkPressed("default")),
             bluebottle_ui::link(
-                "Large semibold",
+                bluebottle_ui::text::body("Default"),
+                Message::LinkPressed("default"),
+            ),
+            bluebottle_ui::link(
+                bluebottle_ui::text::body("Large semibold")
+                    .size(16)
+                    .font(font::semibold()),
                 Message::LinkPressed("large-semibold"),
-            )
-            .size(font::TEXT_LARGE)
-            .font(font::semibold()),
-            bluebottle_ui::link("Secondary tint", Message::LinkPressed("secondary"))
-                .size(font::TEXT_SMALL)
-                .color(color::TEXT_SECONDARY),
-            bluebottle_ui::link("Inline within a row", Message::LinkPressed("inline"),),
+            ),
+            bluebottle_ui::link(
+                bluebottle_ui::text::label(
+                    "Secondary tint",
+                    bluebottle_ui::text::Variant::Alt,
+                ),
+                Message::LinkPressed("secondary"),
+            ),
+            bluebottle_ui::link(
+                bluebottle_ui::text::body("Inline within a row"),
+                Message::LinkPressed("inline"),
+            ),
         ]
         .padding(padding::left(16))
         .spacing(16),
@@ -672,7 +682,7 @@ fn links() -> Element<'static, Message> {
 
 fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
     let text_tab = |label: &'static str| -> Element<'static, Message> {
-        text(label).size(font::TEXT_MEDIUM).into()
+        text(label).size(14).into()
     };
 
     let mut idx = 0;
@@ -685,7 +695,7 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
 
             row![
                 icon::filled(icon_name).size(20).color_maybe(color),
-                text(label).size(font::TEXT_MEDIUM),
+                text(label).size(14),
             ]
             .spacing(8)
             .align_y(Center)
@@ -768,10 +778,8 @@ fn media_images() -> Element<'static, Message> {
 }
 
 fn clickable_card() -> Element<'static, Message> {
-    let label_text =
-        |s: &'static str| text(s).size(font::TEXT_MEDIUM).color(color::TEXT_PRIMARY);
-    let subtext_text =
-        |s: &'static str| text(s).size(font::TEXT_SMALL).color(color::TEXT_SECONDARY);
+    let label_text = |s: &'static str| text(s).size(14).color(color::TEXT_PRIMARY);
+    let subtext_text = |s: &'static str| text(s).size(12).color(color::TEXT_SECONDARY);
 
     // Bare image, no click.
     let non_interactive = bluebottle_ui::media_card(bluebottle_ui::image::poster(
@@ -813,18 +821,17 @@ fn clickable_card() -> Element<'static, Message> {
     let per_region =
         bluebottle_ui::media_card(bluebottle_ui::image::square(SQUARE.clone()))
             .overlay(play_overlay())
-            .label(
-                bluebottle_ui::link("Per-region Press", Message::CardLabel)
-                    .size(font::TEXT_MEDIUM),
-            )
-            .subtext(
-                bluebottle_ui::link(
+            .label(bluebottle_ui::link(
+                bluebottle_ui::text::body("Per-region Press"),
+                Message::CardLabel,
+            ))
+            .subtext(bluebottle_ui::link(
+                bluebottle_ui::text::label(
                     "Each row has its own message",
-                    Message::CardSubtext,
-                )
-                .size(font::TEXT_SMALL)
-                .color(color::TEXT_SECONDARY),
-            )
+                    bluebottle_ui::text::Variant::Alt,
+                ),
+                Message::CardSubtext,
+            ))
             .on_press(Message::Click);
 
     column![
@@ -868,8 +875,6 @@ fn splash_backgrounds() -> Element<'static, Message> {
 }
 
 fn bars() -> Element<'static, Message> {
-    let topbar = bluebottle_ui::bar::top(text("center text"), "Example Library");
-
     let top_buttons = column![
         bluebottle_ui::button::nav("Home", "home", true, Message::Click),
         bluebottle_ui::button::nav("Search", "search", false, Message::Click),
@@ -889,104 +894,10 @@ fn bars() -> Element<'static, Message> {
     let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
     let sidebar_container = container(sidebar).height(600);
 
-    column![
-        text("Topbar").font(font::bold()),
-        topbar,
-        text("Sidebar").font(font::bold()),
-        sidebar_container,
-    ]
-    .spacing(8)
-    .width(Length::Fill)
-    .into()
-}
-
-fn pills() -> Element<'static, Message> {
-    let no_icon_small = row![
-        bluebottle_ui::pill::small("Small Enabled", None).on_press(Message::Click),
-        bluebottle_ui::pill::small("Small Disabled", None),
-    ]
-    .spacing(4);
-
-    let icon_small = row![
-        bluebottle_ui::pill::small("Small Icon Enabled", Some("access_time_filled"))
-            .on_press(Message::Click),
-        bluebottle_ui::pill::small("Small Icon Disabled", Some("access_time_filled")),
-    ]
-    .spacing(4);
-
-    let no_icon_regular = row![
-        bluebottle_ui::pill::regular("24m", None).on_press(Message::Click),
-        bluebottle_ui::pill::regular("24m", None),
-    ]
-    .spacing(4);
-
-    let icon_regular = row![
-        bluebottle_ui::pill::regular("24m remaining", Some("access_time_filled"))
-            .on_press(Message::Click),
-        bluebottle_ui::pill::regular("24m remaining", Some("access_time_filled")),
-    ]
-    .spacing(4);
-
-    column![
-        text("Pills").font(font::bold()),
-        column![no_icon_small, icon_small].spacing(8),
-        column![no_icon_regular, icon_regular].spacing(8),
-    ]
-    .spacing(8)
-    .into()
-}
-
-fn pillboxes() -> Element<'static, Message> {
-    let tags_labels = [
-        "Elves",
-        "Magic",
-        "Immortality",
-        "Friendships",
-        "Slice of lift",
-        "Female protagonist",
-        "Magic",
-        "Elf",
-        "Dragons",
-    ];
-
-    let genres_labels = ["Fantasy", "Drama", "Animation", "Adventure", "Anime"];
-
-    let tags_labels = tags_labels
-        .into_iter()
-        .map(|label| bluebottle_ui::pill::small(label, None).into());
-
-    let genres_labels = genres_labels
-        .into_iter()
-        .map(|label| bluebottle_ui::pill::small(label, None).into());
-
-    column![
-        text("Pill Boxes").font(font::bold()),
-        container(bluebottle_ui::pill_box::pill_box("Tags", tags_labels)).width(200),
-        bluebottle_ui::pill_box::pill_box("Genres", genres_labels),
-    ]
-    .spacing(8)
-    .into()
-}
-
-fn rating() -> Element<'static, Message> {
-    column![
-        text("Rating").font(font::bold()),
-        bluebottle_ui::rating::rating(Some("7"), Some("88")),
-        bluebottle_ui::rating::rating(None, Some("88")),
-        bluebottle_ui::rating::rating(Some("7"), None),
-    ]
-    .spacing(8)
-    .into()
-}
-
-fn titles() -> Element<'static, Message> {
-    column![
-        text("Titles").font(font::bold()),
-        bluebottle_ui::text::title(Some("local_fire_department"), "New releases"),
-        bluebottle_ui::text::title(None, "Setting option A"),
-    ]
-    .spacing(8)
-    .into()
+    column![text("Sidebar").font(font::bold()), sidebar_container,]
+        .spacing(8)
+        .width(Length::Fill)
+        .into()
 }
 
 fn breadcrumbs() -> Element<'static, Message> {
@@ -1010,7 +921,7 @@ fn breadcrumbs() -> Element<'static, Message> {
             "Anime",
             "Dusk Beyond the End of the World",
         ])
-        .size(font::TEXT_SMALL),
+        .size(12),
     ]
     .spacing(8)
     .into()
@@ -1075,9 +986,7 @@ fn smart_list_demo(
     let row_count = [6_usize, 8, 5, 7];
 
     let groups = (0..group_labels.len()).map(|gi| {
-        let header = text(group_labels[gi])
-            .size(font::TEXT_LARGE)
-            .font(font::semibold());
+        let header = text(group_labels[gi]).size(16).font(font::semibold());
 
         let children: Vec<Element<'static, Message>> = (0..row_count[gi])
             .map(|ci| {
@@ -1140,9 +1049,7 @@ fn smart_list_demo(
     column![
         text("Smart List").font(font::bold()),
         controls,
-        text(shown_text)
-            .size(font::TEXT_SMALL)
-            .color(color::TEXT_SECONDARY),
+        text(shown_text).size(12).color(color::TEXT_SECONDARY),
         container(list)
             .height(Length::Fixed(320.0))
             .width(Length::Fill)

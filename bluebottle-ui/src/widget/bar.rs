@@ -1,36 +1,5 @@
-use iced::widget::{column, row, space, text};
+use iced::widget::{column, space};
 use iced::{Center, Element, Length, padding};
-
-use crate::{color, font};
-
-/// Create a topbar.
-pub fn top<'a, Message>(
-    center: impl Into<Element<'a, Message>>,
-    active_library: &'a str,
-) -> Element<'a, Message>
-where
-    Message: 'a,
-{
-    let title = text("Bluebottle")
-        .size(font::HEADING_2)
-        .font(font::semibold());
-    let active_library = text(active_library)
-        .size(font::TEXT_LARGE)
-        .font(font::semibold())
-        .color(color::TEXT_SECONDARY);
-
-    row![
-        title,
-        space().width(Length::Fill),
-        center.into(),
-        space().width(Length::Fill),
-        active_library
-    ]
-    .height(40)
-    .padding(padding::Padding::default().vertical(4).horizontal(8))
-    .align_y(Center)
-    .into()
-}
 
 /// Create a sidebar.
 pub fn side<'a, Message>(

@@ -1,8 +1,8 @@
-use iced::widget::{container, row, text};
+use iced::widget::{container, row};
 use iced::{Center, Color, Element, padding};
 
 use crate::widget::clickable::clickable;
-use crate::{color, font, icon};
+use crate::{color, icon, text};
 
 /// The brightest thing on a dark, blurred stage.
 ///
@@ -48,7 +48,7 @@ fn hero_inner<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let label = text(label).size(font::TEXT_MEDIUM).font(font::bold());
+    let label = text::hero_label(label);
 
     let items = row![
         icon::filled(icon_name).size(16),

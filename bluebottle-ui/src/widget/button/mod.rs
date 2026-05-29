@@ -17,6 +17,7 @@ mod icon;
 mod nav;
 mod standard;
 mod toggle_icon;
+// mod pill;
 
 pub use disabled::disabled;
 pub use hero::{hero, hero_primary};
