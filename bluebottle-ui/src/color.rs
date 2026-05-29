@@ -18,6 +18,9 @@ pub const SECONDARY: Color = iced::color!(0x162034);
 /// Hover and selected fills. Also the darkest text/icon shade.
 pub const HOVER: Color = iced::color!(0x1E2939);
 
+/// Pure white.
+pub const WHITE: Color = iced::color!(0xFFFFFF);
+
 /// Darkest text shade. Alias of [`HOVER`].
 pub const TEXT_DARKER: Color = HOVER;
 

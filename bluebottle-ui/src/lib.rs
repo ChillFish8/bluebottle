@@ -1,4 +1,5 @@
 pub mod animate;
+pub mod border;
 pub mod color;
 pub mod easing;
 pub mod font;

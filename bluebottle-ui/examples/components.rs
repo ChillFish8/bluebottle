@@ -136,6 +136,7 @@ impl Components {
             standard_buttons(),
             icon_buttons(),
             icon_toggle_buttons(),
+            hero_buttons(),
             clickables(),
             navigators(),
             posters(),
@@ -448,6 +449,24 @@ fn icon_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::icon("settings", false, Message::Click),
             bluebottle_ui::button::icon("settings", true, Message::Click),
             bluebottle_ui::button::disabled(None, Some("arrow_back"),),
+        ]
+        .padding(8)
+        .spacing(8)
+    ]
+    .spacing(4)
+    .into()
+}
+
+fn hero_buttons() -> Element<'static, Message> {
+    column![
+        text("Hero Buttons").font(font::bold()),
+        row![
+            bluebottle_ui::button::hero("settings", "settings", Message::Click),
+            bluebottle_ui::button::hero_primary(
+                "play_arrow",
+                "Resume · 1h 48m",
+                Message::Click
+            ),
         ]
         .padding(8)
         .spacing(8)

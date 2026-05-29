@@ -12,12 +12,14 @@
 pub use iced::widget::button::{Status, Style};
 
 mod disabled;
+mod hero;
 mod icon;
 mod nav;
 mod standard;
 mod toggle_icon;
 
 pub use disabled::disabled;
+pub use hero::{hero, hero_primary};
 pub use icon::{IconTextOrName, icon};
 pub use nav::nav;
 pub use standard::standard;
