@@ -1,8 +1,8 @@
-use iced::widget::{button, container, row, text};
-use iced::{Background, Center, Theme, padding};
+use iced::widget::{container, row, text};
+use iced::{Center, Color, Element, padding};
 
-use crate::button::Status;
-use crate::{border, color, font, icon};
+use crate::widget::clickable::clickable;
+use crate::{color, font, icon};
 
 /// The brightest thing on a dark, blurred stage.
 ///
@@ -11,7 +11,40 @@ pub fn hero<'a, Message>(
     icon_name: &'a str,
     label: &'a str,
     message: Message,
-) -> button::Button<'a, Message>
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    hero_inner(icon_name, label, color::WHITE, color::BG, 0.06, message)
+}
+
+/// The same as [hero], but with a primary fill.
+pub fn hero_primary<'a, Message>(
+    icon_name: &'a str,
+    label: &'a str,
+    message: Message,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    hero_inner(
+        icon_name,
+        label,
+        color::primary(),
+        color::WHITE,
+        0.10,
+        message,
+    )
+}
+
+fn hero_inner<'a, Message>(
+    icon_name: &'a str,
+    label: &'a str,
+    fill: Color,
+    text_color: Color,
+    glow_alpha: f32,
+    message: Message,
+) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
@@ -26,34 +59,14 @@ where
 
     let padding = padding::Padding::default().horizontal(22).vertical(10);
 
-    button(items)
-        .on_press(message)
-        .style(hero_styling_default)
+    // The fill carries the colour and the hover tint is disabled, so only
+    // the glow reacts on hover.
+    clickable(items)
         .padding(padding)
-}
-
-/// The same as [hero], but with a primary fill.
-pub fn hero_primary<'a, Message>(
-    icon_name: &'a str,
-    label: &'a str,
-    message: Message,
-) -> button::Button<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    hero(icon_name, label, message).style(|theme: &Theme, status: Status| {
-        let mut style = hero_styling_default(theme, status);
-        style.text_color = color::WHITE;
-        style.background = Some(Background::Color(color::primary()));
-        style
-    })
-}
-
-fn hero_styling_default(_theme: &Theme, _status: Status) -> button::Style {
-    button::Style {
-        text_color: color::BG,
-        background: Some(Background::Color(color::WHITE)),
-        border: border::rounded(border::ROUNDED_FULL),
-        ..button::Style::default()
-    }
+        .background(fill)
+        .glow(glow_alpha)
+        .resting_color(text_color)
+        .tint(Color::TRANSPARENT)
+        .on_press(message)
+        .into()
 }

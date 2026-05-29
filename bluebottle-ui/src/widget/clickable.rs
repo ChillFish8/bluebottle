@@ -1,25 +1,20 @@
-//! A content-agnostic clickable region with eased hover-tint and press
-//! text-recolour.
+//! A content-agnostic clickable region with an eased hover-tint.
 //!
 //! Wraps any [`Element`] and adds press dispatch plus the design system's
 //! 100 ms hover animation. The tint quad fades in behind the content as
-//! the cursor enters. While the cursor holds down, the content's text and
-//! icon glyph colour eases from its resting tone toward [`press_color`]
-//! (default [`color::primary()`]). Without `on_press` the widget is fully
-//! inert. No affordances animate, no pointer cursor, no event capture.
+//! the cursor enters. Without `on_press` the widget is fully inert. No
+//! affordances animate, no pointer cursor, no event capture.
 //!
-//! The colour animation rides on iced's cascading `text_color`. Wrapped
+//! The content colour rides on iced's cascading `text_color`. Wrapped
 //! content that sets an explicit `.color(...)` on its text or icons will
-//! ignore the cascade and stay at that fixed colour. To recolour on press
+//! ignore the cascade and stay at that fixed colour. To set the base tone
 //! leave the content's colour unset and use [`Clickable::resting_color`]
-//! to override the inherited base.
+//! to override the inherited one.
 //!
 //! The wrapped content is intended to be a renderer (text, icon, row of
 //! both). Nesting an interactive widget that itself publishes a message
 //! on release composes the two messages on a single click. Wrap the
 //! interactive widget directly instead of layering it inside `clickable`.
-//!
-//! [`press_color`]: Clickable::press_color
 
 use std::time::Instant;
 
@@ -57,7 +52,8 @@ where
         on_press: None,
         tint: color::HOVER,
         resting_color: None,
-        press_color: color::primary(),
+        background: None,
+        glow_alpha: None,
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
         width: Length::Shrink,
@@ -71,7 +67,8 @@ pub struct Clickable<'a, Message> {
     on_press: Option<Message>,
     tint: Color,
     resting_color: Option<Color>,
-    press_color: Color,
+    background: Option<Color>,
+    glow_alpha: Option<f32>,
     radius: f32,
     padding: Padding,
     width: Length,
@@ -109,16 +106,22 @@ where
         self
     }
 
-    /// Sets the text and icon colour reached at full press. The resting
-    /// colour eases toward this as the press factor lifts. Defaults to
-    /// [`color::primary()`].
-    pub fn press_color(mut self, color: Color) -> Self {
-        self.press_color = color;
+    /// Paints a solid fill behind the content, sharing the same rounded
+    /// bounds as the hover tint. Without one the clickable is transparent.
+    pub fn background(mut self, color: Color) -> Self {
+        self.background = Some(color);
         self
     }
 
-    /// Sets the corner radius of the hover-tint quad. Defaults to the
-    /// design-system pill shape.
+    /// Adds a hover glow in the background colour, eased in with the hover
+    /// factor to `alpha` at its peak. No-op without a background.
+    pub fn glow(mut self, alpha: f32) -> Self {
+        self.glow_alpha = Some(alpha);
+        self
+    }
+
+    /// Sets the corner radius of the fill, hover-tint, and glow. Defaults to
+    /// the design-system pill shape.
     pub fn radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
@@ -195,29 +198,58 @@ where
         let now = Instant::now();
         let bounds = layout.bounds();
 
-        let (hover_factor, press_factor) = if self.interactive() {
-            (state.hover.current(now), state.press.current(now))
+        let hover_factor = if self.interactive() {
+            state.hover.current(now)
         } else {
-            (0.0, 0.0)
+            0.0
         };
 
-        if hover_factor > EPSILON {
+        let pill = Border {
+            radius: self.radius.into(),
+            ..Border::default()
+        };
+
+        // Glow behind the fill, eased in with hover. The quad fill is
+        // transparent so only the shadow shows.
+        if let Some(fill) = self.background
+            && let Some(alpha) = self.glow_alpha
+            && hover_factor > EPSILON
+        {
             renderer.fill_quad(
                 Quad {
                     bounds,
-                    border: Border {
-                        radius: self.radius.into(),
-                        ..Border::default()
-                    },
+                    border: pill,
+                    shadow: crate::style::hero_glow(fill, alpha, hover_factor),
+                    ..Quad::default()
+                },
+                Color::TRANSPARENT,
+            );
+        }
+
+        if let Some(fill) = self.background {
+            renderer.fill_quad(
+                Quad {
+                    bounds,
+                    border: pill,
+                    ..Quad::default()
+                },
+                fill,
+            );
+        }
+
+        if hover_factor > EPSILON && self.tint.a > 0.0 {
+            renderer.fill_quad(
+                Quad {
+                    bounds,
+                    border: pill,
                     ..Quad::default()
                 },
                 color::fade(self.tint, hover_factor),
             );
         }
 
-        let resting = self.resting_color.unwrap_or(style.text_color);
         let content_style = Style {
-            text_color: color::ease(resting, self.press_color, press_factor),
+            text_color: self.resting_color.unwrap_or(style.text_color),
         };
 
         let content_layout = layout.children().next().expect("clickable child");
@@ -301,21 +333,13 @@ where
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if !shell.is_event_captured() && state.press(over, now) {
-                    shell.request_redraw();
+                if !shell.is_event_captured() {
+                    state.press(over);
                 }
             },
 
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                // Peek `pressed` before `release` clears it so we can gate
-                // the redraw on this widget actually being in a press
-                // cycle. Otherwise every global release floods every
-                // clickable on screen with a wasted redraw.
-                let was_pressed = state.pressed;
-                let dispatch = state.release(over, now);
-                if was_pressed {
-                    shell.request_redraw();
-                }
+                let dispatch = state.release(over);
                 if dispatch
                     && !shell.is_event_captured()
                     && let Some(message) = self.on_press.clone()

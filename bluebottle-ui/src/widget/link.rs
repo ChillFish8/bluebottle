@@ -1,9 +1,8 @@
 //! A clickable text element with a hover-animated underline.
 //!
 //! A `link` is a text button. Hovering animates an underline in beneath the
-//! text. Pressing the link (mouse held over it) tints the text and underline
-//! to [`color::primary()`]. Releasing over it publishes the link's message.
-//! Inert text should use [`iced::widget::text`] instead.
+//! text. Releasing over it publishes the link's message. Inert text should
+//! use [`iced::widget::text`] instead.
 
 use std::time::Instant;
 
@@ -93,8 +92,7 @@ where
         self
     }
 
-    /// Sets the idle text colour. The pressed state always shows
-    /// [`color::primary()`]. Defaults to [`color::TEXT_PRIMARY`].
+    /// Sets the text colour. Defaults to [`color::TEXT_PRIMARY`].
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
@@ -188,26 +186,19 @@ where
         let now = Instant::now();
         let bounds = layout.bounds();
 
-        // Press factor eases the text from its idle colour toward PRIMARY
-        // while the user holds the mouse down on the link, and back when the
-        // press ends (release, drag-off, or hover-off mid-press).
-        let press_factor = state.press.press.current(now);
-        let active_color = color::ease(self.color, color::primary(), press_factor);
-
         text_draw(
             renderer,
             defaults,
             bounds,
             state.paragraph.raw(),
             TextStyle {
-                color: Some(active_color),
+                color: Some(self.color),
             },
             viewport,
         );
 
         // Underline animates from 0 to full text width as the hover factor
-        // settles to 1. The colour tracks the active text colour so a pressed
-        // link's underline is also primary.
+        // settles to 1, in the text colour.
         let factor = state.press.hover.current(now);
         if factor <= EPSILON {
             return;
@@ -231,7 +222,7 @@ where
                 border: border::rounded(UNDERLINE_THICKNESS / 2.0),
                 ..Quad::default()
             },
-            color::fade(active_color, factor),
+            color::fade(self.color, factor),
         );
     }
 
@@ -261,20 +252,13 @@ where
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if !shell.is_event_captured() && state.press.press(over, now) {
+                if !shell.is_event_captured() && state.press.press(over) {
                     shell.capture_event();
-                    shell.request_redraw();
                 }
             },
 
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                // Peek `pressed` before `release` clears it so we only
-                // redraw if this link was actually in a press cycle.
-                let was_pressed = state.press.pressed;
-                let dispatch = state.press.release(over, now);
-                if was_pressed {
-                    shell.request_redraw();
-                }
+                let dispatch = state.press.release(over);
                 if dispatch && !shell.is_event_captured() {
                     shell.publish(self.on_press.clone());
                     shell.capture_event();

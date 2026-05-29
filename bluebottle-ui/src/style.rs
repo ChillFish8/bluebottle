@@ -3,6 +3,7 @@ use std::time::Duration;
 use iced::{Border, Color, Shadow, Vector};
 
 use crate::color;
+use crate::util::lerp;
 
 /// Blur radius for frosted image backdrops (the page background and overlay
 /// panels), in source pixels.
@@ -65,6 +66,22 @@ pub fn glow(alpha: f32) -> Shadow {
     }
 }
 
+/// Hero button glow, eased by `factor` from no glow at rest to its peak on
+/// hover. `fill` is the button's own fill colour so the glow reads as the
+/// button bleeding light, and `alpha` its peak opacity. The white fill takes a
+/// fainter peak than the accent so it does not read as high contrast on the
+/// dark stage.
+pub fn hero_glow(fill: Color, alpha: f32, factor: f32) -> Shadow {
+    scale_shadow(
+        Shadow {
+            color: color::with_alpha(fill, alpha),
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 10.0,
+        },
+        factor,
+    )
+}
+
 /// 1px hairline ring. Pair with a [`Shadow`] for the "drop + ring" recipe.
 /// Pass [`color::BORDER`] or [`color::BORDER_STRONG`] for neutral rings, or
 /// [`color::primary()`] for selection / hover accents.
@@ -77,8 +94,11 @@ pub fn hairline(color: Color) -> Border {
 /// at `factor = 0.0` to full elevation at `factor = 1.0`.
 pub fn scale_shadow(shadow: Shadow, factor: f32) -> Shadow {
     Shadow {
-        color: color::with_alpha(shadow.color, shadow.color.a * factor),
-        offset: Vector::new(shadow.offset.x * factor, shadow.offset.y * factor),
-        blur_radius: shadow.blur_radius * factor,
+        color: color::with_alpha(shadow.color, lerp(0.0, shadow.color.a, factor)),
+        offset: Vector::new(
+            lerp(0.0, shadow.offset.x, factor),
+            lerp(0.0, shadow.offset.y, factor),
+        ),
+        blur_radius: lerp(0.0, shadow.blur_radius, factor),
     }
 }

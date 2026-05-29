@@ -15,13 +15,11 @@ where
     Message: Clone + 'a,
 {
     if selected {
-        // Selected: icon sits at primary at rest and eases to TEXT_PRIMARY
-        // on press. The cascade drives the colour, so the icon must not
-        // set an explicit `.color(...)`.
+        // Selected: icon sits at primary. The cascade drives the colour, so
+        // the icon must not set an explicit `.color(...)`.
         clickable(icon::filled(selected_icon))
             .padding(ICON_PADDING)
             .resting_color(color::primary())
-            .press_color(color::TEXT_PRIMARY)
             .on_press(message)
             .into()
     } else {

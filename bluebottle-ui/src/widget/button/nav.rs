@@ -125,7 +125,6 @@ where
         let now = Instant::now();
         let hover_factor = state.press.hover.current(now);
         let selected_factor = state.selected.current(now);
-        let press_factor = state.press.press.current(now);
 
         let pill_factor = hover_factor.max(selected_factor);
         let content_layout = layout.children().next().expect("nav child layout");
@@ -150,7 +149,7 @@ where
             text_color: color::ease(
                 color::TEXT_PRIMARY,
                 color::primary(),
-                selected_factor.max(press_factor),
+                selected_factor,
             ),
         };
 
@@ -235,8 +234,8 @@ where
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
                 if !self.selected =>
             {
-                if !shell.is_event_captured() && state.press.press(over, now) {
-                    shell.request_redraw();
+                if !shell.is_event_captured() {
+                    state.press.press(over);
                 }
             },
 
@@ -244,11 +243,7 @@ where
                 // Always clear any in-flight press cycle, even when this
                 // entry is now selected, so a selected flip mid-press
                 // cannot leak `pressed = true` into a later click.
-                let was_pressed = state.press.pressed;
-                let dispatch = state.press.release(over, now);
-                if was_pressed {
-                    shell.request_redraw();
-                }
+                let dispatch = state.press.release(over);
                 if dispatch && !self.selected && !shell.is_event_captured() {
                     shell.publish(self.message.clone());
                     shell.capture_event();

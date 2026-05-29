@@ -35,6 +35,7 @@ use iced::{
 };
 
 use crate::animate::hover::{FADE, PressState};
+use crate::util::lerp;
 use crate::{color, easing};
 
 const UNDERLINE_THICKNESS: f32 = 2.0;
@@ -145,9 +146,9 @@ struct TabsState {
 /// target so a resize cannot leave the bar floating mid-row.
 fn lerp_bar(from: Rectangle, target: Rectangle, eased: f32) -> Rectangle {
     Rectangle {
-        x: from.x + (target.x - from.x) * eased,
+        x: lerp(from.x, target.x, eased),
         y: target.y,
-        width: from.width + (target.width - from.width) * eased,
+        width: lerp(from.width, target.width, eased),
         height: target.height,
     }
 }
@@ -441,9 +442,7 @@ where
 
                     let over =
                         bounds.get(i).map(|b| cursor.is_over(*b)).unwrap_or(false);
-                    if slot.press.press(over, now) {
-                        shell.request_redraw();
-                    }
+                    slot.press.press(over);
                 }
             },
 
@@ -457,13 +456,7 @@ where
 
                     let over =
                         bounds.get(i).map(|b| cursor.is_over(*b)).unwrap_or(false);
-                    let was_pressed = slot.press.pressed;
-                    let dispatch = slot.press.release(over, now);
-
-                    if was_pressed {
-                        shell.request_redraw();
-                    }
-                    if dispatch && dispatch_index.is_none() {
+                    if slot.press.release(over) && dispatch_index.is_none() {
                         dispatch_index = Some(i);
                     }
                 }
