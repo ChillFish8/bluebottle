@@ -1,41 +1,16 @@
-//! Button widgets. Hover and press are eased by the design system's 100 ms
-//! [`Hover`](crate::animate::hover::Hover) primitive rather than iced's
-//! instant status-based styling. Hovering fades a pill tint in behind the
-//! content. Pressing eases the text and icon colour toward `primary()` (or
-//! away from it for a selected `toggle_icon`). `standard`, `icon`, and
-//! `toggle_icon` are thin builders over
-//! [`clickable`](super::clickable::clickable). `nav` is its own custom
-//! widget because its `selected` state has a second animation track that
-//! cross-fades the pill behind the icon. `disabled` stays a plain iced
-//! `button` since it has nothing to animate.
-
 use std::time::Instant;
 
-pub use button::{Status, Style};
 use iced::advanced::renderer::{Quad, Style as RendererStyle};
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Layout, Renderer, Shell, Widget, layout};
-use iced::widget::{Text, button, column, container, row, text};
-use iced::{
-    Border,
-    Center,
-    Element,
-    Event,
-    Length,
-    Rectangle,
-    Size,
-    Theme,
-    border,
-    mouse,
-    window,
-};
+use iced::widget::{column, container, text};
+use iced::{Border, Center, Element, Event, Length, Rectangle, Size, mouse, window};
 
-use super::clickable::clickable;
 use crate::animate::hover::{EPSILON, Hover, PressState};
 use crate::{color, font, icon};
 
-const STANDARD_PADDING: [u16; 2] = [5, 10];
-const ICON_PADDING: u16 = 4;
+const NAV_ICON_PADDING: [u16; 2] = [4, 16];
+const NAV_PILL_RADIUS: f32 = 28.0;
 
 /// A navbar button.
 ///
@@ -54,145 +29,6 @@ where
 {
     Element::new(NavButton::new(label, icon, selected, message))
 }
-
-/// A standard button. Optional leading icon plus label, pill background.
-pub fn standard<'a, Message>(
-    label: &'a str,
-    icon_name: Option<&'a str>,
-    selected: bool,
-    message: Message,
-) -> Element<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    let mut items = row![].spacing(4).align_y(Center);
-    if let Some(name) = icon_name {
-        items = items.push(icon::filled(name).size(24));
-    }
-    items = items.push(text(label));
-
-    let message = (!selected).then_some(message);
-    let mut button = clickable(items)
-        .padding(STANDARD_PADDING)
-        .on_press_maybe(message);
-    if selected {
-        button = button.resting_color(color::primary());
-    }
-    button.into()
-}
-
-/// A disabled button. Cannot be interacted with. Sizes like a [`standard`]
-/// or [`icon`] button so it slots into the same rows without shifting.
-pub fn disabled<'a, Message>(
-    label: Option<&'a str>,
-    icon_name: Option<&'a str>,
-) -> Element<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    if let (Some(name), None) = (icon_name, label) {
-        let inner = icon::filled(name).size(24).color(color::TEXT_DARK);
-        return button(inner)
-            .padding(ICON_PADDING)
-            .style(disabled_button_style)
-            .into();
-    }
-
-    let mut items = row![].spacing(4).align_y(Center);
-
-    if let Some(name) = icon_name {
-        items = items.push(icon::filled(name).size(24).color(color::TEXT_DARK));
-    }
-
-    if let Some(label) = label {
-        items = items.push(text(label).color(color::TEXT_DARK));
-    }
-
-    button(items).style(disabled_button_style).into()
-}
-
-#[doc(hidden)]
-/// An icon name or pre-created icon text widget.
-pub enum IconTextOrName<'a> {
-    Name(&'a str),
-    Text(Text<'a>),
-}
-
-impl<'a> From<&'a str> for IconTextOrName<'a> {
-    fn from(value: &'a str) -> Self {
-        Self::Name(value)
-    }
-}
-
-impl<'a> From<Text<'a>> for IconTextOrName<'a> {
-    fn from(value: Text<'a>) -> Self {
-        Self::Text(value)
-    }
-}
-
-/// An icon button. No label, only a clickable icon.
-pub fn icon<'a, Message>(
-    icon_input: impl Into<IconTextOrName<'a>>,
-    selected: bool,
-    message: Message,
-) -> Element<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    let inner = match icon_input.into() {
-        IconTextOrName::Name(name) => icon::filled(name),
-        IconTextOrName::Text(text) => text,
-    };
-
-    let message = (!selected).then_some(message);
-    let mut button = clickable(inner)
-        .padding(ICON_PADDING)
-        .on_press_maybe(message);
-    if selected {
-        button = button.resting_color(color::primary());
-    }
-    button.into()
-}
-
-/// An icon toggle button. The icon swaps when `selected` flips.
-pub fn toggle_icon<'a, Message>(
-    base_icon: &'a str,
-    selected_icon: &'a str,
-    selected: bool,
-    message: Message,
-) -> Element<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    if selected {
-        // Selected: icon sits at primary at rest and eases to TEXT_PRIMARY
-        // on press. The cascade drives the colour, so the icon must not
-        // set an explicit `.color(...)`.
-        clickable(icon::filled(selected_icon))
-            .padding(ICON_PADDING)
-            .resting_color(color::primary())
-            .press_color(color::TEXT_PRIMARY)
-            .on_press(message)
-            .into()
-    } else {
-        clickable(icon::outline(base_icon))
-            .padding(ICON_PADDING)
-            .on_press(message)
-            .into()
-    }
-}
-
-fn disabled_button_style(_theme: &Theme, _status: Status) -> Style {
-    Style {
-        text_color: color::TEXT_DARK,
-        background: None,
-        border: border::rounded(999),
-        ..Style::default()
-    }
-}
-
-const NAV_ICON_PADDING: [u16; 2] = [4, 16];
-const NAV_PILL_RADIUS: f32 = 28.0;
 
 struct NavButton<'a, Message> {
     selected: bool,
