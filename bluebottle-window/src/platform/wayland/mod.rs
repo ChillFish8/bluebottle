@@ -5,7 +5,7 @@ mod viewport;
 
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
@@ -398,6 +398,7 @@ where
         size: Mutex::new((width, height)),
         scale: Mutex::new(1.0),
         close_requested: AtomicBool::new(false),
+        max_fps: AtomicU32::new(0),
         cursor: Mutex::new(Default::default()),
         ime: Mutex::new(InputMethod::Disabled),
         resize: Mutex::new(None),

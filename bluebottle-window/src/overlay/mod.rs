@@ -145,14 +145,28 @@ pub(crate) fn run<P, F, W>(
     render_loop(overlay, ticks, shared);
 }
 
-/// Minimum interval between overlay presents (~60 fps).
+/// Floor on the interval between overlay presents (~60 fps ceiling).
 ///
 /// Pending work (animation frames and coalesced input) is drawn at most once per
 /// interval so the overlay never floods the compositor with presents. Without
 /// this, a `RedrawRequest::NextFrame` animation spins at thousands of fps, which
 /// on some compositors (e.g. KWin) shows as visible flicker. Idle frames are
 /// unaffected: with nothing to draw the loop blocks until woken.
+///
+/// A caller can throttle below this rate via [`crate::Window::set_max_fps`], but
+/// never above it, so this is always the shortest interval the loop will use.
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// Resolve the present interval for a `max_fps` target (0 means no extra cap).
+///
+/// The result is clamped to [`FRAME_INTERVAL`] so a target at or above ~60 fps
+/// collapses to the floor and only lower targets actually lengthen the interval.
+fn frame_interval(max_fps: u32) -> Duration {
+    match max_fps {
+        0 => FRAME_INTERVAL,
+        fps => FRAME_INTERVAL.max(Duration::from_secs(1) / fps),
+    }
+}
 
 /// Upper bound on rebuild+re-update passes per draw while settling the interface.
 ///
@@ -182,7 +196,8 @@ fn render_loop<P: Program>(
         // Decide how long we may block before acting. With work pending (or an
         // animation frame due) we wait only until the next frame slot opens;
         // otherwise we sleep until the next scheduled redraw, or indefinitely.
-        let next_slot = last_present + FRAME_INTERVAL;
+        let interval = frame_interval(shared.max_fps.load(Ordering::Acquire));
+        let next_slot = last_present + interval;
         let deadline = if dirty || overlay.wants_redraw() {
             Some(next_slot)
         } else {
@@ -221,7 +236,16 @@ fn render_loop<P: Program>(
         // present.
         if (dirty || overlay.wants_redraw()) && Instant::now() >= next_slot {
             overlay.draw();
-            last_present = Instant::now();
+            // Anchor the next slot to this slot, not to wall clock after the
+            // draw, so the draw cost overlaps the interval instead of being
+            // added on top of it. If a slow frame put us more than an interval
+            // behind, resync to now so we do not then burst a run of catch up
+            // frames.
+            last_present = if Instant::now() >= next_slot + interval {
+                Instant::now()
+            } else {
+                next_slot
+            };
             dirty = false;
 
             // Publish the cursor and input-method state the UI wants so the
@@ -503,8 +527,12 @@ impl<P: Program> IcedOverlay<P> {
     {
         let clipboard = OverlayClipboard::connect(&target);
 
+        // Drive the compositor from the program's own settings so the default
+        // font, text size, antialiasing and vsync match what the app asked for.
+        // iced_winit does the same on its run path, which bluebottle bypasses.
+        let app_settings = program.settings();
         let mut compositor = pollster::block_on(CompositorOf::<P>::new(
-            Settings::default(),
+            Settings::from(app_settings.clone()),
             target.clone(),
             target.clone(),
             Shell::headless(),
@@ -512,6 +540,12 @@ impl<P: Program> IcedOverlay<P> {
         .map_err(|err| Error::RendererInit {
             message: err.to_string(),
         })?;
+
+        // Register the program's boot fonts before the first draw. Without this
+        // the icon font is missing and its glyphs fall back to garbage.
+        for font in app_settings.fonts {
+            compositor.load_font(font);
+        }
 
         let (physical_width, physical_height) = physical_size(width, height, scale);
         let renderer = compositor.create_renderer();

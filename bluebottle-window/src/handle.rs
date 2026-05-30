@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
@@ -49,6 +49,10 @@ pub(crate) struct Shared {
     pub size: Mutex<(u32, u32)>,
     pub scale: Mutex<f64>,
     pub close_requested: AtomicBool,
+    /// Target frames per second for the overlay render loop. 0 means no extra
+    /// cap, leaving only the built in 16ms anti flicker floor (~60fps). Set via
+    /// [`Window::set_max_fps`] and read each render loop iteration.
+    pub max_fps: AtomicU32,
     /// Cursor the overlay wants shown, published by the render thread and
     /// applied by the event-loop thread (which owns the pointer).
     pub cursor: Mutex<mouse::Interaction>,
@@ -193,6 +197,20 @@ impl Window {
         self.shared.close_requested.store(true, Ordering::Release);
         // The loop blocks indefinitely when idle; wake it so the close is
         // observed promptly rather than at the next unrelated event.
+        self.shared.wake();
+    }
+
+    /// Caps the overlay render rate.
+    ///
+    /// `Some(fps)` throttles the overlay to at most `fps` frames per second.
+    /// `None` removes the extra cap. 60fps is the ceiling, so values at or above
+    /// 60 leave the default rate unchanged. Takes effect on the next frame.
+    pub fn set_max_fps(&self, fps: Option<u32>) {
+        self.shared
+            .max_fps
+            .store(fps.unwrap_or(0), Ordering::Release);
+        // A raise (shorter interval) must be seen now rather than after the
+        // current longer sleep, so wake the render loop.
         self.shared.wake();
     }
 

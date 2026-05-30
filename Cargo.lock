@@ -374,14 +374,16 @@ dependencies = [
 name = "bluebottle-ui"
 version = "0.1.0"
 dependencies = [
+ "bluebottle-window",
  "bytemuck",
  "iced",
  "image",
  "lyon_algorithms",
  "phf",
  "phf_codegen",
- "snafu",
+ "pollster",
  "tracing-subscriber",
+ "wgpu",
 ]
 
 [[package]]

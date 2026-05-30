@@ -42,11 +42,6 @@ fn main() -> Result<(), Whatever> {
         unsafe { std::env::set_var("RUST_LOG", directive) };
     }
 
-    if std::env::var("WGPU_POWER_PREF").is_err() {
-        tracing::info!("setting GPU power preference to low");
-        unsafe { std::env::set_var("WGPU_POWER_PREF", "low") };
-    }
-
     tracing_subscriber::fmt::init();
 
     tracing::info!("starting Bluebottle");

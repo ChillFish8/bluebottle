@@ -1,11 +1,22 @@
 use std::sync::LazyLock;
+use std::time::Duration;
 
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
 use bluebottle_ui::{clickable, color, font, icon};
-use iced::widget::{column, container, image, row, text};
-use iced::{Background, Border, Center, Color, Element, Length, Settings, padding};
-use snafu::ResultExt;
+use iced::widget::{column, container, image, row, stack, text};
+use iced::{
+    Background,
+    Border,
+    Center,
+    Color,
+    Element,
+    Length,
+    Right,
+    Settings,
+    Top,
+    padding,
+};
 
 static POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/poster1.jpg")
@@ -30,23 +41,126 @@ static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> = LazyLock::new(|| {
     Some(Backdrop::new(rgba.into_raw(), width, height))
 });
 
-fn main() -> Result<(), snafu::Whatever> {
+fn main() {
     tracing_subscriber::fmt::init();
 
-    let settings = Settings {
-        fonts: font::required_fonts(),
-        default_font: font::regular(),
+    // Run the gallery as a bluebottle-window overlay rather than a plain
+    // iced::application so the render loop FPS cap actually applies. The
+    // always-animating demos (splash shader, spinners, skeletons, the FPS
+    // counter) would otherwise present as fast as the compositor allows.
+    let window = bluebottle_window::create_overlay(|| {
+        let settings = Settings {
+            fonts: font::required_fonts(),
+            default_font: font::regular(),
+            ..Default::default()
+        };
+
+        iced::application(Components::default, Components::update, Components::view)
+            .title("Bluebottle UI Components")
+            .theme(|_state: &Components| color::theme())
+            .settings(settings)
+    })
+    .expect("create overlay window");
+
+    // Throttle to 60fps. The floating counter should read about this.
+    window.set_max_fps(Some(60));
+
+    // Hold the main surface for the lifetime of the gallery. wgpu resources are
+    // dropped when this returns, before `join` tears down the display.
+    fill_main_surface(&window);
+
+    window.request_close();
+    window.join().expect("overlay loop exited cleanly");
+}
+
+/// Paint the caller-owned main surface with the flat page background.
+///
+/// A Wayland toplevel needs a buffer to map, and bluebottle-window clears the
+/// overlay transparently, so wherever the gallery does not paint this colour
+/// shows through. A static fill is enough, so this just follows resizes and
+/// re-presents slowly until the window closes.
+fn fill_main_surface(window: &bluebottle_window::Window) {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::VULKAN,
         ..Default::default()
+    });
+    let surface = unsafe {
+        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+            raw_display_handle: window.raw_display_handle(),
+            raw_window_handle: window.raw_window_handle(),
+        })
+    }
+    .expect("create main surface");
+
+    let adapter =
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::LowPower,
+            force_fallback_adapter: false,
+            compatible_surface: Some(&surface),
+        }))
+        .expect("request adapter");
+
+    let (device, queue) =
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            .expect("request device");
+
+    let physical = |window: &bluebottle_window::Window| {
+        let (width, height) = window.physical_size();
+        (width.clamp(1, 8192), height.clamp(1, 8192))
     };
 
-    iced::application(Components::default, Components::update, Components::view)
-        .title("Bluebottle UI Components")
-        .theme(|_state: &Components| color::theme())
-        .settings(settings)
-        .run()
-        .whatever_context("run UI")?;
+    let (width, height) = physical(window);
+    let mut config = surface
+        .get_default_config(&adapter, width, height)
+        .expect("surface configuration");
+    surface.configure(&device, &config);
 
-    Ok(())
+    let bg = color::BG.into_linear();
+    let clear = wgpu::Color {
+        r: bg[0] as f64,
+        g: bg[1] as f64,
+        b: bg[2] as f64,
+        a: 1.0,
+    };
+
+    while window.is_open() {
+        let (width, height) = physical(window);
+        if (width, height) != (config.width, config.height) {
+            config.width = width;
+            config.height = height;
+            surface.configure(&device, &config);
+        }
+
+        match surface.get_current_texture() {
+            Ok(frame) => {
+                let view = frame
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let mut encoder = device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("gallery background"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                queue.submit([encoder.finish()]);
+                frame.present();
+            },
+            Err(_) => surface.configure(&device, &config),
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 struct Components {
@@ -196,7 +310,15 @@ impl Components {
         .padding(padding::all(32))
         .spacing(40);
 
-        bluebottle_ui::scrollable::scrollable(blocks).into()
+        let content = bluebottle_ui::scrollable::scrollable(blocks);
+        let counter = container(bluebottle_ui::debug::fps_counter())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Right)
+            .align_y(Top)
+            .padding(12);
+
+        stack![content, counter].into()
     }
 }
 
