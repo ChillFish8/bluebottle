@@ -89,7 +89,9 @@ where
                 .height(Length::Fill),
         )
         .style(|_theme| container::Style {
-            background: Some(color::with_alpha(color::primary(), 0.27).into()),
+            background: Some(
+                color::with_alpha(color::primary(), color::srgb_alpha(0.27)).into(),
+            ),
             ..container::Style::default()
         });
 

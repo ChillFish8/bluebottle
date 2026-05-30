@@ -50,16 +50,24 @@ pub const GLASS_BASE: Color =
 /// Dimming wash behind drawers and modals.
 pub const SCRIM: Color = Color::from_rgba(8.0 / 255.0, 10.0 / 255.0, 20.0 / 255.0, 0.55);
 
-// Alpha hairlines. Fixed across every accent.
+// Alpha hairlines. Fixed across every accent. The opacities are authored in
+// sRGB and run through `srgb_alpha` so they render at the weight the design
+// reads. See [`srgb_alpha`].
 
-/// Default hairline between surfaces.
-pub const BORDER: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.06);
+/// Default hairline between surfaces. sRGB 6%.
+pub fn border() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.06))
+}
 
-/// Emphasised outlines and glass-button borders.
-pub const BORDER_STRONG: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.10);
+/// Emphasised outlines and glass-button borders. sRGB 10%.
+pub fn border_strong() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.10))
+}
 
-/// Subtle row hover over dark surfaces.
-pub const HOVER_VEIL: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.04);
+/// Subtle row hover over dark surfaces. sRGB 4%.
+pub fn hover_veil() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.04))
+}
 
 // Fixed semantics outside the accent quartet.
 
@@ -150,9 +158,9 @@ pub fn primary() -> Color {
     active().primary
 }
 
-/// Tinted backdrop behind primary or selected items.
+/// Tinted backdrop behind primary or selected items. sRGB 18%.
 pub fn primary_soft() -> Color {
-    with_alpha(primary(), 0.18)
+    with_alpha(primary(), srgb_alpha(0.18))
 }
 
 /// Watched, completed, positive confirmation.

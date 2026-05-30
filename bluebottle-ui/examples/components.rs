@@ -533,11 +533,7 @@ fn icon_toggle_buttons() -> Element<'static, Message> {
 fn hero_buttons() -> Element<'static, Message> {
     let demo = row![
         bluebottle_ui::button::hero("settings", "settings", Message::Click),
-        bluebottle_ui::button::hero_primary(
-            "play_arrow",
-            "Resume · 1h 48m",
-            Message::Click
-        ),
+        bluebottle_ui::button::hero("play_arrow", "Resume · 1h 48m", Message::Click),
     ]
     .padding(8)
     .spacing(8);

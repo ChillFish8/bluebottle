@@ -57,33 +57,30 @@ pub const ELEVATION_LIFTED: Shadow = Shadow {
 };
 
 /// Accent glow at `alpha`. Use 0.40 for primary buttons, 0.53 for hovered
-/// posters, 0.67 for play FABs. Reads the active accent at call time.
+/// posters, 0.67 for play FABs. The opacity is authored in sRGB and converted
+/// to the renderer's linear alpha. Reads the active accent at call time.
 pub fn glow(alpha: f32) -> Shadow {
     Shadow {
-        color: color::with_alpha(color::primary(), alpha),
+        color: color::with_alpha(color::primary(), color::srgb_alpha(alpha)),
         offset: Vector { x: 0.0, y: 10.0 },
         blur_radius: 24.0,
     }
 }
 
-/// Hero button glow, eased by `factor` from no glow at rest to its peak on
-/// hover. `fill` is the button's own fill colour so the glow reads as the
-/// button bleeding light, and `alpha` its peak opacity. The white fill takes a
-/// fainter peak than the accent so it does not read as high contrast on the
-/// dark stage.
-pub fn hero_glow(fill: Color, alpha: f32, factor: f32) -> Shadow {
-    scale_shadow(
-        Shadow {
-            color: color::with_alpha(fill, alpha),
-            offset: Vector::new(0.0, 4.0),
-            blur_radius: 10.0,
-        },
-        factor,
-    )
+/// Hero button glow. `fill` is the button's own fill colour so the glow reads
+/// as the button bleeding light. It eases by `factor` from its resting spread
+/// to the larger, brighter hover spread. The opacities are authored in sRGB.
+/// Rest is `0 8px 24px` at 8%, hover is `0 10px 28px` at 14%.
+pub fn hero_glow(fill: Color, factor: f32) -> Shadow {
+    Shadow {
+        color: color::with_alpha(fill, color::srgb_alpha(lerp(0.08, 0.14, factor))),
+        offset: Vector::new(0.0, lerp(8.0, 10.0, factor)),
+        blur_radius: lerp(24.0, 28.0, factor),
+    }
 }
 
 /// 1px hairline ring. Pair with a [`Shadow`] for the "drop + ring" recipe.
-/// Pass [`color::BORDER`] or [`color::BORDER_STRONG`] for neutral rings, or
+/// Pass [`color::border`] or [`color::border_strong`] for neutral rings, or
 /// [`color::primary()`] for selection / hover accents.
 pub fn hairline(color: Color) -> Border {
     Border::default().width(1.0).color(color)

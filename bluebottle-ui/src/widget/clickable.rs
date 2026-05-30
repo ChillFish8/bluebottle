@@ -53,7 +53,7 @@ where
         tint: color::HOVER,
         resting_color: None,
         background: None,
-        glow_alpha: None,
+        glow: false,
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
         width: Length::Shrink,
@@ -68,7 +68,7 @@ pub struct Clickable<'a, Message> {
     tint: Color,
     resting_color: Option<Color>,
     background: Option<Color>,
-    glow_alpha: Option<f32>,
+    glow: bool,
     radius: f32,
     padding: Padding,
     width: Length,
@@ -113,10 +113,10 @@ where
         self
     }
 
-    /// Adds a hover glow in the background colour, eased in with the hover
-    /// factor to `alpha` at its peak. No-op without a background.
-    pub fn glow(mut self, alpha: f32) -> Self {
-        self.glow_alpha = Some(alpha);
+    /// Adds the hero glow in the background colour. It rests at a soft spread
+    /// and grows on hover. No-op without a background.
+    pub fn glow(mut self) -> Self {
+        self.glow = true;
         self
     }
 
@@ -209,17 +209,16 @@ where
             ..Border::default()
         };
 
-        // Glow behind the fill, eased in with hover. The quad fill is
-        // transparent so only the shadow shows.
+        // Glow behind the fill, resting soft and growing on hover. The quad
+        // fill is transparent so only the shadow shows.
         if let Some(fill) = self.background
-            && let Some(alpha) = self.glow_alpha
-            && hover_factor > EPSILON
+            && self.glow
         {
             renderer.fill_quad(
                 Quad {
                     bounds,
                     border: pill,
-                    shadow: crate::style::hero_glow(fill, alpha, hover_factor),
+                    shadow: crate::style::hero_glow(fill, hover_factor),
                     ..Quad::default()
                 },
                 Color::TRANSPARENT,

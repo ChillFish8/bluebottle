@@ -20,7 +20,7 @@ mod toggle_icon;
 // mod pill;
 
 pub use disabled::disabled;
-pub use hero::{hero, hero_primary};
+pub use hero::hero;
 pub use icon::{IconTextOrName, icon};
 pub use nav::nav;
 pub use standard::standard;

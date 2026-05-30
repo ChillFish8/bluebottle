@@ -109,9 +109,9 @@ fn puck_bounds(content_layout: Layout<'_>) -> Option<Rectangle> {
 /// smooth at the puck's 14px corner radius.
 const NAV_BORDER_ARC_STEPS: usize = 24;
 
-/// Strokes the partial puck outline. The accent line is drawn at full opacity
-/// and its length tracks `factor`, so selecting and deselecting wraps the
-/// border on and off from the bottom centre rather than fading it.
+/// Strokes the partial puck outline. The accent line is drawn at a constant
+/// opacity and its length tracks `factor`, so selecting and deselecting wraps
+/// the border on and off from the bottom centre rather than fading it.
 fn draw_selected_border(
     renderer: &mut iced::Renderer,
     bounds: Rectangle,
@@ -144,7 +144,7 @@ fn draw_selected_border(
     frame.stroke(
         &builder.build(),
         canvas::Stroke::default()
-            .with_color(color::with_alpha(color::primary(), 0.55))
+            .with_color(color::with_alpha(color::primary(), color::srgb_alpha(0.55)))
             .with_width(1.0)
             .with_line_cap(canvas::LineCap::Round)
             .with_line_join(canvas::LineJoin::Round),
