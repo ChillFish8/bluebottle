@@ -225,8 +225,7 @@ impl Components {
                 clickable_card(),
             ]),
             category("Inputs", || vec![
-                search_input(&self.search_content),
-                inputs(&self.search_content),
+
             ]),
             category("Lists & Feedback", || vec![
                 smart_list_demo(
@@ -1065,28 +1064,6 @@ fn clickable_card() -> Element<'static, Message> {
     .spacing(8);
 
     section("Clickable Card", demo)
-}
-
-fn search_input(content: &str) -> Element<'_, Message> {
-    section(
-        "Search Input",
-        bluebottle_ui::search::search("Sample input...", content, Message::SearchInput),
-    )
-}
-
-fn inputs(content: &str) -> Element<'_, Message> {
-    let demo = column![
-        bluebottle_ui::input::text_input(
-            "Sample input...",
-            content,
-            Message::SearchInput
-        ),
-        bluebottle_ui::input::text_input("Password...", content, Message::SearchInput)
-            .secure(true),
-    ]
-    .spacing(8);
-
-    section("Text Input", demo)
 }
 
 fn smart_list_demo(
