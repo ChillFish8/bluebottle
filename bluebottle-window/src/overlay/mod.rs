@@ -189,6 +189,8 @@ fn render_loop<P: Program>(
     let mut published_cursor = overlay.mouse_interaction();
     let mut published_ime = overlay.input_method().clone();
     let mut dirty = false;
+    // Tracks whether the first presented frame has been announced to the loop.
+    let mut signalled_first = false;
     // Allow the first frame to draw immediately.
     let mut last_present = Instant::now() - FRAME_INTERVAL;
 
@@ -235,7 +237,7 @@ fn render_loop<P: Program>(
         // Draw at most once per interval, coalescing everything since the last
         // present.
         if (dirty || overlay.wants_redraw()) && Instant::now() >= next_slot {
-            overlay.draw();
+            let presented = overlay.draw();
             // Anchor the next slot to this slot, not to wall clock after the
             // draw, so the draw cost overlaps the interval instead of being
             // added on top of it. If a slow frame put us more than an interval
@@ -247,6 +249,14 @@ fn render_loop<P: Program>(
                 next_slot
             };
             dirty = false;
+
+            // Announce the first presented frame so a startup splash knows the
+            // UI is on screen and can hand the main surface over.
+            if presented && !signalled_first {
+                signalled_first = true;
+                shared.first_frame.store(true, Ordering::Release);
+                shared.wake();
+            }
 
             // Publish the cursor and input-method state the UI wants so the
             // event-loop thread (which owns the pointer and text input) can
@@ -354,7 +364,11 @@ const MAX_SURFACE_DIMENSION: u32 = 8192;
 ///
 /// Clamped to `[1, MAX_SURFACE_DIMENSION]` so an oversized window cannot exceed
 /// the renderer's maximum texture dimension.
-fn physical_size(logical_width: u32, logical_height: u32, scale: f64) -> (u32, u32) {
+pub(crate) fn physical_size(
+    logical_width: u32,
+    logical_height: u32,
+    scale: f64,
+) -> (u32, u32) {
     let to_physical = |logical: u32| {
         ((logical as f64) * scale)
             .round()
@@ -936,7 +950,9 @@ impl<P: Program> IcedOverlay<P> {
         self.exit
     }
 
-    fn draw(&mut self) {
+    /// Render and present one frame. Returns whether the frame was actually
+    /// presented, so the loop can mark the UI as on screen.
+    fn draw(&mut self) -> bool {
         // The program's own scale factor can change between frames; fold it into
         // the viewport (buffer size is unaffected, so no surface reconfigure).
         let program_scale = self.instance.scale_factor(self.window_id) as f64;
@@ -1074,7 +1090,7 @@ impl<P: Program> IcedOverlay<P> {
             Color::TRANSPARENT,
             || {},
         ) {
-            Ok(()) => {},
+            Ok(()) => true,
             Err(compositor::SurfaceError::Outdated | compositor::SurfaceError::Lost) => {
                 self.compositor.configure_surface(
                     &mut self.surface,
@@ -1085,9 +1101,11 @@ impl<P: Program> IcedOverlay<P> {
                 // repaint so the overlay does not stay blank until the next
                 // input or animation frame happens to arrive.
                 self.redraw_request = window::RedrawRequest::NextFrame;
+                false
             },
             Err(err) => {
                 tracing::warn!("overlay present failed: {err}");
+                false
             },
         }
     }

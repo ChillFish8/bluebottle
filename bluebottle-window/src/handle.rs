@@ -53,6 +53,15 @@ pub(crate) struct Shared {
     /// cap, leaving only the built in 16ms anti flicker floor (~60fps). Set via
     /// [`Window::set_max_fps`] and read each render loop iteration.
     pub max_fps: AtomicU32,
+    /// Set true by the render thread once the overlay has presented its first
+    /// frame, so the UI is now on screen. A startup splash watches this to know
+    /// when to hand over. Read with Acquire.
+    pub first_frame: AtomicBool,
+    /// Set true by the splash thread once it has stopped and dropped its wgpu
+    /// surface, so the event loop may release the main surface to the caller.
+    /// Only used when the `splash` feature drives a splash. Read with Acquire.
+    #[cfg(feature = "splash")]
+    pub splash_finished: AtomicBool,
     /// Cursor the overlay wants shown, published by the render thread and
     /// applied by the event-loop thread (which owns the pointer).
     pub cursor: Mutex<mouse::Interaction>,
@@ -190,6 +199,14 @@ impl Window {
     /// asks the window to close; callers can poll this to stop rendering.
     pub fn is_open(&self) -> bool {
         !self.shared.close_requested.load(Ordering::Acquire)
+    }
+
+    /// Returns whether the overlay has presented its first frame.
+    ///
+    /// Becomes `true` once the UI is on screen. A caller painting the main
+    /// surface can poll this to know when the overlay is ready.
+    pub fn ui_ready(&self) -> bool {
+        self.shared.first_frame.load(Ordering::Acquire)
     }
 
     /// Requests that the overlay window close and the event loop exit.

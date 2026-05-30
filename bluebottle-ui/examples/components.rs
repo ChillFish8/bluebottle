@@ -44,22 +44,35 @@ static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> = LazyLock::new(|| {
 fn main() {
     tracing_subscriber::fmt::init();
 
+    // Show an animated splash on the main surface while the gallery compiles its
+    // shaders and settles its first frame. No real logo asset exists yet, so a
+    // square example image stands in; swapping in a real logo is a one line change.
+    let logo = ::image::ImageReader::open("bluebottle-ui/assets/examples/music1.jpg")
+        .ok()
+        .and_then(|reader| reader.with_guessed_format().ok())
+        .and_then(|reader| reader.decode().ok())
+        .expect("decode splash logo");
+    let splash = bluebottle_window::Splash::new(logo, color::BG);
+
     // Run the gallery as a bluebottle-window overlay rather than a plain
     // iced::application so the render loop FPS cap actually applies. The
     // always-animating demos (splash shader, spinners, skeletons, the FPS
     // counter) would otherwise present as fast as the compositor allows.
-    let window = bluebottle_window::create_overlay(|| {
-        let settings = Settings {
-            fonts: font::required_fonts(),
-            default_font: font::regular(),
-            ..Default::default()
-        };
+    let window = bluebottle_window::create_overlay_with_splash(
+        || {
+            let settings = Settings {
+                fonts: font::required_fonts(),
+                default_font: font::regular(),
+                ..Default::default()
+            };
 
-        iced::application(Components::default, Components::update, Components::view)
-            .title("Bluebottle UI Components")
-            .theme(|_state: &Components| color::theme())
-            .settings(settings)
-    })
+            iced::application(Components::default, Components::update, Components::view)
+                .title("Bluebottle UI Components")
+                .theme(|_state: &Components| color::theme())
+                .settings(settings)
+        },
+        splash,
+    )
     .expect("create overlay window");
 
     // Throttle to 60fps. The floating counter should read about this.

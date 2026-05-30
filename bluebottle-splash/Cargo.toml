@@ -1,0 +1,23 @@
+[package]
+name = "bluebottle-splash"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
+pollster = { workspace = true }
+raw-window-handle = { workspace = true }
+image = { workspace = true }
+iced = { workspace = true }
+snafu = { workspace = true }
+
+[dev-dependencies]
+# Wayland only, matching the rest of the workspace, so the example does not drag
+# the X11 stack back into the tree.
+winit = { version = "0.30", default-features = false, features = [
+    "wayland",
+    "wayland-dlopen",
+    "wayland-csd-adwaita",
+    "rwh_06",
+] }

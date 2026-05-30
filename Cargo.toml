@@ -2,7 +2,10 @@
 resolver = "3"
 members = [
     "bluebottle",
-    "bluebottle-ui", "bluebottle-video", "bluebottle-window",
+    "bluebottle-splash",
+    "bluebottle-ui",
+    "bluebottle-video",
+    "bluebottle-window",
     "placebo-sys",
 ]
 
@@ -39,7 +42,7 @@ url = { version = "2", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["net", "time", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "rustls-tls-native-roots", "json", "zstd"] }
-iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "x11", "wgpu", "advanced", "tokio", "image", "svg", "canvas", "sipper"] }
+iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "wgpu", "advanced", "tokio", "image", "canvas"] }
 rusqlite = { version = "0.38", features = ["bundled", "serde_json", "uuid"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
@@ -56,7 +59,7 @@ smithay-client-toolkit = "0.20"
 pollster = "0.4"
 
 # Cross-platform clipboard access (uses smithay-clipboard on Wayland).
-window_clipboard = "0.5"
+window_clipboard = { version = "0.5", default-features = false, features = ["wayland"] }
 
 # API v1.24 enables the DMA-DRM video-info API (`VideoInfoDmaDrm`) used for zero-copy dmabuf import.
 gstreamer = "0.25"

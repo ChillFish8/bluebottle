@@ -10,7 +10,7 @@ lyon_algorithms = { workspace = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]
-bluebottle-window = { path = "../bluebottle-window" }
+bluebottle-window = { path = "../bluebottle-window", features = ["splash"] }
 image = { workspace = true }
 tracing-subscriber = { workspace = true }
 wgpu = { workspace = true }

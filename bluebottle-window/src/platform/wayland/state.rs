@@ -149,6 +149,19 @@ pub(crate) struct State {
 
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
+
+    /// Whether a startup splash was supplied. When set, the open is deferred
+    /// until the splash thread has stopped (see [`State::drive_splash`]).
+    pub has_splash: bool,
+    /// The splash awaiting its thread, taken once the surface is configured.
+    #[cfg(feature = "splash")]
+    pub pending_splash: Option<bluebottle_splash::Splash>,
+    /// A `Send` target for the main surface the splash thread renders into.
+    #[cfg(feature = "splash")]
+    pub main_target: super::RawSurface,
+    /// The running splash thread, joined on shutdown.
+    #[cfg(feature = "splash")]
+    pub splash_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl State {
@@ -246,6 +259,49 @@ impl State {
             let _ = tx.send(Ok(Arc::clone(&self.shared)));
         }
     }
+
+    /// Spawn the startup splash once the surface is configured, and open the
+    /// window once the splash thread has stopped and freed the main surface.
+    ///
+    /// Called every event-loop turn. The splash thread is joined before the open
+    /// so its wgpu surface is fully torn down before the caller builds its own on
+    /// the same `wl_surface`.
+    #[cfg(feature = "splash")]
+    pub fn drive_splash(&mut self) {
+        if self.configured
+            && self.pending_splash.is_some()
+            && self.splash_thread.is_none()
+        {
+            let splash = self.pending_splash.take().expect("pending splash");
+            let target = self.main_target;
+            let shared = Arc::clone(&self.shared);
+            let size = super::splash_physical(&self.shared);
+            match std::thread::Builder::new()
+                .name("bluebottle-splash".to_owned())
+                .spawn(move || super::run_splash(target, size, splash, shared))
+            {
+                Ok(handle) => self.splash_thread = Some(handle),
+                Err(err) => {
+                    tracing::warn!("failed to spawn splash thread: {err}");
+                    // Give up on the splash and let the window open.
+                    self.shared.splash_finished.store(true, Ordering::Release);
+                },
+            }
+        }
+
+        if self.has_splash && self.shared.splash_finished.load(Ordering::Acquire) {
+            // Join the (now finished) splash thread so its wgpu surface is gone
+            // before the caller makes its own on the same `wl_surface`.
+            if let Some(handle) = self.splash_thread.take() {
+                let _ = handle.join();
+            }
+            self.announce_ready();
+        }
+    }
+
+    /// See [`Self::drive_splash`]. Without the `splash` feature there is none.
+    #[cfg(not(feature = "splash"))]
+    pub fn drive_splash(&mut self) {}
 
     /// Apply the cursor the render thread requested, if it changed.
     ///
@@ -559,7 +615,11 @@ impl WindowHandler for State {
             );
         }
 
-        self.announce_ready();
+        // With a splash, the open is deferred until it has handed the surface
+        // back (see `drive_splash`); otherwise open as soon as we are configured.
+        if !self.has_splash {
+            self.announce_ready();
+        }
     }
 }
 

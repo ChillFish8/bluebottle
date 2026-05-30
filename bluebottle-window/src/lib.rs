@@ -15,6 +15,9 @@ mod handle;
 mod overlay;
 pub mod platform;
 
+/// The startup splash description, available with the `splash` feature.
+#[cfg(feature = "splash")]
+pub use bluebottle_splash::Splash;
 pub use error::Error;
 pub use handle::Window;
 /// Re-export of the `iced` version this crate is built against.
@@ -38,7 +41,26 @@ where
     P: Program + 'static,
 {
     force_vulkan_backend();
-    platform::run(build, false)
+    platform::run(build, false, Default::default())
+}
+
+/// Create an overlay window that shows an animated startup splash.
+///
+/// Like [`create_overlay`], but `bluebottle-window` paints `splash` (a logo over a
+/// background) on the main surface while the overlay builds its first frame, then
+/// hands the surface back once the UI is on screen. Available with the `splash`
+/// feature.
+#[cfg(feature = "splash")]
+pub fn create_overlay_with_splash<P, F>(
+    build: F,
+    splash: Splash,
+) -> Result<Window, Error>
+where
+    F: FnOnce() -> P + Send + 'static,
+    P: Program + 'static,
+{
+    force_vulkan_backend();
+    platform::run(build, false, Some(splash))
 }
 
 /// Create an overlay window that also hosts an external video sink.
@@ -57,7 +79,7 @@ where
     P: Program + 'static,
 {
     force_vulkan_backend();
-    platform::run(build, true)
+    platform::run(build, true, Default::default())
 }
 
 /// Pin the Iced overlay renderer to wgpu's Vulkan backend.

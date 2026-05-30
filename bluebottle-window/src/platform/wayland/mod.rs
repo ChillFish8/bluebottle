@@ -135,11 +135,32 @@ type InitResult = Result<Arc<Shared>, Error>;
 /// The size used until the compositor suggests one of its own.
 const DEFAULT_SIZE: (u32, u32) = (1280, 720);
 
+/// The splash threaded into [`run`]: an optional splash with the `splash`
+/// feature, otherwise a zero size marker so the default build carries nothing.
+#[cfg(feature = "splash")]
+pub(crate) type SplashArg = Option<bluebottle_splash::Splash>;
+/// See [`SplashArg`].
+#[cfg(not(feature = "splash"))]
+#[derive(Default)]
+pub(crate) struct SplashArg;
+
+/// Longest the splash runs if the overlay never reports a first frame, after
+/// which the window opens anyway. Kept generous so it only catches a genuinely
+/// stuck overlay. A slow but progressing first frame still ends the splash the
+/// moment it presents, so a high bound here does not lengthen normal startup; it
+/// only avoids handing over to a blank surface while the UI is still coming up.
+#[cfg(feature = "splash")]
+const SPLASH_TIMEOUT: Duration = Duration::from_secs(15);
+
 /// Spawn the Wayland event loop on a background thread and return a [`Window`].
 ///
 /// Blocks only until the loop reports that the main surface is ready (or fails);
 /// the loop then keeps running on its thread until close is requested.
-pub(crate) fn run<P, F>(build: F, video: bool) -> Result<Window, Error>
+pub(crate) fn run<P, F>(
+    build: F,
+    video: bool,
+    splash: SplashArg,
+) -> Result<Window, Error>
 where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
@@ -148,7 +169,7 @@ where
 
     let thread = thread::Builder::new()
         .name("bluebottle-window".to_owned())
-        .spawn(move || event_loop(build, tx, video))
+        .spawn(move || event_loop(build, tx, video, splash))
         .context(SpawnThreadSnafu)?;
 
     match rx.recv() {
@@ -169,13 +190,14 @@ fn event_loop<P, F>(
     build: F,
     tx: mpsc::Sender<InitResult>,
     video: bool,
+    splash: SplashArg,
 ) -> Result<(), Error>
 where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
     let (conn, mut event_loop, mut state, render_thread) =
-        match setup(build, tx.clone(), video) {
+        match setup(build, tx.clone(), video, splash) {
             Ok(parts) => parts,
             Err(err) => {
                 let _ = tx.send(Err(err));
@@ -212,12 +234,22 @@ where
         state.apply_window_requests();
         state.sync_cursor(&conn);
         state.sync_ime();
+        // Spawn the startup splash once the surface is configured and hand the
+        // window over once it has stopped. A no-op without the `splash` feature.
+        state.drive_splash();
     }
 
     // Make the shutdown observable to the render thread and the caller, whether
     // the exit came from `request_close`, a compositor close request, or a
     // dispatch error.
     state.shared.close_requested.store(true, Ordering::Release);
+
+    // Stop the splash thread before the connection drops: like the render
+    // thread, its wgpu resources reference the `wl_display`.
+    #[cfg(feature = "splash")]
+    if let Some(splash_thread) = state.splash_thread.take() {
+        let _ = splash_thread.join();
+    }
 
     // Join the render thread before the connection drops: its wgpu resources
     // reference the `wl_display`, which is disconnected once `conn` is dropped.
@@ -240,6 +272,7 @@ fn setup<P, F>(
     build: F,
     tx: mpsc::Sender<InitResult>,
     video: bool,
+    splash: SplashArg,
 ) -> Result<
     (
         Connection,
@@ -374,6 +407,22 @@ where
         video: video_ptr,
     };
 
+    // A `Send` target for the main surface so the splash thread can render it.
+    #[cfg(feature = "splash")]
+    let main_target = RawSurface {
+        display: display_ptr,
+        surface: main_surface_ptr,
+    };
+
+    // Whether a splash was supplied; gates deferring the open until it finishes.
+    #[cfg(feature = "splash")]
+    let has_splash = splash.is_some();
+    #[cfg(not(feature = "splash"))]
+    let has_splash = {
+        let _ = splash;
+        false
+    };
+
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
         .expect("wl_surface pointer is never null");
 
@@ -399,6 +448,9 @@ where
         scale: Mutex::new(1.0),
         close_requested: AtomicBool::new(false),
         max_fps: AtomicU32::new(0),
+        first_frame: AtomicBool::new(false),
+        #[cfg(feature = "splash")]
+        splash_finished: AtomicBool::new(false),
         cursor: Mutex::new(Default::default()),
         ime: Mutex::new(InputMethod::Disabled),
         resize: Mutex::new(None),
@@ -496,6 +548,13 @@ where
         viewport,
         shared,
         init_tx: Some(tx),
+        has_splash,
+        #[cfg(feature = "splash")]
+        pending_splash: splash,
+        #[cfg(feature = "splash")]
+        main_target,
+        #[cfg(feature = "splash")]
+        splash_thread: None,
     };
 
     let event_loop: EventLoop<'static, State> =
@@ -517,4 +576,51 @@ where
         })?;
 
     Ok((conn, event_loop, state, render_thread))
+}
+
+/// The current physical (buffer) size of the main surface from shared state.
+#[cfg(feature = "splash")]
+fn splash_physical(shared: &Shared) -> (u32, u32) {
+    let (width, height) = *shared.size.lock().expect("size mutex poisoned");
+    let scale = *shared.scale.lock().expect("scale mutex poisoned");
+    crate::overlay::physical_size(width, height, scale)
+}
+
+/// Render the splash on the main surface until the overlay reports its first
+/// frame (or a timeout), then drop the renderer and let the window open.
+///
+/// Runs on its own thread so it can animate while the overlay thread is busy
+/// building its first frame. Dropping the renderer before signalling
+/// `splash_finished` frees the main surface before the caller takes it over.
+#[cfg(feature = "splash")]
+fn run_splash(
+    target: RawSurface,
+    size: (u32, u32),
+    splash: bluebottle_splash::Splash,
+    shared: Arc<Shared>,
+) {
+    let mut renderer =
+        match bluebottle_splash::SplashRenderer::new(&target, size, &splash) {
+            Ok(renderer) => renderer,
+            Err(err) => {
+                tracing::warn!("splash renderer init failed: {err}");
+                shared.splash_finished.store(true, Ordering::Release);
+                shared.wake();
+                return;
+            },
+        };
+
+    let start = std::time::Instant::now();
+    while !shared.first_frame.load(Ordering::Acquire)
+        && !shared.close_requested.load(Ordering::Acquire)
+        && start.elapsed() < SPLASH_TIMEOUT
+    {
+        let (width, height) = splash_physical(&shared);
+        renderer.resize(width, height);
+        renderer.render();
+    }
+
+    drop(renderer);
+    shared.splash_finished.store(true, Ordering::Release);
+    shared.wake();
 }

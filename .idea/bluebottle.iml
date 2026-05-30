@@ -17,6 +17,8 @@
       <sourceFolder url="file://$MODULE_DIR$/bluebottle-video/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/bluebottle-video/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/placebo-sys/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bluebottle-splash/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/bluebottle-splash/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

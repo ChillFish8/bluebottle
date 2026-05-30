@@ -3,7 +3,14 @@ name = "bluebottle-window"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# Show an animated startup splash on the main surface until the UI is ready.
+# Pulls in bluebottle-splash and enables create_overlay_with_splash.
+splash = ["dep:bluebottle-splash"]
+
 [dependencies]
+bluebottle-splash = { path = "../bluebottle-splash", optional = true }
+
 iced = { workspace = true }
 iced_core = { workspace = true }
 iced_futures = { workspace = true }
