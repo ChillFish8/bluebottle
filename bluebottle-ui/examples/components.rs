@@ -57,6 +57,7 @@ struct Components {
     smart_list_shown: Option<usize>,
     smart_list_hydrated: bool,
     selected_accent: color::Accent,
+    selected_nav: usize,
 }
 
 impl Default for Components {
@@ -69,6 +70,7 @@ impl Default for Components {
             smart_list_shown: None,
             smart_list_hydrated: false,
             selected_accent: color::Accent::Default,
+            selected_nav: 0,
         }
     }
 }
@@ -87,6 +89,7 @@ enum Message {
     SmartListHydrate,
     SmartListTargetFinished,
     AccentSelected(color::Accent),
+    NavSelected(usize),
 }
 
 impl Components {
@@ -122,6 +125,9 @@ impl Components {
                 color::set_accent(accent);
                 self.selected_accent = accent;
             },
+            Message::NavSelected(i) => {
+                self.selected_nav = i;
+            },
             _ => {},
         }
     }
@@ -153,7 +159,7 @@ impl Components {
                     navigators(),
                     tabs(self.selected_tab, self.selected_icon_tab),
                     breadcrumbs(),
-                    bars(),
+                    bars(self.selected_nav),
                 ],
             ),
             (
@@ -659,19 +665,30 @@ fn breadcrumbs() -> Element<'static, Message> {
     section("Breadcrumbs", demo)
 }
 
-fn bars() -> Element<'static, Message> {
+fn bars(selected: usize) -> Element<'static, Message> {
+    // Each entry owns an index. Clicking one selects it and deselects the rest,
+    // so the example shows the on/off swap and leaves the others free to hover.
+    let entry = |label, icon, index| {
+        bluebottle_ui::button::nav(
+            label,
+            icon,
+            selected == index,
+            Message::NavSelected(index),
+        )
+    };
+
     let top_buttons = column![
-        bluebottle_ui::button::nav("Home", "home", true, Message::Click),
-        bluebottle_ui::button::nav("Search", "search", false, Message::Click),
-        bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
-        bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+        entry("Home", "home", 0),
+        entry("Search", "search", 1),
+        entry("Liked", "favorite", 2),
+        entry("Anime", "draw", 3),
     ]
     .spacing(8.0)
     .align_x(Center);
 
     let bottom_buttons = column![
-        bluebottle_ui::button::nav("Library", "storage", false, Message::Click),
-        bluebottle_ui::button::nav("Settings", "settings", false, Message::Click),
+        entry("Library", "storage", 4),
+        entry("Settings", "settings", 5),
     ]
     .spacing(8.0)
     .align_x(Center);

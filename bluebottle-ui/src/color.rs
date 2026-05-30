@@ -213,6 +213,19 @@ pub const fn fade(color: Color, factor: f32) -> Color {
     with_alpha(color, color.a * factor)
 }
 
+/// Converts an opacity authored in sRGB space into the linear-space alpha the
+/// wgpu renderer blends with. iced blends quads in linear space over an sRGB
+/// surface, so a translucent white tint handed a raw CSS opacity blooms far
+/// brighter than the design intends. Running the alpha through the sRGB
+/// transfer keeps a white-over-dark glass tint as faint as the CSS value reads.
+pub fn srgb_alpha(alpha: f32) -> f32 {
+    if alpha <= 0.04045 {
+        alpha / 12.92
+    } else {
+        ((alpha + 0.055) / 1.055).powf(2.4)
+    }
+}
+
 /// Eases `base` toward `target` by `factor`, clamped to `[0, 1]`. Same as
 /// [`mix`] but accepts unbounded factors from animation primitives without
 /// requiring the caller to clamp.

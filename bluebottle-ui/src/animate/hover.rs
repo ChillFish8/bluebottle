@@ -19,12 +19,14 @@ pub const EPSILON: f32 = 0.001;
 /// The eased hover animation for one region. [`Hover::current`] reads the
 /// live factor and [`Hover::flip`] retargets without snapping. Storing
 /// `from`/`target`/`started` lets a mid-flight reversal continue from where
-/// the previous one left off.
+/// the previous one left off. `fade` is the duration of one in or out move and
+/// defaults to [`FADE`].
 #[derive(Clone, Copy)]
 pub struct Hover {
     from: f32,
     target: f32,
     started: Instant,
+    fade: Duration,
 }
 
 impl Default for Hover {
@@ -33,17 +35,19 @@ impl Default for Hover {
             from: 0.0,
             target: 0.0,
             started: Instant::now() - FADE,
+            fade: FADE,
         }
     }
 }
 
 impl Hover {
-    /// The factor right now, eased from `from` toward `target` over [`FADE`].
+    /// The factor right now, eased from `from` toward `target` over `fade`.
     /// Fade-in uses an emphasized decelerate (fast start, soft settle).
     /// Fade-out uses the matching accelerate curve.
     pub fn current(&self, now: Instant) -> f32 {
-        let raw = (now.duration_since(self.started).as_secs_f32() / FADE.as_secs_f32())
-            .clamp(0.0, 1.0);
+        let raw = (now.duration_since(self.started).as_secs_f32()
+            / self.fade.as_secs_f32())
+        .clamp(0.0, 1.0);
         let curve = if self.target >= self.from {
             &easing::EMPHASIZED_DECELERATE
         } else {
@@ -71,7 +75,7 @@ impl Hover {
 
     /// Whether the region still has movement left.
     pub fn animating(&self, now: Instant) -> bool {
-        now.duration_since(self.started) < FADE
+        now.duration_since(self.started) < self.fade
     }
 
     /// A track already settled at its terminal value with no animation in
@@ -84,7 +88,17 @@ impl Hover {
             from: target,
             target,
             started: Instant::now() - FADE,
+            fade: FADE,
         }
+    }
+
+    /// Overrides the fade duration for this track. The clock resets to a
+    /// settled state so a track configured at construction does not read as
+    /// animating on its first frame.
+    pub fn with_fade(mut self, fade: Duration) -> Self {
+        self.fade = fade;
+        self.started = Instant::now() - fade;
+        self
     }
 }
 
