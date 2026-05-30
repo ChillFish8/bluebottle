@@ -58,6 +58,7 @@ struct Components {
     smart_list_hydrated: bool,
     selected_accent: color::Accent,
     selected_nav: usize,
+    toggle_states: [bool; 3],
 }
 
 impl Default for Components {
@@ -71,6 +72,7 @@ impl Default for Components {
             smart_list_hydrated: false,
             selected_accent: color::Accent::Default,
             selected_nav: 0,
+            toggle_states: [true, false, false],
         }
     }
 }
@@ -90,6 +92,7 @@ enum Message {
     SmartListTargetFinished,
     AccentSelected(color::Accent),
     NavSelected(usize),
+    ToggleToolbar(usize),
 }
 
 impl Components {
@@ -128,6 +131,11 @@ impl Components {
             Message::NavSelected(i) => {
                 self.selected_nav = i;
             },
+            Message::ToggleToolbar(i) => {
+                if let Some(state) = self.toggle_states.get_mut(i) {
+                    *state = !*state;
+                }
+            },
             _ => {},
         }
     }
@@ -150,8 +158,9 @@ impl Components {
                 standard_buttons(),
                 icon_buttons(),
                 icon_toggle_buttons(),
-                hero_buttons(),
                 ghost_pills(),
+                toggle_pills(self.toggle_states),
+                hero_buttons(),
                 clickables(),
             ]),
             category("Navigation", || vec![
@@ -546,6 +555,40 @@ fn ghost_pills() -> Element<'static, Message> {
     .spacing(8);
 
     section("Ghost Pills", demo)
+}
+
+fn toggle_pills(states: [bool; 3]) -> Element<'static, Message> {
+    let toolbar = row![
+        bluebottle_ui::button::toggle_pill(
+            "Subscribed",
+            Some("subscriptions"),
+            states[0],
+            Message::ToggleToolbar(0)
+        ),
+        bluebottle_ui::button::toggle_pill(
+            "Liked",
+            Some("favorite"),
+            states[1],
+            Message::ToggleToolbar(1)
+        ),
+        bluebottle_ui::button::toggle_pill(
+            "TV",
+            Some("tv"),
+            states[2],
+            Message::ToggleToolbar(2)
+        ),
+    ]
+    .spacing(8);
+
+    let labels_only = row![
+        bluebottle_ui::button::toggle_pill("Off", None, false, Message::Click),
+        bluebottle_ui::button::toggle_pill("On", None, true, Message::Click),
+    ]
+    .spacing(8);
+
+    let demo = column![toolbar, labels_only].spacing(8);
+
+    section("Toggle Pills", demo)
 }
 
 /// The glass gradient surface. Top stop down to the bottom stop, matching

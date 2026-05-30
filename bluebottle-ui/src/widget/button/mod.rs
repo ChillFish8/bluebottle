@@ -23,7 +23,7 @@ pub use disabled::disabled;
 pub use hero::hero;
 pub use icon::{IconTextOrName, icon};
 pub use nav::nav;
-pub use pill::{ghost, ghost_small};
+pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;
 pub use toggle_icon::toggle_icon;
 

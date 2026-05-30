@@ -34,7 +34,7 @@ use iced::{
     window,
 };
 
-use crate::animate::hover::{EPSILON, PressState};
+use crate::animate::hover::{EPSILON, Hover, PressState};
 use crate::color;
 
 const DEFAULT_RADIUS: f32 = 999.0;
@@ -54,6 +54,10 @@ where
         resting_color: None,
         background: None,
         glow: false,
+        selected: false,
+        selected_background: None,
+        selected_border: None,
+        selected_color: None,
         hover_border: None,
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
@@ -70,6 +74,10 @@ pub struct Clickable<'a, Message> {
     resting_color: Option<Color>,
     background: Option<Color>,
     glow: bool,
+    selected: bool,
+    selected_background: Option<Color>,
+    selected_border: Option<Color>,
+    selected_color: Option<Color>,
     hover_border: Option<Color>,
     radius: f32,
     padding: Padding,
@@ -122,6 +130,34 @@ where
         self
     }
 
+    /// Marks the clickable as on. The selected fill, ring, and colour ease in
+    /// while on and out when it clears, and the hover glass fades out as the
+    /// selected fill takes over.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// The fill shown while [`Self::selected`] is on. Eased in and out.
+    pub fn selected_background(mut self, color: Color) -> Self {
+        self.selected_background = Some(color);
+        self
+    }
+
+    /// The 1px ring shown while [`Self::selected`] is on. Eased in and out.
+    pub fn selected_border(mut self, color: Color) -> Self {
+        self.selected_border = Some(color);
+        self
+    }
+
+    /// The text and icon colour while [`Self::selected`] is on, eased from the
+    /// resting colour. The wrapped content must defer to the cascade for this
+    /// to take effect.
+    pub fn selected_color(mut self, color: Color) -> Self {
+        self.selected_color = Some(color);
+        self
+    }
+
     /// Adds a 1px border that fades in with the hover tint. Pass the peak
     /// colour. At rest the border is transparent so the slot is held without
     /// a shift.
@@ -159,6 +195,13 @@ where
     fn interactive(&self) -> bool {
         self.on_press.is_some()
     }
+}
+
+/// The hover and press bookkeeping plus the eased selected track.
+#[derive(Default)]
+struct ClickState {
+    press: PressState,
+    selected: Hover,
 }
 
 impl<'a, Message> From<Clickable<'a, Message>> for Element<'a, Message>
@@ -204,15 +247,18 @@ where
         cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        let state = tree.state.downcast_ref::<PressState>();
+        let state = tree.state.downcast_ref::<ClickState>();
         let now = Instant::now();
         let bounds = layout.bounds();
 
         let hover_factor = if self.interactive() {
-            state.hover.current(now)
+            state.press.hover.current(now)
         } else {
             0.0
         };
+        let selected_factor = state.selected.current(now);
+        // The hover glass recedes as the selected fill takes over.
+        let glass_factor = hover_factor * (1.0 - selected_factor);
 
         let pill = Border {
             radius: self.radius.into(),
@@ -246,21 +292,21 @@ where
             );
         }
 
-        if hover_factor > EPSILON && self.tint.a > 0.0 {
+        if glass_factor > EPSILON && self.tint.a > 0.0 {
             renderer.fill_quad(
                 Quad {
                     bounds,
                     border: pill,
                     ..Quad::default()
                 },
-                color::fade(self.tint, hover_factor),
+                color::fade(self.tint, glass_factor),
             );
         }
 
         // The border rides its own quad over the fill. iced paints the border
         // band in place of the background rather than over it, so a border that
         // matches the fill would vanish. Layering it keeps the hairline visible.
-        if hover_factor > EPSILON
+        if glass_factor > EPSILON
             && let Some(border_color) = self.hover_border
         {
             renderer.fill_quad(
@@ -268,7 +314,7 @@ where
                     bounds,
                     border: Border {
                         width: 1.0,
-                        color: color::fade(border_color, hover_factor),
+                        color: color::fade(border_color, glass_factor),
                         ..pill
                     },
                     ..Quad::default()
@@ -277,9 +323,45 @@ where
             );
         }
 
-        let content_style = Style {
-            text_color: self.resting_color.unwrap_or(style.text_color),
+        // Selected fill, eased in over the on state.
+        if selected_factor > EPSILON
+            && let Some(fill) = self.selected_background
+        {
+            renderer.fill_quad(
+                Quad {
+                    bounds,
+                    border: pill,
+                    ..Quad::default()
+                },
+                color::fade(fill, selected_factor),
+            );
+        }
+
+        // Selected ring, eased in and layered over the fill.
+        if selected_factor > EPSILON
+            && let Some(border_color) = self.selected_border
+        {
+            renderer.fill_quad(
+                Quad {
+                    bounds,
+                    border: Border {
+                        width: 1.0,
+                        color: color::fade(border_color, selected_factor),
+                        ..pill
+                    },
+                    ..Quad::default()
+                },
+                Color::TRANSPARENT,
+            );
+        }
+
+        // The resting tone eases toward the selected tone over the on state.
+        let resting = self.resting_color.unwrap_or(style.text_color);
+        let text_color = match self.selected_color {
+            Some(on) => color::ease(resting, on, selected_factor),
+            None => resting,
         };
+        let content_style = Style { text_color };
 
         let content_layout = layout.children().next().expect("clickable child");
         self.content.as_widget().draw(
@@ -294,11 +376,14 @@ where
     }
 
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<PressState>()
+        tree::Tag::of::<ClickState>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(PressState::default())
+        tree::State::new(ClickState {
+            selected: Hover::settled(self.selected),
+            ..ClickState::default()
+        })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -307,6 +392,9 @@ where
 
     fn diff(&self, tree: &mut Tree) {
         tree.diff_children(std::slice::from_ref(&self.content));
+
+        let state = tree.state.downcast_mut::<ClickState>();
+        state.selected.flip(self.selected, Instant::now());
     }
 
     fn operate(
@@ -358,17 +446,17 @@ where
         let now = Instant::now();
         let bounds = layout.bounds();
         let over = cursor.is_over(bounds);
-        let state = tree.state.downcast_mut::<PressState>();
+        let state = tree.state.downcast_mut::<ClickState>();
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if !shell.is_event_captured() {
-                    state.press(over);
+                    state.press.press(over);
                 }
             },
 
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                let dispatch = state.release(over);
+                let dispatch = state.press.release(over);
                 if dispatch
                     && !shell.is_event_captured()
                     && let Some(message) = self.on_press.clone()
@@ -379,11 +467,11 @@ where
             },
 
             _ => {
-                if state.reconcile(over, now) {
+                if state.press.reconcile(over, now) {
                     shell.request_redraw();
                 }
                 if let Event::Window(window::Event::RedrawRequested(_)) = event
-                    && state.animating(now)
+                    && (state.press.animating(now) || state.selected.animating(now))
                 {
                     shell.request_redraw();
                 }

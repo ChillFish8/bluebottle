@@ -303,6 +303,14 @@ impl<'a> Text<'a> {
         self
     }
 
+    /// Clears any colour set by a typography role so the text rides the
+    /// cascaded `text_color` instead. Use it when a parent drives the colour,
+    /// for example a button that eases its label between states.
+    pub fn inherit_color(mut self) -> Self {
+        self.color = None;
+        self
+    }
+
     /// Sets the extra tracking between glyphs in pixels. This matches CSS
     /// letter-spacing. The value is converted to em before shaping because
     /// cosmic-text tracks in em. Zero leaves shaping untouched.
