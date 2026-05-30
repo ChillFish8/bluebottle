@@ -1,8 +1,12 @@
 use iced::widget::{button, row, text};
 use iced::{Center, Element, Theme, border};
 
-use super::{ICON_PADDING, Status, Style};
+use super::{Status, Style};
 use crate::{color, icon};
+
+/// Padding around a disabled icon so it slots into the same rows as a standard
+/// button without shifting.
+const ICON_PADDING: u16 = 4;
 
 /// A disabled button. Cannot be interacted with. Sizes like a
 /// [`standard`](super::standard) or [`icon`](super::icon) button so it slots

@@ -1,13 +1,16 @@
 //! Button widgets. Hover and press are eased by the design system's 100 ms
 //! [`Hover`](crate::animate::hover::Hover) primitive rather than iced's
 //! instant status-based styling. Hovering fades a pill tint in behind the
-//! content. Pressing eases the text and icon colour toward `primary()` (or
-//! away from it for a selected `toggle_icon`). `standard`, `icon`, and
-//! `toggle_icon` are thin builders over
+//! content. Pressing eases the text and icon colour toward `primary()`.
+//! `standard`, `icon`, and `icon_flat` are thin builders over
 //! [`clickable`](super::clickable::clickable). `nav` is its own custom
 //! widget because its `selected` state has a second animation track that
 //! cross-fades the pill behind the icon. `disabled` stays a plain iced
 //! `button` since it has nothing to animate.
+//!
+//! `icon` is the bordered glass circle, a white glass fill behind a hairline
+//! that turns accent when on. `icon_flat` is the border-free variant for
+//! denser rows.
 
 pub use iced::widget::button::{Status, Style};
 
@@ -17,16 +20,10 @@ mod icon;
 mod nav;
 mod pill;
 mod standard;
-mod toggle_icon;
 
 pub use disabled::disabled;
 pub use hero::hero;
-pub use icon::{IconTextOrName, icon};
+pub use icon::{IconSizeVariant, icon, icon_flat};
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;
-pub use toggle_icon::toggle_icon;
-
-/// Padding shared by the icon button and the disabled button so a disabled
-/// icon slots into the same rows without shifting.
-const ICON_PADDING: u16 = 4;

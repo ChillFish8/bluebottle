@@ -163,6 +163,12 @@ pub fn primary_soft() -> Color {
     with_alpha(primary(), srgb_alpha(0.18))
 }
 
+/// Accent glass fill behind an on toggle. The bordered glass icon and the
+/// toggle pill share it. sRGB 28%.
+pub fn primary_glass() -> Color {
+    with_alpha(primary(), srgb_alpha(0.28))
+}
+
 /// Watched, completed, positive confirmation.
 pub fn success() -> Color {
     active().success

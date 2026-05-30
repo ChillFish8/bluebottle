@@ -92,6 +92,8 @@ struct Components {
     selected_accent: color::Accent,
     selected_nav: usize,
     toggle_states: [bool; 3],
+    icon_states: [bool; 4],
+    icon_flat_states: [bool; 2],
 }
 
 impl Default for Components {
@@ -106,6 +108,8 @@ impl Default for Components {
             selected_accent: color::Accent::Default,
             selected_nav: 0,
             toggle_states: [true, false, false],
+            icon_states: [false, true, false, true],
+            icon_flat_states: [false, true],
         }
     }
 }
@@ -126,6 +130,14 @@ enum Message {
     AccentSelected(color::Accent),
     NavSelected(usize),
     ToggleToolbar(usize),
+    ToggleIcon(usize),
+    ToggleIconFlat(usize),
+}
+
+fn toggle_at(slice: &mut [bool], i: usize) {
+    if let Some(state) = slice.get_mut(i) {
+        *state = !*state;
+    }
 }
 
 impl Components {
@@ -164,11 +176,9 @@ impl Components {
             Message::NavSelected(i) => {
                 self.selected_nav = i;
             },
-            Message::ToggleToolbar(i) => {
-                if let Some(state) = self.toggle_states.get_mut(i) {
-                    *state = !*state;
-                }
-            },
+            Message::ToggleToolbar(i) => toggle_at(&mut self.toggle_states, i),
+            Message::ToggleIcon(i) => toggle_at(&mut self.icon_states, i),
+            Message::ToggleIconFlat(i) => toggle_at(&mut self.icon_flat_states, i),
             _ => {},
         }
     }
@@ -189,8 +199,8 @@ impl Components {
             category("Buttons", || vec![
                 nav_buttons(),
                 standard_buttons(),
-                icon_buttons(),
-                icon_toggle_buttons(),
+                icon_buttons(self.icon_states),
+                icon_flat_buttons(self.icon_flat_states),
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
                 hero_buttons(),
@@ -533,39 +543,58 @@ fn standard_buttons() -> Element<'static, Message> {
     section("Standard Buttons", demo)
 }
 
-fn icon_buttons() -> Element<'static, Message> {
+fn icon_buttons(states: [bool; 4]) -> Element<'static, Message> {
+    use bluebottle_ui::button::{IconSizeVariant, icon};
+
     let demo = row![
-        bluebottle_ui::button::icon("settings", false, Message::Click),
-        bluebottle_ui::button::icon("settings", true, Message::Click),
-        bluebottle_ui::button::disabled(None, Some("arrow_back"),),
+        icon(
+            "bookmark",
+            IconSizeVariant::Main,
+            states[0],
+            Message::ToggleIcon(0),
+        ),
+        icon(
+            "bookmark",
+            IconSizeVariant::Main,
+            states[1],
+            Message::ToggleIcon(1),
+        ),
+        icon(
+            "bookmark",
+            IconSizeVariant::Alt,
+            states[2],
+            Message::ToggleIcon(2),
+        ),
+        icon(
+            "bookmark",
+            IconSizeVariant::Alt,
+            states[3],
+            Message::ToggleIcon(3),
+        ),
     ]
     .padding(8)
-    .spacing(8);
+    .spacing(8)
+    .align_y(Center);
 
-    section("Icon Buttons", demo)
+    section("Bordered Glass Icons", demo)
 }
 
-fn icon_toggle_buttons() -> Element<'static, Message> {
+fn icon_flat_buttons(states: [bool; 2]) -> Element<'static, Message> {
+    use bluebottle_ui::button::icon_flat;
+
+    // Off, on, disabled-off, disabled-on. The two disabled slots keep the same
+    // 38px footprint as their interactive neighbours so a row stays aligned.
     let demo = row![
-        bluebottle_ui::button::toggle_icon(
-            "favorite_border",
-            "favorite",
-            false,
-            Message::Click
-        ),
-        bluebottle_ui::button::toggle_icon(
-            "favorite_border",
-            "favorite",
-            true,
-            Message::Click
-        ),
-        bluebottle_ui::button::toggle_icon("cancel", "cancel", false, Message::Click),
-        bluebottle_ui::button::toggle_icon("cancel", "cancel", true, Message::Click),
+        icon_flat("favorite", states[0], Some(Message::ToggleIconFlat(0))),
+        icon_flat("favorite", states[1], Some(Message::ToggleIconFlat(1))),
+        icon_flat("favorite", false, None),
+        icon_flat("favorite", true, None),
     ]
     .padding(8)
-    .spacing(8);
+    .spacing(8)
+    .align_y(Center);
 
-    section("Icon Toggle Buttons", demo)
+    section("Flat Round Icons", demo)
 }
 
 fn hero_buttons() -> Element<'static, Message> {

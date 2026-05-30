@@ -90,10 +90,7 @@ where
         .tint(glass)
         .hover_border(glass)
         .selected(on)
-        .selected_background(color::with_alpha(
-            color::primary(),
-            color::srgb_alpha(0.28),
-        ))
+        .selected_background(color::primary_glass())
         .selected_border(color::primary())
         .selected_color(color::primary())
         .on_press(message)

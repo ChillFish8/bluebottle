@@ -58,6 +58,7 @@ where
         selected_background: None,
         selected_border: None,
         selected_color: None,
+        border: None,
         hover_border: None,
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
@@ -78,6 +79,7 @@ pub struct Clickable<'a, Message> {
     selected_background: Option<Color>,
     selected_border: Option<Color>,
     selected_color: Option<Color>,
+    border: Option<Color>,
     hover_border: Option<Color>,
     radius: f32,
     padding: Padding,
@@ -155,6 +157,13 @@ where
     /// to take effect.
     pub fn selected_color(mut self, color: Color) -> Self {
         self.selected_color = Some(color);
+        self
+    }
+
+    /// Adds a 1px ring shown at rest and at full strength. When the selected
+    /// ring is also set it eases in over this one as the on state takes over.
+    pub fn border(mut self, color: Color) -> Self {
+        self.border = Some(color);
         self
     }
 
@@ -257,8 +266,13 @@ where
             0.0
         };
         let selected_factor = state.selected.current(now);
-        // The hover glass recedes as the selected fill takes over.
-        let glass_factor = hover_factor * (1.0 - selected_factor);
+        // The hover glass recedes as the selected fill takes over. Without a
+        // selected fill there is nothing to take over so the veil rides on top.
+        let glass_factor = if self.selected_background.is_some() {
+            hover_factor * (1.0 - selected_factor)
+        } else {
+            hover_factor
+        };
 
         let pill = Border {
             radius: self.radius.into(),
@@ -281,15 +295,24 @@ where
             );
         }
 
+        // The resting fill cross-fades out as the selected fill takes over so
+        // the two translucent layers do not stack into a washed-out blend.
         if let Some(fill) = self.background {
-            renderer.fill_quad(
-                Quad {
-                    bounds,
-                    border: pill,
-                    ..Quad::default()
-                },
-                fill,
-            );
+            let factor = if self.selected_background.is_some() {
+                1.0 - selected_factor
+            } else {
+                1.0
+            };
+            if factor > EPSILON {
+                renderer.fill_quad(
+                    Quad {
+                        bounds,
+                        border: pill,
+                        ..Quad::default()
+                    },
+                    color::fade(fill, factor),
+                );
+            }
         }
 
         if glass_factor > EPSILON && self.tint.a > 0.0 {
@@ -335,6 +358,31 @@ where
                 },
                 color::fade(fill, selected_factor),
             );
+        }
+
+        // Resting ring, layered over the fill on its own quad so it sits over a
+        // translucent fill rather than replacing it. Cross-fades out as the
+        // selected ring takes over so their antialias fringes do not stack.
+        if let Some(border_color) = self.border {
+            let factor = if self.selected_border.is_some() {
+                1.0 - selected_factor
+            } else {
+                1.0
+            };
+            if factor > EPSILON {
+                renderer.fill_quad(
+                    Quad {
+                        bounds,
+                        border: Border {
+                            width: 1.0,
+                            color: color::fade(border_color, factor),
+                            ..pill
+                        },
+                        ..Quad::default()
+                    },
+                    Color::TRANSPARENT,
+                );
+            }
         }
 
         // Selected ring, eased in and layered over the fill.

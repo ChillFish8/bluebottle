@@ -22,26 +22,12 @@ where
         .align_x(Center);
 
     row![
-        maybe_disabled_button("chevron_left", on_back),
+        button::icon_flat("chevron_left", false, on_back),
         label,
-        maybe_disabled_button("chevron_right", on_forward),
+        button::icon_flat("chevron_right", false, on_forward),
     ]
     .align_y(Center)
     .spacing(4)
     .padding(4)
     .into()
-}
-
-fn maybe_disabled_button<'a, Message>(
-    icon: &'a str,
-    message: Option<Message>,
-) -> Element<'a, Message>
-where
-    Message: Clone + 'a,
-{
-    if let Some(msg) = message {
-        button::icon(icon, false, msg)
-    } else {
-        button::disabled(None, Some(icon))
-    }
 }
