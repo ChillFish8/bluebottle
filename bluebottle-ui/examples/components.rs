@@ -134,85 +134,69 @@ impl Components {
 
     fn view(&self) -> Element<'_, Message> {
         // The page is a list of categories. Each one is a titled, divided
-        // block of widget demos so the long scroll stays easy to navigate.
-        let categories: Vec<(&'static str, Vec<Element<'_, Message>>)> = vec![
-            ("Theme", vec![accent_picker(self.selected_accent)]),
-            (
-                "Typography",
-                vec![typography(), font_weights(), ellipsis_text(), links()],
-            ),
-            ("Icons", vec![icons()]),
-            (
-                "Buttons",
-                vec![
-                    nav_buttons(),
-                    standard_buttons(),
-                    icon_buttons(),
-                    icon_toggle_buttons(),
-                    hero_buttons(),
-                    clickables(),
-                ],
-            ),
-            (
-                "Navigation",
-                vec![
-                    navigators(),
-                    tabs(self.selected_tab, self.selected_icon_tab),
-                    breadcrumbs(),
-                    bars(self.selected_nav),
-                ],
-            ),
-            (
-                "Images & Media",
-                vec![
-                    posters(),
-                    episodes(),
-                    albums(),
-                    persons(),
-                    media_images(),
-                    clickable_card(),
-                ],
-            ),
-            (
-                "Inputs",
-                vec![
-                    search_input(&self.search_content),
-                    inputs(&self.search_content),
-                ],
-            ),
-            (
-                "Lists & Feedback",
-                vec![
-                    smart_list_demo(
-                        self.smart_list_show,
-                        self.smart_list_shown,
-                        self.smart_list_hydrated,
-                    ),
-                    spinners(),
-                    skeletons(),
-                ],
-            ),
-            ("Surfaces", vec![splash_backgrounds(), separators()]),
-        ];
+        // block whose demos are built by a closure so `category` can render
+        // them twice, once per compare-card background.
+        let blocks = column![
+            category("Theme", || vec![accent_picker(self.selected_accent)]),
+            category("Typography", || vec![
+                typography(),
+                font_weights(),
+                ellipsis_text(),
+                links()
+            ]),
+            category("Icons", || vec![icons()]),
+            category("Buttons", || vec![
+                nav_buttons(),
+                standard_buttons(),
+                icon_buttons(),
+                icon_toggle_buttons(),
+                hero_buttons(),
+                ghost_pills(),
+                clickables(),
+            ]),
+            category("Navigation", || vec![
+                navigators(),
+                tabs(self.selected_tab, self.selected_icon_tab),
+                breadcrumbs(),
+                bars(self.selected_nav),
+            ]),
+            category("Images & Media", || vec![
+                posters(),
+                episodes(),
+                albums(),
+                persons(),
+                media_images(),
+                clickable_card(),
+            ]),
+            category("Inputs", || vec![
+                search_input(&self.search_content),
+                inputs(&self.search_content),
+            ]),
+            category("Lists & Feedback", || vec![
+                smart_list_demo(
+                    self.smart_list_show,
+                    self.smart_list_shown,
+                    self.smart_list_hydrated,
+                ),
+                spinners(),
+                skeletons(),
+            ]),
+            category("Surfaces", || vec![splash_backgrounds(), separators()]),
+        ]
+        .width(Length::Fill)
+        .padding(padding::all(32))
+        .spacing(40);
 
-        let blocks = categories
-            .into_iter()
-            .map(|(title, demos)| category(title, demos));
-
-        let elements = column(blocks)
-            .width(Length::Fill)
-            .padding(padding::all(32))
-            .spacing(40);
-
-        bluebottle_ui::scrollable::scrollable(elements).into()
+        bluebottle_ui::scrollable::scrollable(blocks).into()
     }
 }
 
 /// A titled, divided category. A prominent heading over a full-width divider,
-/// followed by the widget demos it groups.
+/// then the demos shown twice side by side, once on the main background and
+/// once on the glass gradient, so each can be read against both surfaces.
 fn category<'a>(
     title: &'static str,
-    demos: Vec<Element<'a, Message>>,
+    demos: impl Fn() -> Vec<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let header = column![
         bluebottle_ui::text::heading_large(title),
@@ -220,9 +204,13 @@ fn category<'a>(
     ]
     .spacing(6);
 
-    column![header, column(demos).spacing(24)]
-        .spacing(20)
-        .into()
+    let cards = row![
+        card(column(demos()).spacing(24), Background::Color(color::BG)),
+        card(column(demos()).spacing(24), gradient_background()),
+    ]
+    .spacing(16);
+
+    column![header, cards].spacing(20).into()
 }
 
 /// A single widget demo. A bold sub-title above the widget being shown.
@@ -539,6 +527,55 @@ fn hero_buttons() -> Element<'static, Message> {
     .spacing(8);
 
     section("Hero Buttons", demo)
+}
+
+fn ghost_pills() -> Element<'static, Message> {
+    let demo = column![
+        row![
+            bluebottle_ui::button::ghost("Add to list", None, Message::Click),
+            bluebottle_ui::button::ghost("Share", Some("share"), Message::Click),
+        ]
+        .spacing(8),
+        row![
+            bluebottle_ui::button::ghost_small("Add to list", None, Message::Click),
+            bluebottle_ui::button::ghost_small("Share", Some("share"), Message::Click),
+        ]
+        .spacing(8),
+    ]
+    .padding(8)
+    .spacing(8);
+
+    section("Ghost Pills", demo)
+}
+
+/// The glass gradient surface. Top stop down to the bottom stop, matching
+/// `linear-gradient(180deg, --glass-top, --glass-base)`.
+fn gradient_background() -> Background {
+    let gradient = iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI))
+        .add_stop(0.0, color::GLASS_TOP)
+        .add_stop(1.0, color::GLASS_BASE);
+
+    Background::Gradient(gradient.into())
+}
+
+/// A rounded surface card behind `content` with the given `background`. Fills
+/// its share of the row so the two compare cards split evenly.
+fn card<'a>(
+    content: impl Into<Element<'a, Message>>,
+    background: Background,
+) -> Element<'a, Message> {
+    container(content.into())
+        .width(Length::Fill)
+        .padding(20)
+        .style(move |_theme| container::Style {
+            background: Some(background),
+            border: Border {
+                radius: 16.0.into(),
+                ..Border::default()
+            },
+            ..container::Style::default()
+        })
+        .into()
 }
 
 fn clickables() -> Element<'static, Message> {

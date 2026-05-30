@@ -15,14 +15,15 @@ mod disabled;
 mod hero;
 mod icon;
 mod nav;
+mod pill;
 mod standard;
 mod toggle_icon;
-// mod pill;
 
 pub use disabled::disabled;
 pub use hero::hero;
 pub use icon::{IconTextOrName, icon};
 pub use nav::nav;
+pub use pill::{ghost, ghost_small};
 pub use standard::standard;
 pub use toggle_icon::toggle_icon;
 

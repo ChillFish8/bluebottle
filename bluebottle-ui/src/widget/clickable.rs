@@ -54,6 +54,7 @@ where
         resting_color: None,
         background: None,
         glow: false,
+        hover_border: None,
         radius: DEFAULT_RADIUS,
         padding: Padding::ZERO,
         width: Length::Shrink,
@@ -69,6 +70,7 @@ pub struct Clickable<'a, Message> {
     resting_color: Option<Color>,
     background: Option<Color>,
     glow: bool,
+    hover_border: Option<Color>,
     radius: f32,
     padding: Padding,
     width: Length,
@@ -117,6 +119,14 @@ where
     /// and grows on hover. No-op without a background.
     pub fn glow(mut self) -> Self {
         self.glow = true;
+        self
+    }
+
+    /// Adds a 1px border that fades in with the hover tint. Pass the peak
+    /// colour. At rest the border is transparent so the slot is held without
+    /// a shift.
+    pub fn hover_border(mut self, color: Color) -> Self {
+        self.hover_border = Some(color);
         self
     }
 
@@ -244,6 +254,26 @@ where
                     ..Quad::default()
                 },
                 color::fade(self.tint, hover_factor),
+            );
+        }
+
+        // The border rides its own quad over the fill. iced paints the border
+        // band in place of the background rather than over it, so a border that
+        // matches the fill would vanish. Layering it keeps the hairline visible.
+        if hover_factor > EPSILON
+            && let Some(border_color) = self.hover_border
+        {
+            renderer.fill_quad(
+                Quad {
+                    bounds,
+                    border: Border {
+                        width: 1.0,
+                        color: color::fade(border_color, hover_factor),
+                        ..pill
+                    },
+                    ..Quad::default()
+                },
+                Color::TRANSPARENT,
             );
         }
 
