@@ -11,7 +11,9 @@
 //! `icon` is the bordered glass circle, a white glass fill behind a hairline
 //! that turns accent when on. `icon_flat` is the border-free variant for
 //! denser rows. `icon_carousel` is the 26px paging chevron. `icon_overlay` is
-//! the 32px glass pill for controls floating over media.
+//! the 32px glass pill for controls floating over media. `dismiss` and
+//! `dismiss_icon` are the two close affordances, a labelled pill for the
+//! player bar and a 28px circle for the ambient header.
 
 pub use iced::widget::button::{Status, Style};
 
@@ -21,6 +23,7 @@ mod icon;
 mod nav;
 mod pill;
 mod standard;
+mod utility;
 
 pub use disabled::disabled;
 pub use hero::hero;
@@ -28,3 +31,4 @@ pub use icon::{IconSizeVariant, icon, icon_carousel, icon_flat, icon_overlay};
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;
+pub use utility::{dismiss, dismiss_icon};

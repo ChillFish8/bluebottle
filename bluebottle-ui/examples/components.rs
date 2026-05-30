@@ -203,6 +203,7 @@ impl Components {
                 icon_flat_buttons(self.icon_flat_states),
                 icon_carousel_buttons(),
                 icon_overlay_buttons(),
+                dismiss_buttons(),
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
                 hero_buttons(),
@@ -628,6 +629,17 @@ fn icon_overlay_buttons() -> Element<'static, Message> {
     .align_y(Center);
 
     section("Overlay Pill Icons", demo)
+}
+
+fn dismiss_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::{dismiss, dismiss_icon};
+
+    let demo = row![dismiss(Message::Click), dismiss_icon(Message::Click)]
+        .padding(8)
+        .spacing(8)
+        .align_y(Center);
+
+    section("Dismiss Buttons", demo)
 }
 
 fn hero_buttons() -> Element<'static, Message> {
