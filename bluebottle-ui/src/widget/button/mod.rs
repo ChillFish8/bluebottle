@@ -10,7 +10,8 @@
 //!
 //! `icon` is the bordered glass circle, a white glass fill behind a hairline
 //! that turns accent when on. `icon_flat` is the border-free variant for
-//! denser rows.
+//! denser rows. `icon_carousel` is the 26px paging chevron. `icon_overlay` is
+//! the 32px glass pill for controls floating over media.
 
 pub use iced::widget::button::{Status, Style};
 
@@ -23,7 +24,7 @@ mod standard;
 
 pub use disabled::disabled;
 pub use hero::hero;
-pub use icon::{IconSizeVariant, icon, icon_flat};
+pub use icon::{IconSizeVariant, icon, icon_carousel, icon_flat, icon_overlay};
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;

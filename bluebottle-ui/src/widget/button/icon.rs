@@ -77,7 +77,59 @@ where
         .into()
 }
 
-/// Centred glyph in a fixed circle. Shared chassis for both variants.
+/// Icon · Carousel Nav
+///
+/// The smallest icon circle, for paging chevrons in section headers. A 4% white
+/// fill behind a 6% hairline, both lifting to 9% / 10% on hover. An interactive
+/// chevron keeps a white glyph; passing `None` for the message dims the glyph
+/// to text-secondary and holds the same footprint, signalling the direction of
+/// travel is unavailable.
+pub fn icon_carousel<'a, Message>(
+    icon_name: &'a str,
+    message: Option<Message>,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    let glyph = if message.is_some() {
+        color::TEXT_PRIMARY
+    } else {
+        color::TEXT_SECONDARY
+    };
+
+    clickable(circle(icon_name, 26.0, 14.0))
+        .background(color::hover_veil())
+        .tint(color::with_alpha(color::WHITE, color::srgb_alpha(0.05)))
+        .border(color::border())
+        .hover_border(color::hover_veil())
+        .resting_color(glyph)
+        .on_press_maybe(message)
+        .into()
+}
+
+/// Icon · Overlay Pill
+///
+/// For controls floating directly over artwork or video. Carries an 8% white
+/// fill behind a 10% hairline so it stays legible over any frame beneath. Hover
+/// brightens the fill to 16%. The 10px backdrop blur called for by the spec is
+/// the responsibility of the surface this pill is placed on. iced does not
+/// composite a backdrop pass and adding one here would require a custom shader.
+pub fn icon_overlay<'a, Message>(
+    icon_name: &'a str,
+    message: Message,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    clickable(circle(icon_name, 32.0, 16.0))
+        .background(color::with_alpha(color::WHITE, color::srgb_alpha(0.08)))
+        .tint(color::with_alpha(color::WHITE, color::srgb_alpha(0.08)))
+        .border(color::border_strong())
+        .on_press(message)
+        .into()
+}
+
+/// Centred glyph in a fixed circle. Shared chassis for all variants.
 fn circle<'a, Message>(
     icon_name: &'a str,
     diameter: f32,

@@ -201,6 +201,8 @@ impl Components {
                 standard_buttons(),
                 icon_buttons(self.icon_states),
                 icon_flat_buttons(self.icon_flat_states),
+                icon_carousel_buttons(),
+                icon_overlay_buttons(),
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
                 hero_buttons(),
@@ -595,6 +597,37 @@ fn icon_flat_buttons(states: [bool; 2]) -> Element<'static, Message> {
     .align_y(Center);
 
     section("Flat Round Icons", demo)
+}
+
+fn icon_carousel_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::icon_carousel;
+
+    // Active chevrons both white; disabled chevrons dim to text-secondary.
+    let demo = row![
+        icon_carousel("chevron_left", Some(Message::Click)),
+        icon_carousel("chevron_right", Some(Message::Click)),
+        icon_carousel("chevron_left", None),
+        icon_carousel("chevron_right", None),
+    ]
+    .padding(8)
+    .spacing(8)
+    .align_y(Center);
+
+    section("Carousel Nav Icons", demo)
+}
+
+fn icon_overlay_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::icon_overlay;
+
+    let demo = row![
+        icon_overlay("cast", Message::Click),
+        icon_overlay("more_horiz", Message::Click),
+    ]
+    .padding(8)
+    .spacing(8)
+    .align_y(Center);
+
+    section("Overlay Pill Icons", demo)
 }
 
 fn hero_buttons() -> Element<'static, Message> {

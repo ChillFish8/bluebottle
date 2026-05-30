@@ -22,9 +22,9 @@ where
         .align_x(Center);
 
     row![
-        button::icon_flat("chevron_left", false, on_back),
+        button::icon_carousel("chevron_left", on_back),
         label,
-        button::icon_flat("chevron_right", false, on_forward),
+        button::icon_carousel("chevron_right", on_forward),
     ]
     .align_y(Center)
     .spacing(4)
