@@ -67,7 +67,7 @@ impl Splash {
 struct Uniforms {
     resolution: [f32; 2],
     time: f32,
-    _pad0: f32,
+    fade: f32,
     logo_rect: [f32; 4],
     spinner: [f32; 4],
     background: [f32; 4],
@@ -84,6 +84,7 @@ pub struct SplashRenderer {
     uniform_buffer: wgpu::Buffer,
     background: [f32; 4],
     logo_size: (u32, u32),
+    fade: f32,
     start: Instant,
     last_frame: Instant,
 }
@@ -146,6 +147,16 @@ impl SplashRenderer {
         // FRAME_INTERVAL), which keeps it responsive to the stop signal even if
         // the surface stops receiving frame callbacks.
         config.present_mode = wgpu::PresentMode::AutoNoVsync;
+        // Composite with premultiplied alpha so the fade out blends over the UI
+        // beneath. If the surface only offers opaque, the fade has no effect and
+        // the splash is removed in one step instead.
+        let caps = surface.get_capabilities(&adapter);
+        if caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
+        {
+            config.alpha_mode = wgpu::CompositeAlphaMode::PreMultiplied;
+        }
         surface.configure(&device, &config);
 
         let gpu = build(&device, &queue, &config, splash);
@@ -160,10 +171,19 @@ impl SplashRenderer {
             uniform_buffer: gpu.uniform_buffer,
             background: splash.background.into_linear(),
             logo_size: gpu.logo_size,
+            fade: 1.0,
             start: Instant::now(),
             // Seed a frame in the past so the first present is not delayed.
             last_frame: Instant::now() - FRAME_INTERVAL,
         })
+    }
+
+    /// Set the overall opacity used by the next [`Self::render`].
+    ///
+    /// 1.0 shows the splash fully, 0.0 fades it out completely. The fade only
+    /// blends over the UI beneath when the surface supports premultiplied alpha.
+    pub fn set_fade(&mut self, fade: f32) {
+        self.fade = fade.clamp(0.0, 1.0);
     }
 
     /// Reconfigure the surface for a new physical size.
@@ -268,7 +288,7 @@ impl SplashRenderer {
         Uniforms {
             resolution: res,
             time: self.start.elapsed().as_secs_f32(),
-            _pad0: 0.0,
+            fade: self.fade,
             logo_rect: [logo_x, top, disp_w, disp_h],
             spinner: [res[0] * 0.5, spinner_cy, radius, thickness],
             background: self.background,

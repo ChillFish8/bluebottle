@@ -2,11 +2,12 @@
 //! surface that this library creates and owns.
 //!
 //! The intended use is to overlay an Iced UI on top of content rendered by
-//! something else (for example video drawn into the main surface via libmpv's
-//! render API). Because Wayland has no foreign-surface embedding (no `--wid`
-//! equivalent), ownership is flipped: this library owns every surface, creates
-//! a transparent overlay subsurface for the Iced UI, and hands the caller a
-//! [`Window`] handle to the main surface to render into however they like.
+//! something else (for example video drawn into a content subsurface by a sink).
+//! Because Wayland has no foreign-surface embedding (no `--wid` equivalent),
+//! ownership is flipped: this library owns every surface. It paints an opaque
+//! black backdrop on the main surface, lays a transparent overlay subsurface over
+//! it for the Iced UI, and in video mode adds a content subsurface beneath the
+//! overlay for a sink. The caller drives the UI and, in video mode, the sink.
 //!
 //! Only Linux/Wayland is supported for now.
 
@@ -22,17 +23,33 @@ pub use handle::Window;
 pub use iced;
 use iced::Program;
 
-/// Create a new window overlay with configured options.
+/// Pin the renderer to Vulkan and run the overlay, with an optional splash.
 ///
-/// `build` constructs the [`Program`] — typically the value produced by
-/// [`iced::application`] (and its builder methods) that you would otherwise
-/// `.run()`, e.g. `|| iced::application(..)`. The program is built on the
-/// dedicated render thread (the high-level Iced builder is not `Send`), so only
-/// the closure itself crosses the thread boundary.
+/// The splash argument is a platform-level type that carries a [`Splash`] only
+/// when the `splash` feature is on and is otherwise an empty marker, so the
+/// non-splash constructors stay identical across the feature.
+fn run_overlay<P, F>(
+    build: F,
+    video: bool,
+    splash: platform::SplashArg,
+) -> Result<Window, Error>
+where
+    F: FnOnce() -> P + Send + 'static,
+    P: Program + 'static,
+{
+    force_vulkan_backend();
+    platform::run(build, video, splash)
+}
+
+/// Create an overlay window with full control over video mode and the splash.
 ///
-/// The Wayland event and render loop runs on that background thread. This
-/// function returns as soon as the main surface is ready, so the caller can
-/// immediately start rendering into it via the returned [`Window`].
+/// `build` constructs the [`Program`] (see [`create_overlay`]). `video` adds the
+/// content subsurface of [`create_video_overlay`] for a sink, beneath the UI.
+/// `splash` shows the fading startup splash of [`create_overlay_with_splash`] on
+/// its own top subsurface. The two combine, so a video app can also show a splash
+/// with `create(build, true, Some(splash))`. Available with the `splash` feature;
+/// the other constructors cover the cases that need no [`Splash`].
+#[cfg(feature = "splash")]
 pub fn create<P, F>(
     build: F,
     video: bool,
@@ -42,8 +59,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    force_vulkan_backend();
-    platform::run(build, video, splash)
+    run_overlay(build, video, splash)
 }
 
 /// Create an overlay window driven by an Iced application.
@@ -55,14 +71,14 @@ where
 /// the closure itself crosses the thread boundary.
 ///
 /// The Wayland event and render loop runs on that background thread. This
-/// function returns as soon as the main surface is ready, so the caller can
-/// immediately start rendering into it via the returned [`Window`].
+/// function returns once the window is ready. The library owns and paints the
+/// main surface, so the caller only drives the overlay UI through the program.
 pub fn create_overlay<P, F>(build: F) -> Result<Window, Error>
 where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    create(build, false, None)
+    run_overlay(build, false, Default::default())
 }
 
 /// Create an overlay window that shows an animated startup splash.
@@ -80,7 +96,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    create(build, false, Some(splash))
+    run_overlay(build, false, Some(splash))
 }
 
 /// Create an overlay window that also hosts an external video sink.
@@ -98,7 +114,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    create(build, true, None)
+    run_overlay(build, true, Default::default())
 }
 
 /// Pin the Iced overlay renderer to wgpu's Vulkan backend.

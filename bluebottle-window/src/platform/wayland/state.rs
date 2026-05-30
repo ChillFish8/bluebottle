@@ -81,12 +81,11 @@ pub(crate) struct State {
     #[allow(dead_code)]
     pub overlay_subsurface: wl_subsurface::WlSubsurface,
 
-    // Video mode (see `create_video_overlay`): a content subsurface stacked
-    // beneath the overlay for an external sink, plus the bluebottle-owned
-    // buffers that map the main and content surfaces. All `None` otherwise, when
-    // the caller renders the main surface itself; `video_pool.is_some()` gates
-    // video-mode behaviour.
-    pub video_pool: Option<SlotPool>,
+    // The library always owns the main surface and paints an opaque black
+    // backdrop on it, so `pool` and `main_buffer` are always present. In video
+    // mode (see `create_video_overlay`) a content subsurface is stacked beneath
+    // the overlay for an external sink; `content_surface.is_some()` gates that.
+    pub pool: SlotPool,
     #[allow(dead_code)]
     pub content_surface: Option<wl_surface::WlSurface>,
     #[allow(dead_code)]
@@ -143,22 +142,32 @@ pub(crate) struct State {
     // `apply_pending_resize`).
     pub pending_video_resize: Option<(u32, u32)>,
 
-    // Viewport scaling the main surface's 1×1 backdrop to the window (video
-    // mode); `None` outside video mode or if the compositor lacks viewporter.
+    // Viewport stretching the main surface's 1×1 backdrop to the window. `None`
+    // only if the compositor lacks viewporter.
     pub viewport: Option<WpViewport>,
 
     pub shared: Arc<Shared>,
     pub init_tx: Option<mpsc::Sender<Result<Arc<Shared>, Error>>>,
 
-    /// Whether a startup splash was supplied. When set, the open is deferred
-    /// until the splash thread has stopped (see [`State::drive_splash`]).
-    pub has_splash: bool,
     /// The splash awaiting its thread, taken once the surface is configured.
     #[cfg(feature = "splash")]
     pub pending_splash: Option<bluebottle_splash::Splash>,
-    /// A `Send` target for the main surface the splash thread renders into.
+    /// The splash subsurface stacked above the overlay and its surface. The
+    /// splash thread renders into the surface, then both are torn down once the
+    /// splash has finished fading out (see [`State::drive_splash`]).
     #[cfg(feature = "splash")]
-    pub main_target: super::RawSurface,
+    pub splash_surface: Option<wl_surface::WlSurface>,
+    #[cfg(feature = "splash")]
+    pub splash_subsurface: Option<wl_subsurface::WlSubsurface>,
+    /// Viewport stretching the splash's physical-pixel buffer to the logical
+    /// window. Driving the size this way keeps the splash buffer scale at 1, so a
+    /// buffer-size change racing a scale change cannot raise a protocol error.
+    /// `None` only if the compositor lacks viewporter.
+    #[cfg(feature = "splash")]
+    pub splash_viewport: Option<WpViewport>,
+    /// A `Send` target for the splash subsurface the splash thread renders into.
+    #[cfg(feature = "splash")]
+    pub splash_target: Option<super::RawSurface>,
     /// The running splash thread, joined on shutdown.
     #[cfg(feature = "splash")]
     pub splash_thread: Option<std::thread::JoinHandle<()>>,
@@ -175,48 +184,65 @@ impl State {
         self.send(Command::Event(Event::Window(event)));
     }
 
-    /// Apply the current logical size and scale to both surfaces.
+    /// Apply the current logical size and scale to the surfaces.
     ///
-    /// Sets the buffer scale on each surface so the physical-pixel buffers the
-    /// caller and the renderer produce (`logical * scale`) map to the logical
-    /// window size, and tells the render thread to resize the overlay.
+    /// Sets the buffer scale on the overlay (and splash) so the physical-pixel
+    /// buffers the renderer produces (`logical * scale`) map to the logical
+    /// window size, tells the render thread to resize the overlay, and repaints
+    /// the library-owned main surface backdrop.
     fn apply_layout(&mut self) {
         let scale = self.scale.max(1);
-        // In video mode the main surface is a 1×1 buffer stretched by a viewport,
-        // so its buffer scale must stay 1 (a 1px buffer is not divisible by a
-        // larger scale, which the compositor would reject).
-        if self.video_pool.is_none() {
-            self.main_surface.set_buffer_scale(scale);
-        }
+
+        // The overlay renders physical-pixel buffers, so its buffer scale tracks
+        // the window scale.
         self.overlay_surface.set_buffer_scale(scale);
+
+        // The splash also renders physical-pixel buffers, but the event loop and
+        // the splash thread drive that surface independently. Scale it with a
+        // viewport (buffer scale stays 1) so a buffer-size change racing this call
+        // cannot raise the divisible-by-scale protocol error. Only a compositor
+        // without viewporter falls back to the buffer scale.
+        #[cfg(feature = "splash")]
+        if let Some(splash_surface) = &self.splash_surface {
+            match &self.splash_viewport {
+                Some(viewport) => viewport.set_destination(
+                    self.width.max(1) as i32,
+                    self.height.max(1) as i32,
+                ),
+                None => splash_surface.set_buffer_scale(scale),
+            }
+        }
+
         self.send(Command::Resize {
             width: self.width,
             height: self.height,
             scale: scale as f64,
         });
-        // In video mode the library, not the caller, drives the main surface;
-        // give it a backdrop sized to the new layout. Committing here also
-        // applies the content subsurface's position (double-buffered on parent).
+
+        // The library owns the main surface, so give it a backdrop sized to the
+        // new layout. Committing here also applies the content subsurface's
+        // position (double-buffered on the parent).
         self.update_main_buffer();
     }
 
-    /// Size the opaque black backdrop on the main surface (video mode only).
+    /// Paint and size the opaque black backdrop on the main surface.
     ///
-    /// The caller does not render the main surface in video mode; the library
-    /// gives it a 1×1 opaque-black buffer (attached once) and stretches it to the
-    /// window with a [viewport](WpViewport), so a resize is just a
-    /// `set_destination` + geometry update — no shm reallocation. (Reallocating a
-    /// full-window buffer per resize grew the slot pool until the compositor
-    /// rejected it.) A no-op outside video mode.
+    /// The library always owns the main surface. It gives it a 1×1 opaque-black
+    /// buffer (attached once) and stretches it to the window with a
+    /// [viewport](WpViewport), so a resize is just a `set_destination` plus a
+    /// geometry update with no shm reallocation. (Reallocating a full-window
+    /// buffer per resize grew the slot pool until the compositor rejected it.)
     fn update_main_buffer(&mut self) {
-        let Some(pool) = self.video_pool.as_mut() else {
-            return;
-        };
         let (width, height) = (self.width.max(1), self.height.max(1));
+
+        // The backdrop is a 1×1 buffer stretched by the viewport, so its buffer
+        // scale stays 1. A 1px buffer is not divisible by a larger scale, which
+        // the compositor would reject.
+        self.main_surface.set_buffer_scale(1);
 
         // Attach the 1×1 backdrop once; thereafter only the viewport changes.
         if self.main_buffer.is_none() {
-            match pool.create_buffer(1, 1, 4, wl_shm::Format::Xrgb8888) {
+            match self.pool.create_buffer(1, 1, 4, wl_shm::Format::Xrgb8888) {
                 // Xrgb8888: a zeroed canvas is opaque black.
                 Ok((buffer, canvas)) => {
                     canvas.fill(0);
@@ -235,7 +261,7 @@ impl State {
         }
 
         // Stretch the 1×1 backdrop to the window. Without viewporter it stays 1×1,
-        // which is fine: the content subsurface covers the window opaquely.
+        // which the overlay covers opaquely anyway.
         if let Some(viewport) = &self.viewport {
             viewport.set_destination(width as i32, height as i32);
         }
@@ -260,12 +286,12 @@ impl State {
         }
     }
 
-    /// Spawn the startup splash once the surface is configured, and open the
-    /// window once the splash thread has stopped and freed the main surface.
+    /// Drive the startup splash: spawn its thread once configured, and tear its
+    /// subsurface down once it has finished fading out.
     ///
-    /// Called every event-loop turn. The splash thread is joined before the open
-    /// so its wgpu surface is fully torn down before the caller builds its own on
-    /// the same `wl_surface`.
+    /// Called every event-loop turn. The splash renders its own top subsurface,
+    /// so the window opens (`announce_ready`) on configure as usual rather than
+    /// waiting on the splash.
     #[cfg(feature = "splash")]
     pub fn drive_splash(&mut self) {
         if self.configured
@@ -273,7 +299,11 @@ impl State {
             && self.splash_thread.is_none()
         {
             let splash = self.pending_splash.take().expect("pending splash");
-            let target = self.main_target;
+            let Some(target) = self.splash_target else {
+                // No splash subsurface was created, so nothing renders it.
+                self.shared.splash_finished.store(true, Ordering::Release);
+                return;
+            };
             let shared = Arc::clone(&self.shared);
             let size = super::splash_physical(&self.shared);
             match std::thread::Builder::new()
@@ -283,20 +313,40 @@ impl State {
                 Ok(handle) => self.splash_thread = Some(handle),
                 Err(err) => {
                     tracing::warn!("failed to spawn splash thread: {err}");
-                    // Give up on the splash and let the window open.
+                    // Give up on the splash and tear its cover down below.
                     self.shared.splash_finished.store(true, Ordering::Release);
                 },
             }
         }
 
-        if self.has_splash && self.shared.splash_finished.load(Ordering::Acquire) {
-            // Join the (now finished) splash thread so its wgpu surface is gone
-            // before the caller makes its own on the same `wl_surface`.
+        if self.shared.splash_finished.load(Ordering::Acquire)
+            && self.splash_subsurface.is_some()
+        {
+            // Join the finished thread so its wgpu surface is gone, then remove
+            // the now transparent splash cover from the surface tree.
             if let Some(handle) = self.splash_thread.take() {
                 let _ = handle.join();
             }
-            self.announce_ready();
+            self.teardown_splash();
         }
+    }
+
+    /// Destroy the splash subsurface and its surface, then commit the parent so
+    /// the cover is removed from the tree. The splash has already faded out, so
+    /// removing it is not visible.
+    #[cfg(feature = "splash")]
+    fn teardown_splash(&mut self) {
+        self.splash_target = None;
+        if let Some(viewport) = self.splash_viewport.take() {
+            viewport.destroy();
+        }
+        if let Some(subsurface) = self.splash_subsurface.take() {
+            subsurface.destroy();
+        }
+        if let Some(surface) = self.splash_surface.take() {
+            surface.destroy();
+        }
+        self.main_surface.commit();
     }
 
     /// See [`Self::drive_splash`]. Without the `splash` feature there is none.
@@ -615,11 +665,10 @@ impl WindowHandler for State {
             );
         }
 
-        // With a splash, the open is deferred until it has handed the surface
-        // back (see `drive_splash`); otherwise open as soon as we are configured.
-        if !self.has_splash {
-            self.announce_ready();
-        }
+        // The library owns the main surface, so the window can open as soon as
+        // it is configured. Any splash renders its own top subsurface and tears
+        // down on its own (see `drive_splash`).
+        self.announce_ready();
     }
 }
 

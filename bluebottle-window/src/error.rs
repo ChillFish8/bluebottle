@@ -46,7 +46,8 @@ pub enum Error {
     #[snafu(display("failed to create the Iced async executor"))]
     Executor { source: std::io::Error },
 
-    /// A shared-memory buffer for the video-mode surfaces could not be created.
-    #[snafu(display("failed to create a video-mode buffer: {message}"))]
-    VideoBuffer { message: String },
+    /// A shared-memory buffer (the main backdrop or a video placeholder) could
+    /// not be created.
+    #[snafu(display("failed to create a shared-memory buffer: {message}"))]
+    ShmBuffer { message: String },
 }

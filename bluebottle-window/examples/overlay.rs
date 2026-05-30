@@ -1,13 +1,12 @@
 //! End-to-end demonstration of `bluebottle-window`.
 //!
-//! `create_overlay` returns a handle to the main (parent) surface, which this
-//! example renders into itself with wgpu — an animated colour fill standing in
-//! for whatever the caller would draw there (e.g. video via libmpv's render
-//! API). The Iced overlay is composited on top with a transparent background,
-//! so the animated fill shows through everywhere the UI does not paint.
+//! `create_overlay` lays an Iced overlay over a library-owned main surface (an
+//! opaque black backdrop). The overlay clears transparently, so the backdrop
+//! shows through everywhere the UI does not paint.
 //!
-//! It also exercises input (click "increment"), an async `Task` (each click
-//! kicks off a 500ms "ping"), and a `Subscription` (a 1s timer).
+//! It exercises input (click "increment"), an async `Task` (each click kicks off
+//! a 500ms "ping"), a `Subscription` (a 1s timer), and the window controls the
+//! overlay drives as the window's chrome.
 
 use std::time::{Duration, Instant};
 
@@ -15,11 +14,6 @@ use iced::widget::{button, column, mouse_area, text, text_input};
 
 /// How long the demo runs before closing itself.
 const RUN_FOR: Duration = Duration::from_secs(30);
-
-/// Clamp to wgpu's default `max_texture_dimension_2d` (8192).
-fn clamp_dimension(value: u32) -> u32 {
-    value.clamp(1, 8192)
-}
 
 /// Identifies the text input so a [`Message::FocusInput`] can target it.
 const INPUT_ID: &str = "demo-input";
@@ -145,97 +139,14 @@ fn main() {
     })
     .expect("create overlay window");
 
-    // Render the main surface for the lifetime of `render_main_surface`. All
-    // wgpu resources are dropped when it returns, before we close the window:
-    // they reference the `wl_display`, which `join` tears down.
-    render_main_surface(&window);
+    // The library owns and paints the main surface; the overlay UI runs on its
+    // own render thread. Keep the demo open until it closes itself or the window
+    // is closed.
+    let start = Instant::now();
+    while window.is_open() && start.elapsed() < RUN_FOR {
+        std::thread::sleep(Duration::from_millis(100));
+    }
 
     window.request_close();
     window.join().expect("overlay loop exited cleanly");
-}
-
-/// Drive the caller-owned main surface with an animated wgpu fill.
-fn render_main_surface(window: &bluebottle_window::Window) {
-    // The caller owns the main surface: drive it with wgpu here. Restrict to
-    // Vulkan to match the overlay (the GLES backend deadlocks on the shared
-    // Wayland display).
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::VULKAN,
-        ..Default::default()
-    });
-    let surface = unsafe {
-        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-            raw_display_handle: window.raw_display_handle(),
-            raw_window_handle: window.raw_window_handle(),
-        })
-    }
-    .expect("create main surface");
-
-    let adapter =
-        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::LowPower,
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        }))
-        .expect("request adapter");
-
-    let (device, queue) =
-        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-            .expect("request device");
-
-    let (width, height) = window.physical_size();
-    let mut config = surface
-        .get_default_config(&adapter, clamp_dimension(width), clamp_dimension(height))
-        .expect("surface configuration");
-    surface.configure(&device, &config);
-
-    let start = Instant::now();
-    while window.is_open() && start.elapsed() < RUN_FOR {
-        // Follow the window if the compositor resizes or rescales it.
-        let (width, height) = window.physical_size();
-        let (width, height) = (clamp_dimension(width), clamp_dimension(height));
-        if (width, height) != (config.width, config.height) {
-            config.width = width;
-            config.height = height;
-            surface.configure(&device, &config);
-        }
-
-        let time = start.elapsed().as_secs_f64();
-        let color = wgpu::Color {
-            r: 0.5 + 0.5 * time.sin(),
-            g: 0.5 + 0.5 * (time * 0.7).sin(),
-            b: 0.5 + 0.5 * (time * 1.3).sin(),
-            a: 1.0,
-        };
-
-        match surface.get_current_texture() {
-            Ok(frame) => {
-                let view = frame
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-                let mut encoder = device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("main fill"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        depth_slice: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(color),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-                queue.submit([encoder.finish()]);
-                frame.present();
-            },
-            Err(_) => surface.configure(&device, &config),
-        }
-
-        std::thread::sleep(Duration::from_millis(33));
-    }
 }

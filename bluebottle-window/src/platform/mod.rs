@@ -16,7 +16,7 @@
 pub mod wayland;
 
 #[cfg(target_os = "linux")]
-pub(crate) use wayland::run;
+pub(crate) use wayland::{SplashArg, run};
 
 #[cfg(not(target_os = "linux"))]
 compile_error!(

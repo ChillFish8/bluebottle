@@ -7,7 +7,8 @@ struct Uniforms {
     resolution: vec2<f32>,
     // Seconds since the renderer started, driving the spinner rotation.
     time: f32,
-    _pad0: f32,
+    // Overall opacity, 1.0 fully shown and 0.0 fully faded out.
+    fade: f32,
     // Logo placement in pixels as x, y, width, height.
     logo_rect: vec4<f32>,
     // Spinner as centre x, centre y, radius, ring thickness.
@@ -63,5 +64,7 @@ fn fs(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let spinner = clamp(ring * arc, 0.0, 1.0);
     color = mix(color, vec3<f32>(1.0, 1.0, 1.0), spinner);
 
-    return vec4<f32>(color, 1.0);
+    // The splash is opaque, so its premultiplied alpha is the fade itself. The
+    // compositor blends this over the UI beneath, giving a fade out on load.
+    return vec4<f32>(color * u.fade, u.fade);
 }

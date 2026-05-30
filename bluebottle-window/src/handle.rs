@@ -6,15 +6,7 @@ use std::thread::JoinHandle;
 
 use iced_runtime::core::input_method::InputMethod;
 use iced_runtime::core::mouse;
-use raw_window_handle::{
-    DisplayHandle,
-    HandleError,
-    HasDisplayHandle,
-    HasWindowHandle,
-    RawDisplayHandle,
-    RawWindowHandle,
-    WindowHandle,
-};
+use raw_window_handle::RawDisplayHandle;
 
 use crate::error::Error;
 
@@ -25,7 +17,6 @@ use crate::error::Error;
 /// dereferenced through the (thread-safe) native windowing library.
 #[derive(Clone, Copy)]
 pub(crate) struct RawHandles {
-    pub window: RawWindowHandle,
     pub display: RawDisplayHandle,
     /// The content subsurface's `wl_surface`, present only in video mode (see
     /// [`crate::create_video_overlay`]). A video sink draws into this surface,
@@ -133,20 +124,12 @@ impl Window {
         }
     }
 
-    /// Returns the raw window handle for the main (parent) surface.
+    /// Returns the raw display handle for the window.
     ///
-    /// Use this together with [`Window::raw_display_handle`] to build a graphics
-    /// context (wgpu, EGL, libmpv's render API, ...) that draws into the main
-    /// surface, beneath the overlay. [`Window`] also implements
-    /// [`HasWindowHandle`]/[`HasDisplayHandle`], so it can be passed directly to
-    /// APIs that accept those. For platform-specific handles (e.g. the raw
-    /// `wl_display`/`wl_surface` pointers) use the extension traits in
-    /// [`crate::platform`].
-    pub fn raw_window_handle(&self) -> RawWindowHandle {
-        self.shared.handles.window
-    }
-
-    /// Returns the raw display handle for the main (parent) surface.
+    /// The library owns and paints the main surface, so there is no caller handle
+    /// to render into it. The display handle is exposed for the platform
+    /// extension traits in [`crate::platform`] (for example a video sink reaching
+    /// the `wl_display` via `wl_display_ptr`).
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         self.shared.handles.display
     }
@@ -243,21 +226,6 @@ impl Window {
             Some(thread) => thread.join().unwrap_or(Ok(())),
             None => Ok(()),
         }
-    }
-}
-
-impl HasWindowHandle for Window {
-    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
-        // SAFETY: the handle references the main surface, which the loop thread
-        // keeps alive for at least as long as this `Window`.
-        Ok(unsafe { WindowHandle::borrow_raw(self.shared.handles.window) })
-    }
-}
-
-impl HasDisplayHandle for Window {
-    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        // SAFETY: the display outlives every handle borrowed from it.
-        Ok(unsafe { DisplayHandle::borrow_raw(self.shared.handles.display) })
     }
 }
 

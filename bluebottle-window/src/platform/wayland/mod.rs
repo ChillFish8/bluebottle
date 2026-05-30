@@ -59,14 +59,11 @@ use crate::overlay;
 /// Wayland-specific extensions to [`Window`].
 ///
 /// Mirrors `winit::platform::wayland::WindowExtWayland`: it exposes the raw
-/// `wl_display`/`wl_surface` pointers of the main (parent) surface for APIs that
-/// want them directly (for example libmpv's render API).
+/// `wl_display` pointer and the content `wl_surface` pointer for APIs that want
+/// them directly (for example a video sink via `GstVideoOverlay`).
 pub trait WindowExtWayland {
-    /// Returns a pointer to the main surface's `wl_display`.
+    /// Returns a pointer to the window's `wl_display`.
     fn wl_display_ptr(&self) -> *mut c_void;
-
-    /// Returns a pointer to the main `wl_surface`.
-    fn wl_surface_ptr(&self) -> *mut c_void;
 
     /// Returns a pointer to the content `wl_surface` a video sink should render
     /// into, or null when the window was not created with
@@ -81,13 +78,6 @@ impl WindowExtWayland for Window {
     fn wl_display_ptr(&self) -> *mut c_void {
         match self.raw_display_handle() {
             RawDisplayHandle::Wayland(handle) => handle.display.as_ptr(),
-            _ => std::ptr::null_mut(),
-        }
-    }
-
-    fn wl_surface_ptr(&self) -> *mut c_void {
-        match self.raw_window_handle() {
-            RawWindowHandle::Wayland(handle) => handle.surface.as_ptr(),
             _ => std::ptr::null_mut(),
         }
     }
@@ -144,13 +134,24 @@ pub(crate) type SplashArg = Option<bluebottle_splash::Splash>;
 #[derive(Default)]
 pub(crate) struct SplashArg;
 
-/// Longest the splash runs if the overlay never reports a first frame, after
-/// which the window opens anyway. Kept generous so it only catches a genuinely
-/// stuck overlay. A slow but progressing first frame still ends the splash the
-/// moment it presents, so a high bound here does not lengthen normal startup; it
-/// only avoids handing over to a blank surface while the UI is still coming up.
+/// Longest the splash holds before fading if the overlay never reports a first
+/// frame. Kept generous so it only catches a genuinely stuck overlay. A slow but
+/// progressing first frame still starts the fade the moment it presents and
+/// settles, so a high bound here does not lengthen normal startup.
 #[cfg(feature = "splash")]
 const SPLASH_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long the window size and scale must hold steady before the splash begins
+/// to fade. Measured from the last observed change, so it absorbs a late tiling
+/// `configure` or an HiDPI scale that arrives once the surface maps. The UI
+/// settles behind the opaque splash, so this only delays the reveal, never the
+/// startup the splash already masks.
+#[cfg(feature = "splash")]
+const SETTLE_GRACE: Duration = Duration::from_millis(150);
+
+/// How long the splash takes to fade out once the UI has settled behind it.
+#[cfg(feature = "splash")]
+const FADE_DURATION: Duration = Duration::from_millis(250);
 
 /// Spawn the Wayland event loop on a background thread and return a [`Window`].
 ///
@@ -321,8 +322,8 @@ where
 
     let (width, height) = DEFAULT_SIZE;
 
-    // The main surface is the xdg toplevel surface, the subsurface parent, and
-    // the surface handed back to the caller to render into.
+    // The main surface is the xdg toplevel surface and the subsurface parent.
+    // The library owns it and paints an opaque black backdrop on it.
     let main_surface = compositor.create_surface(&qh);
     let window = xdg_shell.create_window(
         main_surface.clone(),
@@ -334,63 +335,59 @@ where
     window.set_min_size(Some((1, 1)));
     window.commit();
 
+    // The pool always backs the main surface's 1×1 black backdrop. In video mode
+    // it also backs the content subsurface's transparent placeholder.
+    let mut pool = SlotPool::new(16, &shm).map_err(|err| Error::ShmBuffer {
+        message: err.to_string(),
+    })?;
+
     // In video mode, create a transparent content subsurface *below* the overlay
     // for an external video sink to render into. Creating it before the overlay
     // subsurface leaves the overlay on top (a new subsurface is stacked
     // top-most), so the sink's video composites beneath the UI.
-    let (content_surface, content_subsurface, video_pool, content_buffer, video_ptr) =
-        if video {
-            let (content_subsurface, content_surface) =
-                subcompositor.create_subsurface(main_surface.clone(), &qh);
-            content_subsurface.set_position(0, 0);
-            content_subsurface.set_desync();
+    let (content_surface, content_subsurface, content_buffer, video_ptr) = if video {
+        let (content_subsurface, content_surface) =
+            subcompositor.create_subsurface(main_surface.clone(), &qh);
+        content_subsurface.set_position(0, 0);
+        content_subsurface.set_desync();
 
-            // The parent must have a committed buffer to map, but the sink's own
-            // (larger) subsurface provides the visible video — a 1x1 transparent
-            // placeholder is enough. Commit it once; the sink owns it thereafter.
-            let mut pool =
-                SlotPool::new(16, &shm).map_err(|err| Error::VideoBuffer {
+        // The parent must have a committed buffer to map, but the sink's own
+        // (larger) subsurface provides the visible video — a 1x1 transparent
+        // placeholder is enough. Commit it once; the sink owns it thereafter.
+        let buffer = {
+            let (buffer, canvas) = pool
+                .create_buffer(1, 1, 4, wl_shm::Format::Argb8888)
+                .map_err(|err| Error::ShmBuffer {
                     message: err.to_string(),
                 })?;
-            let buffer = {
-                let (buffer, canvas) = pool
-                    .create_buffer(1, 1, 4, wl_shm::Format::Argb8888)
-                    .map_err(|err| Error::VideoBuffer {
-                        message: err.to_string(),
-                    })?;
-                canvas.fill(0);
-                buffer
-            };
+            canvas.fill(0);
             buffer
-                .attach_to(&content_surface)
-                .map_err(|err| Error::VideoBuffer {
-                    message: err.to_string(),
-                })?;
-            content_surface.damage_buffer(0, 0, 1, 1);
-            content_surface.commit();
-
-            let ptr = NonNull::new(content_surface.id().as_ptr() as *mut c_void)
-                .expect("wl_surface pointer is never null");
-            (
-                Some(content_surface),
-                Some(content_subsurface),
-                Some(pool),
-                Some(buffer),
-                Some(ptr),
-            )
-        } else {
-            (None, None, None, None, None)
         };
+        buffer
+            .attach_to(&content_surface)
+            .map_err(|err| Error::ShmBuffer {
+                message: err.to_string(),
+            })?;
+        content_surface.damage_buffer(0, 0, 1, 1);
+        content_surface.commit();
 
-    // In video mode, scale the main surface's 1×1 backdrop to the window with a
-    // viewport so resizes need no shm reallocation.
-    let viewport = if video {
-        viewporter
-            .as_ref()
-            .map(|vp| vp.get_viewport(&main_surface, &qh, GlobalData))
+        let ptr = NonNull::new(content_surface.id().as_ptr() as *mut c_void)
+            .expect("wl_surface pointer is never null");
+        (
+            Some(content_surface),
+            Some(content_subsurface),
+            Some(buffer),
+            Some(ptr),
+        )
     } else {
-        None
+        (None, None, None, None)
     };
+
+    // Stretch the main surface's 1×1 backdrop to the window with a viewport so
+    // resizes need no shm reallocation. Near-universally supported.
+    let viewport = viewporter
+        .as_ref()
+        .map(|vp| vp.get_viewport(&main_surface, &qh, GlobalData));
 
     let (overlay_subsurface, overlay_surface) =
         subcompositor.create_subsurface(main_surface.clone(), &qh);
@@ -399,29 +396,47 @@ where
 
     let display_ptr = NonNull::new(conn.backend().display_ptr() as *mut c_void)
         .expect("wl_display pointer is never null");
-    let main_surface_ptr = NonNull::new(main_surface.id().as_ptr() as *mut c_void)
-        .expect("wl_surface pointer is never null");
     let handles = RawHandles {
-        window: RawWindowHandle::Wayland(WaylandWindowHandle::new(main_surface_ptr)),
         display: RawDisplayHandle::Wayland(WaylandDisplayHandle::new(display_ptr)),
         video: video_ptr,
     };
 
-    // A `Send` target for the main surface so the splash thread can render it.
+    // When a splash is supplied, create a subsurface stacked above the overlay
+    // for it. Being top-most it covers the UI while it builds, then fades out and
+    // is torn down (see `State::drive_splash`).
     #[cfg(feature = "splash")]
-    let main_target = RawSurface {
-        display: display_ptr,
-        surface: main_surface_ptr,
-    };
+    let (splash_surface, splash_subsurface, splash_viewport, splash_target) =
+        if splash.is_some() {
+            let (splash_subsurface, splash_surface) =
+                subcompositor.create_subsurface(main_surface.clone(), &qh);
+            splash_subsurface.set_position(0, 0);
+            splash_subsurface.set_desync();
 
-    // Whether a splash was supplied; gates deferring the open until it finishes.
-    #[cfg(feature = "splash")]
-    let has_splash = splash.is_some();
+            // Scale the splash's physical buffer to the window with a viewport so
+            // its buffer scale stays 1 (see `State::splash_viewport`).
+            let splash_viewport = viewporter
+                .as_ref()
+                .map(|vp| vp.get_viewport(&splash_surface, &qh, GlobalData));
+
+            let splash_ptr = NonNull::new(splash_surface.id().as_ptr() as *mut c_void)
+                .expect("wl_surface pointer is never null");
+            let target = RawSurface {
+                display: display_ptr,
+                surface: splash_ptr,
+            };
+            (
+                Some(splash_surface),
+                Some(splash_subsurface),
+                splash_viewport,
+                Some(target),
+            )
+        } else {
+            (None, None, None, None)
+        };
+
+    // The non-splash build does not use the splash argument.
     #[cfg(not(feature = "splash"))]
-    let has_splash = {
-        let _ = splash;
-        false
-    };
+    let _ = splash;
 
     let overlay_surface_ptr = NonNull::new(overlay_surface.id().as_ptr() as *mut c_void)
         .expect("wl_surface pointer is never null");
@@ -513,7 +528,7 @@ where
         overlay_subsurface,
         content_surface,
         content_subsurface,
-        video_pool,
+        pool,
         main_buffer: None,
         content_buffer,
         commands: commands_tx,
@@ -548,11 +563,16 @@ where
         viewport,
         shared,
         init_tx: Some(tx),
-        has_splash,
         #[cfg(feature = "splash")]
         pending_splash: splash,
         #[cfg(feature = "splash")]
-        main_target,
+        splash_surface,
+        #[cfg(feature = "splash")]
+        splash_subsurface,
+        #[cfg(feature = "splash")]
+        splash_viewport,
+        #[cfg(feature = "splash")]
+        splash_target,
         #[cfg(feature = "splash")]
         splash_thread: None,
     };
@@ -586,12 +606,14 @@ fn splash_physical(shared: &Shared) -> (u32, u32) {
     crate::overlay::physical_size(width, height, scale)
 }
 
-/// Render the splash on the main surface until the overlay reports its first
-/// frame (or a timeout), then drop the renderer and let the window open.
+/// Cover the window with the splash on its top subsurface, hold until the UI has
+/// settled behind it, then fade out and stop.
 ///
-/// Runs on its own thread so it can animate while the overlay thread is busy
-/// building its first frame. Dropping the renderer before signalling
-/// `splash_finished` frees the main surface before the caller takes it over.
+/// Runs on its own thread so it animates while the overlay thread builds and
+/// settles its first frame. The hold ends once the overlay has presented
+/// (`first_frame`) and the physical layout has held steady for `SETTLE_GRACE`, or
+/// on close, or after `SPLASH_TIMEOUT`. After the fade the renderer is dropped and
+/// `splash_finished` lets the event loop tear the subsurface down.
 #[cfg(feature = "splash")]
 fn run_splash(
     target: RawSurface,
@@ -610,13 +632,54 @@ fn run_splash(
             },
         };
 
+    // Hold phase. Cover the window at full opacity until the overlay has
+    // presented and the physical layout has been stable for SETTLE_GRACE. The
+    // physical size folds in both a logical resize and a scale change, so
+    // tracking it catches a late tiling configure and a late HiDPI scale alike.
+    let mut last_layout = splash_physical(&shared);
+    let mut stable_since = std::time::Instant::now();
     let start = std::time::Instant::now();
-    while !shared.first_frame.load(Ordering::Acquire)
-        && !shared.close_requested.load(Ordering::Acquire)
-        && start.elapsed() < SPLASH_TIMEOUT
-    {
-        let (width, height) = splash_physical(&shared);
-        renderer.resize(width, height);
+
+    let settled = loop {
+        if shared.close_requested.load(Ordering::Acquire) {
+            break false;
+        }
+        if start.elapsed() >= SPLASH_TIMEOUT {
+            break true;
+        }
+
+        let layout = splash_physical(&shared);
+        if layout != last_layout {
+            last_layout = layout;
+            stable_since = std::time::Instant::now();
+        }
+        renderer.resize(layout.0, layout.1);
+        renderer.render();
+
+        if shared.first_frame.load(Ordering::Acquire)
+            && stable_since.elapsed() >= SETTLE_GRACE
+        {
+            break true;
+        }
+    };
+
+    // Fade phase. Blend the splash down over the settled UI. Skipped on close.
+    if settled {
+        let fade_start = std::time::Instant::now();
+        loop {
+            let elapsed = fade_start.elapsed();
+            if shared.close_requested.load(Ordering::Acquire) || elapsed >= FADE_DURATION
+            {
+                break;
+            }
+            let layout = splash_physical(&shared);
+            renderer.resize(layout.0, layout.1);
+            renderer.set_fade(1.0 - elapsed.as_secs_f32() / FADE_DURATION.as_secs_f32());
+            renderer.render();
+        }
+
+        // A final fully transparent frame so nothing of the splash lingers.
+        renderer.set_fade(0.0);
         renderer.render();
     }
 
