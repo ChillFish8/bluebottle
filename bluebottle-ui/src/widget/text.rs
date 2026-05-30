@@ -252,15 +252,15 @@ pub fn media_overlay<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
 
 /// A styled run of text. Built by the typography functions in this module.
 pub struct Text<'a> {
-    content: Cow<'a, str>,
+    pub(crate) content: Cow<'a, str>,
     size: Pixels,
     line_height: LineHeight,
     font: Option<Font>,
     color: Option<Color>,
     letter_spacing: f32,
     align_x: Alignment,
-    width: Length,
-    height: Length,
+    pub(crate) width: Length,
+    pub(crate) height: Length,
 }
 
 impl<'a> Text<'a> {
@@ -334,6 +334,56 @@ impl<'a> Text<'a> {
     pub fn text_color(&self) -> Option<Color> {
         self.color
     }
+
+    /// Resolves the font, falling back to the renderer default.
+    pub(crate) fn resolved_font(&self, renderer: &iced::Renderer) -> Font {
+        self.font.unwrap_or_else(|| renderer.default_font())
+    }
+
+    /// Shapes `content` with this run's style into a cosmic-text buffer and
+    /// returns the buffer with its measured bounds. Shared with the ellipsis
+    /// widget so a truncated run shapes the same way as a full one.
+    pub(crate) fn shape(
+        &self,
+        content: &str,
+        bounds: Size,
+        font: Font,
+        wrap: cosmic_text::Wrap,
+        font_system: &mut cosmic_text::FontSystem,
+    ) -> (cosmic_text::Buffer, Size) {
+        let mut buffer = cosmic_text::Buffer::new(
+            font_system,
+            cosmic_text::Metrics::new(
+                self.size.0,
+                self.line_height.to_absolute(self.size).0,
+            ),
+        );
+
+        buffer.set_wrap(font_system, wrap);
+        buffer.set_size(font_system, Some(bounds.width), Some(bounds.height));
+
+        // Letter spacing rides on the attrs so the shaper adds it per glyph
+        // after kerning. Left at zero the shaping is identical to plain text.
+        // cosmic-text tracks in em so divide our CSS px value by the font
+        // size to match what a browser draws.
+        let attrs = gtext::to_attributes(font);
+        let attrs = if self.letter_spacing == 0.0 {
+            attrs
+        } else {
+            attrs.letter_spacing(self.letter_spacing / self.size.0)
+        };
+
+        buffer.set_text(
+            font_system,
+            content,
+            &attrs,
+            gtext::to_shaping(Shaping::Advanced, content),
+            None,
+        );
+
+        let min_bounds = gtext::align(&mut buffer, font_system, self.align_x);
+        (buffer, min_bounds)
+    }
 }
 
 #[derive(Default)]
@@ -359,39 +409,16 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer> for Text<'a> {
         let state = tree.state.downcast_mut::<State>();
         let limits = limits.width(self.width).height(self.height);
         let bounds = limits.max();
-        let font = self.font.unwrap_or_else(|| renderer.default_font());
+        let font = self.resolved_font(renderer);
 
         let mut font_system = gtext::font_system().write().expect("font system");
-        let mut buffer = cosmic_text::Buffer::new(
-            font_system.raw(),
-            cosmic_text::Metrics::new(
-                self.size.0,
-                self.line_height.to_absolute(self.size).0,
-            ),
-        );
-
-        buffer.set_size(font_system.raw(), Some(bounds.width), Some(bounds.height));
-
-        // Letter spacing rides on the attrs so the shaper adds it per glyph
-        // after kerning. Left at zero the shaping is identical to plain text.
-        // cosmic-text tracks in em so divide our CSS px value by the font
-        // size to match what a browser draws.
-        let attrs = gtext::to_attributes(font);
-        let attrs = if self.letter_spacing == 0.0 {
-            attrs
-        } else {
-            attrs.letter_spacing(self.letter_spacing / self.size.0)
-        };
-
-        buffer.set_text(
-            font_system.raw(),
+        let (buffer, min_bounds) = self.shape(
             &self.content,
-            &attrs,
-            gtext::to_shaping(Shaping::Advanced, &self.content),
-            None,
+            bounds,
+            font,
+            cosmic_text::Wrap::WordOrGlyph,
+            font_system.raw(),
         );
-
-        let min_bounds = gtext::align(&mut buffer, font_system.raw(), self.align_x);
         drop(font_system);
 
         state.buffer = Some(Arc::new(buffer));

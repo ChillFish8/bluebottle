@@ -357,13 +357,17 @@ fn font_weights() -> Element<'static, Message> {
 }
 
 fn ellipsis_text() -> Element<'static, Message> {
+    use bluebottle_ui::text;
+
     let demo = column![
-        bluebottle_ui::ellipsis_text::ellipsis_text(
+        bluebottle_ui::ellipsis_text::ellipsis_text(text::body("Short enough to fit"))
+            .width(220),
+        bluebottle_ui::ellipsis_text::ellipsis_text(text::body(
             "The quick brown fox jumps over the lazy dog"
-        )
-        .width(160)
-        .height(50),
+        ))
+        .width(220),
     ]
+    .spacing(6)
     .padding(padding::left(16));
 
     section("Text Ellipsis", demo)

@@ -34,9 +34,6 @@ pkg-config = "0.3"
 rstest = "0.26"
 wgpu = "27"
 
-# 3rd party widgets
-iced_palace = "0.14"
-
 uuid = { version = "1", features = ["v7"] }
 url = { version = "2", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
