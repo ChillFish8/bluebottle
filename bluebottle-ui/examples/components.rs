@@ -127,49 +127,106 @@ impl Components {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let elements = column![
-            accent_picker(self.selected_accent),
-            text_fonts(),
-            ellipsis_text(),
-            icons(),
-            nav_buttons(),
-            standard_buttons(),
-            icon_buttons(),
-            icon_toggle_buttons(),
-            hero_buttons(),
-            clickables(),
-            navigators(),
-            posters(),
-            episodes(),
-            albums(),
-            persons(),
-            links(),
-            tabs(self.selected_tab, self.selected_icon_tab),
-            media_images(),
-            clickable_card(),
-            splash_backgrounds(),
-            bars(),
-            pills(),
-            pillboxes(),
-            rating(),
-            titles(),
-            breadcrumbs(),
-            search_input(&self.search_content),
-            inputs(&self.search_content),
-            spinners(),
-            skeletons(),
-            separators(),
-            smart_list_demo(
-                self.smart_list_show,
-                self.smart_list_shown,
-                self.smart_list_hydrated,
+        // The page is a list of categories. Each one is a titled, divided
+        // block of widget demos so the long scroll stays easy to navigate.
+        let categories: Vec<(&'static str, Vec<Element<'_, Message>>)> = vec![
+            ("Theme", vec![accent_picker(self.selected_accent)]),
+            (
+                "Typography",
+                vec![typography(), font_weights(), ellipsis_text(), links()],
             ),
-        ]
-        .width(Length::Fill)
-        .padding(padding::all(32))
-        .spacing(16);
+            ("Icons", vec![icons()]),
+            (
+                "Buttons",
+                vec![
+                    nav_buttons(),
+                    standard_buttons(),
+                    icon_buttons(),
+                    icon_toggle_buttons(),
+                    hero_buttons(),
+                    clickables(),
+                ],
+            ),
+            (
+                "Navigation",
+                vec![
+                    navigators(),
+                    tabs(self.selected_tab, self.selected_icon_tab),
+                    breadcrumbs(),
+                    bars(),
+                ],
+            ),
+            (
+                "Images & Media",
+                vec![
+                    posters(),
+                    episodes(),
+                    albums(),
+                    persons(),
+                    media_images(),
+                    clickable_card(),
+                ],
+            ),
+            (
+                "Inputs",
+                vec![
+                    search_input(&self.search_content),
+                    inputs(&self.search_content),
+                ],
+            ),
+            (
+                "Lists & Feedback",
+                vec![
+                    smart_list_demo(
+                        self.smart_list_show,
+                        self.smart_list_shown,
+                        self.smart_list_hydrated,
+                    ),
+                    spinners(),
+                    skeletons(),
+                ],
+            ),
+            ("Surfaces", vec![splash_backgrounds(), separators()]),
+        ];
+
+        let blocks = categories
+            .into_iter()
+            .map(|(title, demos)| category(title, demos));
+
+        let elements = column(blocks)
+            .width(Length::Fill)
+            .padding(padding::all(32))
+            .spacing(40);
+
         bluebottle_ui::scrollable::scrollable(elements).into()
     }
+}
+
+/// A titled, divided category. A prominent heading over a full-width divider,
+/// followed by the widget demos it groups.
+fn category<'a>(
+    title: &'static str,
+    demos: Vec<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let header = column![
+        bluebottle_ui::text::heading_large(title),
+        bluebottle_ui::separator::seperator(Length::Fill),
+    ]
+    .spacing(6);
+
+    column![header, column(demos).spacing(24)]
+        .spacing(20)
+        .into()
+}
+
+/// A single widget demo. A bold sub-title above the widget being shown.
+fn section<'a>(
+    title: &'static str,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    column![bluebottle_ui::text::section_heading(title), content.into()]
+        .spacing(8)
+        .into()
 }
 
 fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
@@ -259,425 +316,280 @@ fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
         );
     }
 
-    column![
-        text("Accent Theme").font(font::bold()),
-        row(items).spacing(8),
-    ]
-    .spacing(8)
-    .into()
+    section("Accent Theme", row(items).spacing(8))
 }
 
-fn text_fonts() -> Element<'static, Message> {
-    column![
-        text("Text Fonts").font(font::bold()),
-        column![
-            text("The quick brown fox jumps over the lazy dog").font(font::regular()),
-            text("The quick brown fox jumps over the lazy dog").font(font::semibold()),
-            text("The quick brown fox jumps over the lazy dog").font(font::bold()),
-            text("The quick brown fox jumps over the lazy dog").size(12),
-            text("The quick brown fox jumps over the lazy dog").size(14),
-            text("The quick brown fox jumps over the lazy dog").size(16),
-        ]
-        .spacing(4)
-        .padding(padding::left(16)),
-        text("Text Paragraphs").font(font::bold()),
-        column![bluebottle_ui::text::paragraph(
-            "The quick brown fox jumps over the lazy dog"
-        ),]
-        .spacing(4)
-        .padding(padding::left(16)),
-        text("Text Subheading").font(font::bold()),
-        column![bluebottle_ui::text::subheading(
-            "The quick brown fox jumps over the lazy dog"
-        ),]
-        .spacing(4)
-        .padding(padding::left(16)),
-        text("Text Label").font(font::bold()),
-        column![bluebottle_ui::text::label(
-            "The quick brown fox jumps over the lazy dog"
-        ),]
-        .spacing(4)
-        .padding(padding::left(16)),
+fn typography() -> Element<'static, Message> {
+    use bluebottle_ui::text::{self, Variant};
+
+    let scale = column![
+        text::display_large("Display Large"),
+        text::display_medium("Display Medium"),
+        text::heading_large("Heading Large"),
+        text::heading_medium("Heading Medium"),
+        text::title_small("Title Small"),
+        text::subtitle("Subtitle", Variant::Main),
+        text::lead("Lead. Supporting copy beneath a title.", Variant::Main),
+        text::body("Body. The quick brown fox jumps over the lazy dog."),
+        text::section_heading("Section Heading"),
+        text::card_title("Card Title"),
+        text::label("Label", Variant::Main),
+        text::caption("Caption"),
+        text::eyebrow("EYEBROW", Variant::Main),
+        text::micro_label("MICRO LABEL"),
     ]
-    .into()
+    .spacing(6)
+    .padding(padding::left(16));
+
+    section("Type Scale", scale)
+}
+
+fn font_weights() -> Element<'static, Message> {
+    let weights = column![
+        text("The quick brown fox jumps over the lazy dog").font(font::regular()),
+        text("The quick brown fox jumps over the lazy dog").font(font::semibold()),
+        text("The quick brown fox jumps over the lazy dog").font(font::bold()),
+    ]
+    .spacing(4)
+    .padding(padding::left(16));
+
+    section("Font Weights", weights)
 }
 
 fn ellipsis_text() -> Element<'static, Message> {
-    column![
-        text("Text Ellipsis").font(font::bold()),
-        column![
-            bluebottle_ui::ellipsis_text::ellipsis_text(
-                "The quick brown fox jumps over the lazy dog"
-            )
-            .width(160)
-            .height(50),
-        ]
-        .spacing(4)
-        .padding(padding::left(16)),
+    let demo = column![
+        bluebottle_ui::ellipsis_text::ellipsis_text(
+            "The quick brown fox jumps over the lazy dog"
+        )
+        .width(160)
+        .height(50),
     ]
-    .into()
+    .padding(padding::left(16));
+
+    section("Text Ellipsis", demo)
+}
+
+fn links() -> Element<'static, Message> {
+    let demo = row![
+        bluebottle_ui::link(
+            bluebottle_ui::text::body("Default"),
+            Message::LinkPressed("default"),
+        ),
+        bluebottle_ui::link(
+            bluebottle_ui::text::body("Large semibold")
+                .size(16)
+                .font(font::semibold()),
+            Message::LinkPressed("large-semibold"),
+        ),
+        bluebottle_ui::link(
+            bluebottle_ui::text::label(
+                "Secondary tint",
+                bluebottle_ui::text::Variant::Alt,
+            ),
+            Message::LinkPressed("secondary"),
+        ),
+        bluebottle_ui::link(
+            bluebottle_ui::text::body("Inline within a row"),
+            Message::LinkPressed("inline"),
+        ),
+    ]
+    .padding(padding::left(16))
+    .spacing(16);
+
+    section("Links", demo)
 }
 
 fn icons() -> Element<'static, Message> {
-    column![
-        text("Icons").font(font::bold()),
-        row![
-            icon::outline("home").size(48),
-            icon::filled("home").size(48),
-            icon::outline("favorite_border").size(48),
-            icon::filled("favorite").size(48),
-        ]
-        .spacing(4)
-        .padding(padding::left(16)),
+    let demo = row![
+        icon::outline("home").size(48),
+        icon::filled("home").size(48),
+        icon::outline("favorite_border").size(48),
+        icon::filled("favorite").size(48),
     ]
-    .into()
+    .spacing(4)
+    .padding(padding::left(16));
+
+    section("Icons", demo)
 }
 
 fn nav_buttons() -> Element<'static, Message> {
-    column![
-        text("Nav Buttons").font(font::bold()),
-        row![
-            column![
-                bluebottle_ui::button::nav("Home", "home", false, Message::Click),
-                bluebottle_ui::button::nav("Search", "search", false, Message::Click),
-                bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
-                bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
-                bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
-                bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
-                bluebottle_ui::button::nav(
-                    "Anime Movies",
-                    "movie",
-                    false,
-                    Message::Click
-                ),
-                bluebottle_ui::button::nav(
-                    "Music",
-                    "library_music",
-                    false,
-                    Message::Click
-                ),
-            ]
-            .align_x(Center),
-            column![
-                bluebottle_ui::button::nav("Home", "home", true, Message::Click),
-                bluebottle_ui::button::nav("Search", "search", true, Message::Click),
-                bluebottle_ui::button::nav("Liked", "favorite", true, Message::Click),
-                bluebottle_ui::button::nav("Anime", "draw", true, Message::Click),
-                bluebottle_ui::button::nav("TV Shows", "tv", true, Message::Click),
-                bluebottle_ui::button::nav("Movies", "movie", true, Message::Click),
-                bluebottle_ui::button::nav(
-                    "Anime Movies",
-                    "movie",
-                    true,
-                    Message::Click
-                ),
-                bluebottle_ui::button::nav(
-                    "Music",
-                    "library_music",
-                    true,
-                    Message::Click
-                ),
-            ]
-            .align_x(Center),
-            column![
-                bluebottle_ui::button::nav("Home", "home", true, Message::Click),
-                bluebottle_ui::button::nav("Search", "search", false, Message::Click),
-                bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
-                bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
-                bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
-                bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
-                bluebottle_ui::button::nav(
-                    "Anime Movies",
-                    "movie",
-                    false,
-                    Message::Click
-                ),
-                bluebottle_ui::button::nav(
-                    "Music",
-                    "library_music",
-                    false,
-                    Message::Click
-                ),
-            ]
-            .align_x(Center),
+    let demo = row![
+        column![
+            bluebottle_ui::button::nav("Home", "home", false, Message::Click),
+            bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+            bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+            bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+            bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
+            bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
+            bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
+            bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
         ]
-        .spacing(8)
+        .align_x(Center),
+        column![
+            bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+            bluebottle_ui::button::nav("Search", "search", true, Message::Click),
+            bluebottle_ui::button::nav("Liked", "favorite", true, Message::Click),
+            bluebottle_ui::button::nav("Anime", "draw", true, Message::Click),
+            bluebottle_ui::button::nav("TV Shows", "tv", true, Message::Click),
+            bluebottle_ui::button::nav("Movies", "movie", true, Message::Click),
+            bluebottle_ui::button::nav("Anime Movies", "movie", true, Message::Click),
+            bluebottle_ui::button::nav("Music", "library_music", true, Message::Click),
+        ]
+        .align_x(Center),
+        column![
+            bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+            bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+            bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+            bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+            bluebottle_ui::button::nav("TV Shows", "tv", false, Message::Click),
+            bluebottle_ui::button::nav("Movies", "movie", false, Message::Click),
+            bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
+            bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
+        ]
+        .align_x(Center),
     ]
-    .spacing(4)
-    .into()
+    .spacing(8);
+
+    section("Nav Buttons", demo)
 }
 
 fn standard_buttons() -> Element<'static, Message> {
-    column![
-        text("Standard Buttons").font(font::bold()),
-        row![
-            column![
-                bluebottle_ui::button::standard(
-                    "Episodes",
-                    Some("subscriptions"),
-                    false,
-                    Message::Click
-                ),
-                bluebottle_ui::button::standard(
-                    "Episodes",
-                    Some("subscriptions"),
-                    true,
-                    Message::Click
-                ),
-                bluebottle_ui::button::disabled(Some("Disabled"), Some("subscriptions")),
-            ]
-            .spacing(8)
-            .align_x(Center),
-            column![
-                bluebottle_ui::button::standard("Genres", None, false, Message::Click),
-                bluebottle_ui::button::standard("Genres", None, true, Message::Click),
-                bluebottle_ui::button::disabled(Some("Disabled"), None,),
-            ]
-            .spacing(8)
-            .align_x(Center),
+    let demo = row![
+        column![
+            bluebottle_ui::button::standard(
+                "Episodes",
+                Some("subscriptions"),
+                false,
+                Message::Click
+            ),
+            bluebottle_ui::button::standard(
+                "Episodes",
+                Some("subscriptions"),
+                true,
+                Message::Click
+            ),
+            bluebottle_ui::button::disabled(Some("Disabled"), Some("subscriptions")),
         ]
         .spacing(8)
+        .align_x(Center),
+        column![
+            bluebottle_ui::button::standard("Genres", None, false, Message::Click),
+            bluebottle_ui::button::standard("Genres", None, true, Message::Click),
+            bluebottle_ui::button::disabled(Some("Disabled"), None,),
+        ]
+        .spacing(8)
+        .align_x(Center),
     ]
-    .spacing(4)
-    .into()
+    .spacing(8);
+
+    section("Standard Buttons", demo)
 }
 
 fn icon_buttons() -> Element<'static, Message> {
-    column![
-        text("Icon Buttons").font(font::bold()),
-        row![
-            bluebottle_ui::button::icon("settings", false, Message::Click),
-            bluebottle_ui::button::icon("settings", true, Message::Click),
-            bluebottle_ui::button::disabled(None, Some("arrow_back"),),
-        ]
-        .padding(8)
-        .spacing(8)
+    let demo = row![
+        bluebottle_ui::button::icon("settings", false, Message::Click),
+        bluebottle_ui::button::icon("settings", true, Message::Click),
+        bluebottle_ui::button::disabled(None, Some("arrow_back"),),
     ]
-    .spacing(4)
-    .into()
+    .padding(8)
+    .spacing(8);
+
+    section("Icon Buttons", demo)
+}
+
+fn icon_toggle_buttons() -> Element<'static, Message> {
+    let demo = row![
+        bluebottle_ui::button::toggle_icon(
+            "favorite_border",
+            "favorite",
+            false,
+            Message::Click
+        ),
+        bluebottle_ui::button::toggle_icon(
+            "favorite_border",
+            "favorite",
+            true,
+            Message::Click
+        ),
+        bluebottle_ui::button::toggle_icon("cancel", "cancel", false, Message::Click),
+        bluebottle_ui::button::toggle_icon("cancel", "cancel", true, Message::Click),
+    ]
+    .padding(8)
+    .spacing(8);
+
+    section("Icon Toggle Buttons", demo)
 }
 
 fn hero_buttons() -> Element<'static, Message> {
-    column![
-        text("Hero Buttons").font(font::bold()),
-        row![
-            bluebottle_ui::button::hero("settings", "settings", Message::Click),
-            bluebottle_ui::button::hero_primary(
-                "play_arrow",
-                "Resume · 1h 48m",
-                Message::Click
-            ),
-        ]
-        .padding(8)
-        .spacing(8)
+    let demo = row![
+        bluebottle_ui::button::hero("settings", "settings", Message::Click),
+        bluebottle_ui::button::hero_primary(
+            "play_arrow",
+            "Resume · 1h 48m",
+            Message::Click
+        ),
     ]
-    .spacing(4)
-    .into()
+    .padding(8)
+    .spacing(8);
+
+    section("Hero Buttons", demo)
 }
 
 fn clickables() -> Element<'static, Message> {
     use bluebottle_ui::clickable;
 
-    column![
-        text("Clickables").font(font::bold()),
-        row![
-            Element::<Message>::from(clickable(text("Inert")).padding([6, 12])),
-            Element::<Message>::from(
-                clickable(text("Default"))
-                    .padding([6, 12])
-                    .on_press(Message::Click),
-            ),
-            Element::<Message>::from(
-                clickable(text("Primary tint"))
-                    .padding([6, 12])
-                    .tint(color::primary())
-                    .on_press(Message::Click),
-            ),
-            Element::<Message>::from(
-                clickable(text("Square tile"))
-                    .padding([12, 16])
-                    .radius(8.0)
-                    .on_press(Message::Click),
-            ),
-        ]
-        .padding(8)
-        .spacing(8)
-        .align_y(Center),
+    let demo = row![
+        Element::<Message>::from(clickable(text("Inert")).padding([6, 12])),
+        Element::<Message>::from(
+            clickable(text("Default"))
+                .padding([6, 12])
+                .on_press(Message::Click),
+        ),
+        Element::<Message>::from(
+            clickable(text("Primary tint"))
+                .padding([6, 12])
+                .tint(color::primary())
+                .on_press(Message::Click),
+        ),
+        Element::<Message>::from(
+            clickable(text("Square tile"))
+                .padding([12, 16])
+                .radius(8.0)
+                .on_press(Message::Click),
+        ),
     ]
-    .spacing(4)
-    .into()
-}
+    .padding(8)
+    .spacing(8)
+    .align_y(Center);
 
-fn icon_toggle_buttons() -> Element<'static, Message> {
-    column![
-        text("Icon Toggle Buttons").font(font::bold()),
-        row![
-            bluebottle_ui::button::toggle_icon(
-                "favorite_border",
-                "favorite",
-                false,
-                Message::Click
-            ),
-            bluebottle_ui::button::toggle_icon(
-                "favorite_border",
-                "favorite",
-                true,
-                Message::Click
-            ),
-            bluebottle_ui::button::toggle_icon(
-                "cancel",
-                "cancel",
-                false,
-                Message::Click
-            ),
-            bluebottle_ui::button::toggle_icon("cancel", "cancel", true, Message::Click),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
+    section("Clickables", demo)
 }
 
 fn navigators() -> Element<'static, Message> {
-    column![
-        text("Carousel Navigators").font(font::bold()),
-        row![
-            bluebottle_ui::carousel_navigator::navigator(
-                1,
-                7,
-                Message::Click,
-                Message::Click,
-            ),
-            bluebottle_ui::carousel_navigator::navigator(
-                4,
-                7,
-                Message::Click,
-                Message::Click,
-            ),
-            bluebottle_ui::carousel_navigator::navigator(
-                7,
-                7,
-                Message::Click,
-                Message::Click,
-            ),
-        ]
-        .padding(8)
-        .spacing(8)
+    let demo = row![
+        bluebottle_ui::carousel_navigator::navigator(
+            1,
+            7,
+            Message::Click,
+            Message::Click,
+        ),
+        bluebottle_ui::carousel_navigator::navigator(
+            4,
+            7,
+            Message::Click,
+            Message::Click,
+        ),
+        bluebottle_ui::carousel_navigator::navigator(
+            7,
+            7,
+            Message::Click,
+            Message::Click,
+        ),
     ]
-    .spacing(4)
-    .into()
-}
+    .padding(8)
+    .spacing(8);
 
-fn posters() -> Element<'static, Message> {
-    let content = POSTER.clone();
-
-    column![
-        text("Image Posters").font(font::bold()),
-        row![
-            bluebottle_ui::image::poster(content.clone(), PosterSize::Large),
-            bluebottle_ui::image::poster_skeleton(PosterSize::Large),
-        ]
-        .padding(8)
-        .spacing(8),
-        row![
-            bluebottle_ui::image::poster(content.clone(), PosterSize::Medium),
-            bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
-        ]
-        .padding(8)
-        .spacing(8),
-        row![
-            bluebottle_ui::image::poster(content, PosterSize::Small),
-            bluebottle_ui::image::poster_skeleton(PosterSize::Small),
-        ]
-        .padding(8)
-        .spacing(8),
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn episodes() -> Element<'static, Message> {
-    let content = THUMBNAIL.clone();
-
-    column![
-        text("Image Episodes").font(font::bold()),
-        row![
-            bluebottle_ui::image::thumbnail(content),
-            bluebottle_ui::image::thumbnail_skeleton(),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn albums() -> Element<'static, Message> {
-    let content = SQUARE.clone();
-
-    column![
-        text("Image Albums").font(font::bold()),
-        row![
-            bluebottle_ui::image::square(content),
-            bluebottle_ui::image::square_skeleton(),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn persons() -> Element<'static, Message> {
-    let content = PERSON_POSTER.clone();
-
-    column![
-        text("Image Persons").font(font::bold()),
-        row![
-            bluebottle_ui::image::person(content.clone(), PersonSize::Poster),
-            bluebottle_ui::image::person_skeleton(PersonSize::Poster),
-            bluebottle_ui::image::person(content, PersonSize::Square),
-            bluebottle_ui::image::person_skeleton(PersonSize::Square),
-        ]
-        .padding(8)
-        .spacing(8)
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn links() -> Element<'static, Message> {
-    column![
-        text("Links").font(font::bold()),
-        row![
-            bluebottle_ui::link(
-                bluebottle_ui::text::body("Default"),
-                Message::LinkPressed("default"),
-            ),
-            bluebottle_ui::link(
-                bluebottle_ui::text::body("Large semibold")
-                    .size(16)
-                    .font(font::semibold()),
-                Message::LinkPressed("large-semibold"),
-            ),
-            bluebottle_ui::link(
-                bluebottle_ui::text::label(
-                    "Secondary tint",
-                    bluebottle_ui::text::Variant::Alt,
-                ),
-                Message::LinkPressed("secondary"),
-            ),
-            bluebottle_ui::link(
-                bluebottle_ui::text::body("Inline within a row"),
-                Message::LinkPressed("inline"),
-            ),
-        ]
-        .padding(padding::left(16))
-        .spacing(16),
-    ]
-    .spacing(4)
-    .into()
+    section("Carousel Navigators", demo)
 }
 
 fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
@@ -702,8 +614,7 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
             .into()
         };
 
-    column![
-        text("Tabs").font(font::bold()),
+    let demo = column![
         bluebottle_ui::tabs(
             [
                 text_tab("Overview"),
@@ -724,8 +635,115 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
             Message::IconTabSelected,
         ),
     ]
-    .spacing(12)
-    .into()
+    .spacing(12);
+
+    section("Tabs", demo)
+}
+
+fn breadcrumbs() -> Element<'static, Message> {
+    let demo = column![
+        bluebottle_ui::breadcrumb::breadcrumb(&["Library"]),
+        bluebottle_ui::breadcrumb::breadcrumb(&["Library", "Anime"]),
+        bluebottle_ui::breadcrumb::breadcrumb(&[
+            "Library",
+            "Anime",
+            "Dusk Beyond the End of the World",
+        ]),
+    ]
+    .spacing(8);
+
+    section("Breadcrumbs", demo)
+}
+
+fn bars() -> Element<'static, Message> {
+    let top_buttons = column![
+        bluebottle_ui::button::nav("Home", "home", true, Message::Click),
+        bluebottle_ui::button::nav("Search", "search", false, Message::Click),
+        bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
+        bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
+    ]
+    .spacing(8.0)
+    .align_x(Center);
+
+    let bottom_buttons = column![
+        bluebottle_ui::button::nav("Library", "storage", false, Message::Click),
+        bluebottle_ui::button::nav("Settings", "settings", false, Message::Click),
+    ]
+    .spacing(8.0)
+    .align_x(Center);
+
+    let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
+
+    section("Sidebar", container(sidebar).height(600))
+}
+
+fn posters() -> Element<'static, Message> {
+    let content = POSTER.clone();
+
+    let demo = column![
+        row![
+            bluebottle_ui::image::poster(content.clone(), PosterSize::Large),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Large),
+        ]
+        .padding(8)
+        .spacing(8),
+        row![
+            bluebottle_ui::image::poster(content.clone(), PosterSize::Medium),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
+        ]
+        .padding(8)
+        .spacing(8),
+        row![
+            bluebottle_ui::image::poster(content, PosterSize::Small),
+            bluebottle_ui::image::poster_skeleton(PosterSize::Small),
+        ]
+        .padding(8)
+        .spacing(8),
+    ]
+    .spacing(4);
+
+    section("Image Posters", demo)
+}
+
+fn episodes() -> Element<'static, Message> {
+    let content = THUMBNAIL.clone();
+
+    let demo = row![
+        bluebottle_ui::image::thumbnail(content),
+        bluebottle_ui::image::thumbnail_skeleton(),
+    ]
+    .padding(8)
+    .spacing(8);
+
+    section("Image Episodes", demo)
+}
+
+fn albums() -> Element<'static, Message> {
+    let content = SQUARE.clone();
+
+    let demo = row![
+        bluebottle_ui::image::square(content),
+        bluebottle_ui::image::square_skeleton(),
+    ]
+    .padding(8)
+    .spacing(8);
+
+    section("Image Albums", demo)
+}
+
+fn persons() -> Element<'static, Message> {
+    let content = PERSON_POSTER.clone();
+
+    let demo = row![
+        bluebottle_ui::image::person(content.clone(), PersonSize::Poster),
+        bluebottle_ui::image::person_skeleton(PersonSize::Poster),
+        bluebottle_ui::image::person(content, PersonSize::Square),
+        bluebottle_ui::image::person_skeleton(PersonSize::Square),
+    ]
+    .padding(8)
+    .spacing(8);
+
+    section("Image Persons", demo)
 }
 
 fn media_images() -> Element<'static, Message> {
@@ -767,14 +785,11 @@ fn media_images() -> Element<'static, Message> {
             .overlay(play_overlay())
             .on_press(Message::LinkPressed("media-image-overlay"));
 
-    column![
-        text("Media Images").font(font::bold()),
-        row![inert, clickable, no_border, with_overlay,]
-            .padding(8)
-            .spacing(8),
-    ]
-    .spacing(4)
-    .into()
+    let demo = row![inert, clickable, no_border, with_overlay,]
+        .padding(8)
+        .spacing(8);
+
+    section("Media Images", demo)
 }
 
 fn clickable_card() -> Element<'static, Message> {
@@ -834,111 +849,32 @@ fn clickable_card() -> Element<'static, Message> {
             ))
             .on_press(Message::Click);
 
-    column![
-        text("Clickable Card").font(font::bold()),
-        row![
-            non_interactive,
-            image_only,
-            with_overlay,
-            per_region,
-            bluebottle_ui::media_card::skeleton(bluebottle_ui::image::poster_skeleton(
-                PosterSize::Small
-            ))
-            .label()
-            .subtext(),
-        ]
-        .padding(8)
-        .spacing(8),
+    let demo = row![
+        non_interactive,
+        image_only,
+        with_overlay,
+        per_region,
+        bluebottle_ui::media_card::skeleton(bluebottle_ui::image::poster_skeleton(
+            PosterSize::Small
+        ))
+        .label()
+        .subtext(),
     ]
-    .spacing(4)
-    .into()
-}
+    .padding(8)
+    .spacing(8);
 
-fn splash_backgrounds() -> Element<'static, Message> {
-    let backdrop = SPLASH_BACKDROP.clone();
-
-    column![
-        text("Splash Backgrounds").font(font::bold()),
-        row![
-            container(splash_background(backdrop.clone()))
-                .width(Length::FillPortion(1))
-                .height(320),
-            container(splash_panel(backdrop))
-                .width(Length::FillPortion(1))
-                .height(320),
-        ]
-        .spacing(8)
-        .padding(padding::left(16)),
-    ]
-    .spacing(4)
-    .into()
-}
-
-fn bars() -> Element<'static, Message> {
-    let top_buttons = column![
-        bluebottle_ui::button::nav("Home", "home", true, Message::Click),
-        bluebottle_ui::button::nav("Search", "search", false, Message::Click),
-        bluebottle_ui::button::nav("Liked", "favorite", false, Message::Click),
-        bluebottle_ui::button::nav("Anime", "draw", false, Message::Click),
-    ]
-    .spacing(8.0)
-    .align_x(Center);
-
-    let bottom_buttons = column![
-        bluebottle_ui::button::nav("Library", "storage", false, Message::Click),
-        bluebottle_ui::button::nav("Settings", "settings", false, Message::Click),
-    ]
-    .spacing(8.0)
-    .align_x(Center);
-
-    let sidebar = bluebottle_ui::bar::side(top_buttons, bottom_buttons);
-    let sidebar_container = container(sidebar).height(600);
-
-    column![text("Sidebar").font(font::bold()), sidebar_container,]
-        .spacing(8)
-        .width(Length::Fill)
-        .into()
-}
-
-fn breadcrumbs() -> Element<'static, Message> {
-    column![
-        text("Breadcrumbs").font(font::bold()),
-        bluebottle_ui::breadcrumb::breadcrumb(&["Library"]),
-        bluebottle_ui::breadcrumb::breadcrumb(&["Library", "Anime"]),
-        bluebottle_ui::breadcrumb::breadcrumb(&[
-            "Library",
-            "Anime",
-            "Dusk Beyond the End of the World",
-        ]),
-        bluebottle_ui::breadcrumb::breadcrumb(&[
-            "Library",
-            "Anime",
-            "Dusk Beyond the End of the World",
-        ])
-        .size(20),
-        bluebottle_ui::breadcrumb::breadcrumb(&[
-            "Library",
-            "Anime",
-            "Dusk Beyond the End of the World",
-        ])
-        .size(12),
-    ]
-    .spacing(8)
-    .into()
+    section("Clickable Card", demo)
 }
 
 fn search_input(content: &str) -> Element<'_, Message> {
-    column![
-        text("Search input").font(font::bold()),
+    section(
+        "Search Input",
         bluebottle_ui::search::search("Sample input...", content, Message::SearchInput),
-    ]
-    .spacing(8)
-    .into()
+    )
 }
 
 fn inputs(content: &str) -> Element<'_, Message> {
-    column![
-        text("Text input").font(font::bold()),
+    let demo = column![
         bluebottle_ui::input::text_input(
             "Sample input...",
             content,
@@ -947,27 +883,9 @@ fn inputs(content: &str) -> Element<'_, Message> {
         bluebottle_ui::input::text_input("Password...", content, Message::SearchInput)
             .secure(true),
     ]
-    .spacing(8)
-    .into()
-}
+    .spacing(8);
 
-fn separators() -> Element<'static, Message> {
-    column![
-        text("Separators").font(font::bold()),
-        bluebottle_ui::separator::seperator(Length::Fixed(400.0))
-    ]
-    .spacing(8)
-    .into()
-}
-
-fn spinners() -> Element<'static, Message> {
-    column![
-        text("Spinners").font(font::bold()),
-        bluebottle_ui::spinner::linear(),
-        bluebottle_ui::spinner::circle().size(40),
-    ]
-    .spacing(8)
-    .into()
+    section("Text Input", demo)
 }
 
 fn smart_list_demo(
@@ -1046,8 +964,7 @@ fn smart_list_demo(
         .map(|i| format!("Shown group: {i} ({})", group_labels[i]))
         .unwrap_or_else(|| "Shown group: none yet".into());
 
-    column![
-        text("Smart List").font(font::bold()),
+    let demo = column![
         controls,
         text(shown_text).size(12).color(color::TEXT_SECONDARY),
         container(list)
@@ -1055,15 +972,48 @@ fn smart_list_demo(
             .width(Length::Fill)
             .padding(padding::left(16)),
     ]
-    .spacing(8)
-    .into()
+    .spacing(8);
+
+    section("Smart List", demo)
+}
+
+fn spinners() -> Element<'static, Message> {
+    let demo = column![
+        bluebottle_ui::spinner::linear(),
+        bluebottle_ui::spinner::circle().size(40),
+    ]
+    .spacing(8);
+
+    section("Spinners", demo)
 }
 
 fn skeletons() -> Element<'static, Message> {
-    column![
-        text("Skeletons").font(font::bold()),
+    section(
+        "Skeletons",
         bluebottle_ui::skeleton::skeleton().height(224).width(224),
+    )
+}
+
+fn splash_backgrounds() -> Element<'static, Message> {
+    let backdrop = SPLASH_BACKDROP.clone();
+
+    let demo = row![
+        container(splash_background(backdrop.clone()))
+            .width(Length::FillPortion(1))
+            .height(320),
+        container(splash_panel(backdrop))
+            .width(Length::FillPortion(1))
+            .height(320),
     ]
     .spacing(8)
-    .into()
+    .padding(padding::left(16));
+
+    section("Splash Backgrounds", demo)
+}
+
+fn separators() -> Element<'static, Message> {
+    section(
+        "Separators",
+        bluebottle_ui::separator::seperator(Length::Fixed(400.0)),
+    )
 }
