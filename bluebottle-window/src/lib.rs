@@ -15,24 +15,46 @@ mod handle;
 mod overlay;
 pub mod platform;
 
-/// The startup splash description, available with the `splash` feature.
 #[cfg(feature = "splash")]
 pub use bluebottle_splash::Splash;
 pub use error::Error;
 pub use handle::Window;
-/// Re-export of the `iced` version this crate is built against.
 pub use iced;
 use iced::Program;
 
-/// Create an overlay window driven by an Iced application.
+/// Create a new window overlay with configured options.
 ///
-/// `build` constructs the [`iced::Program`] — typically the value produced by
+/// `build` constructs the [`Program`] — typically the value produced by
 /// [`iced::application`] (and its builder methods) that you would otherwise
 /// `.run()`, e.g. `|| iced::application(..)`. The program is built on the
 /// dedicated render thread (the high-level Iced builder is not `Send`), so only
 /// the closure itself crosses the thread boundary.
 ///
-/// The Wayland event and render loop runs on that background thread; this
+/// The Wayland event and render loop runs on that background thread. This
+/// function returns as soon as the main surface is ready, so the caller can
+/// immediately start rendering into it via the returned [`Window`].
+pub fn create<P, F>(
+    build: F,
+    video: bool,
+    splash: Option<Splash>,
+) -> Result<Window, Error>
+where
+    F: FnOnce() -> P + Send + 'static,
+    P: Program + 'static,
+{
+    force_vulkan_backend();
+    platform::run(build, video, splash)
+}
+
+/// Create an overlay window driven by an Iced application.
+///
+/// `build` constructs the [`Program`] — typically the value produced by
+/// [`iced::application`] (and its builder methods) that you would otherwise
+/// `.run()`, e.g. `|| iced::application(..)`. The program is built on the
+/// dedicated render thread (the high-level Iced builder is not `Send`), so only
+/// the closure itself crosses the thread boundary.
+///
+/// The Wayland event and render loop runs on that background thread. This
 /// function returns as soon as the main surface is ready, so the caller can
 /// immediately start rendering into it via the returned [`Window`].
 pub fn create_overlay<P, F>(build: F) -> Result<Window, Error>
@@ -40,8 +62,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    force_vulkan_backend();
-    platform::run(build, false, Default::default())
+    create(build, false, None)
 }
 
 /// Create an overlay window that shows an animated startup splash.
@@ -59,8 +80,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    force_vulkan_backend();
-    platform::run(build, false, Some(splash))
+    create(build, false, Some(splash))
 }
 
 /// Create an overlay window that also hosts an external video sink.
@@ -78,8 +98,7 @@ where
     F: FnOnce() -> P + Send + 'static,
     P: Program + 'static,
 {
-    force_vulkan_backend();
-    platform::run(build, true, Default::default())
+    create(build, true, None)
 }
 
 /// Pin the Iced overlay renderer to wgpu's Vulkan backend.
