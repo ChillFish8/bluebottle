@@ -3,7 +3,9 @@
 //! draws via `fill_raw`, which lets it carry letter spacing that iced's stock
 //! text cannot. With no letter spacing set the shaping is identical to normal
 //! text, kerning and ligatures intact, because cosmic-text adds the spacing to
-//! each glyph advance only after shaping.
+//! each glyph advance only after shaping. Letter spacing is authored in CSS
+//! pixels and divided by the font size before shaping, because cosmic-text
+//! tracks in em.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -21,6 +23,232 @@ use iced::widget::text::{Alignment, IntoFragment, LineHeight, Shaping};
 use iced::{Color, Element, Font, Length, Pixels, Rectangle, Size};
 
 use crate::{color, font};
+
+/// Display Title Large
+///
+/// Hero & player titles. One per screen. The single largest thing in view. Tight tracking, line-height near 1.
+pub fn display_large<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(52)
+        .line_height(1.5)
+        .letter_spacing(-1.0)
+        .color(color::TEXT_PRIMARY)
+}
+
+/// Display Title Medium
+///
+/// Hero & player titles. One per screen. The single largest thing in view. Tight tracking, line-height near 1.
+pub fn display_medium<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(44)
+        .line_height(1.5)
+        .letter_spacing(-0.5)
+        .color(color::TEXT_PRIMARY)
+}
+
+/// Heading Large
+///
+/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
+pub fn heading_large<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(26)
+        .line_height(1.15)
+        .letter_spacing(-0.3)
+        .color(color::TEXT_PRIMARY)
+}
+
+/// Header Medium
+///
+/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
+pub fn heading_medium<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(22)
+        .line_height(1.2)
+        .letter_spacing(-0.2)
+        .color(color::TEXT_PRIMARY)
+}
+
+/// Title Small
+///
+/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
+pub fn title_small<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(18)
+        .letter_spacing(-0.2)
+        .color(color::TEXT_PRIMARY)
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+/// The context decides what variant the text should form to if
+/// the given text has alt variants.
+pub enum Variant {
+    #[default]
+    /// Primary format.
+    Main,
+    /// Secondary format.
+    Alt,
+}
+
+/// Subtitle
+///
+/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
+pub fn subtitle<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
+    let color = match ctx {
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::TEXT_SECONDARY,
+    };
+
+    Text::new(input)
+        .font(font::medium())
+        .size(18)
+        .line_height(1.4)
+        .color(color)
+}
+
+/// Lead
+///
+/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
+pub fn lead<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
+    let color = match ctx {
+        Variant::Main => color::with_alpha(color::TEXT_PRIMARY, 0.78),
+        Variant::Alt => color::TEXT_SECONDARY,
+    };
+
+    Text::new(input)
+        .font(font::regular())
+        .size(16)
+        .line_height(1.6)
+        .color(color)
+}
+
+/// Body
+pub fn body<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::regular())
+        .size(14)
+        .line_height(1.6)
+        .letter_spacing(0.0)
+        .color(color::with_alpha(color::TEXT_PRIMARY, 0.82))
+}
+
+/// Section Heading
+///
+/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
+pub fn section_heading<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(14)
+        .letter_spacing(0.2)
+        .color(color::TEXT_PRIMARY)
+}
+
+/// Card Title
+///
+/// The interface's center of gravity. Card titles, list rows, buttons, queue items. Most text lives here.
+pub fn card_title<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input).size(13).color(color::TEXT_SECONDARY)
+}
+
+/// Hero Label
+///
+/// Mirrors [card_title] but a stronger weight for hero buttons.
+pub fn hero_label<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input).size(13).font(font::bold())
+}
+
+/// Label
+///
+/// Design note: When inactive, labels should use [Variant::Alt].
+///
+/// The interface's center of gravity. Card titles, list rows, buttons, queue items. Most text lives here.
+pub fn label<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
+    let color = match ctx {
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::TEXT_SECONDARY,
+    };
+
+    Text::new(input).size(12).color(color)
+}
+
+/// Caption
+///
+/// The smallest text. Sub-captions, counts, badges and the all-caps eyebrows
+/// that label every section.
+pub fn caption<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::regular())
+        .size(11)
+        .color(color::TEXT_SECONDARY)
+}
+
+/// Eyebrow
+///
+/// Design note: should be all caps ALWAYS.
+///
+/// The smallest text. Sub-captions, counts, badges and the all-caps eyebrows
+/// that label every section.
+pub fn eyebrow<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
+    let color = match ctx {
+        Variant::Main => color::primary(),
+        Variant::Alt => color::TEXT_SECONDARY,
+    };
+
+    let size = match ctx {
+        Variant::Main => 10,
+        Variant::Alt => 11,
+    };
+
+    let font = match ctx {
+        Variant::Main => font::bold(),
+        Variant::Alt => font::semibold(),
+    };
+
+    Text::new(input)
+        .font(font)
+        .size(size)
+        .letter_spacing(0.5)
+        .color(color)
+}
+
+/// Micro Label
+///
+/// For field labels, meta tags.
+pub fn micro_label<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::regular())
+        .size(10)
+        .letter_spacing(0.4)
+}
+
+/// Lyric
+///
+/// Note: Main refers to the active lyric (full opacity) and alt is for queued entries.
+pub fn lyric<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
+    let color = match ctx {
+        Variant::Main => color::TEXT_PRIMARY,
+        Variant::Alt => color::with_alpha(color::TEXT_PRIMARY, 0.5),
+    };
+
+    Text::new(input)
+        .font(font::semibold())
+        .size(22)
+        .letter_spacing(-0.2)
+        .color(color)
+}
+
+/// Media Overlay
+pub fn media_overlay<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
+    Text::new(input)
+        .font(font::bold())
+        .size(10)
+        .letter_spacing(1.5)
+        .color(color::with_alpha(color::TEXT_PRIMARY, 0.78))
+}
 
 /// A styled run of text. Built by the typography functions in this module.
 pub struct Text<'a> {
@@ -75,7 +303,9 @@ impl<'a> Text<'a> {
         self
     }
 
-    /// Sets the extra advance between glyphs. Zero leaves shaping untouched.
+    /// Sets the extra tracking between glyphs in pixels. This matches CSS
+    /// letter-spacing. The value is converted to em before shaping because
+    /// cosmic-text tracks in em. Zero leaves shaping untouched.
     pub fn letter_spacing(mut self, letter_spacing: f32) -> Self {
         self.letter_spacing = letter_spacing;
         self
@@ -144,11 +374,13 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer> for Text<'a> {
 
         // Letter spacing rides on the attrs so the shaper adds it per glyph
         // after kerning. Left at zero the shaping is identical to plain text.
+        // cosmic-text tracks in em so divide our CSS px value by the font
+        // size to match what a browser draws.
         let attrs = gtext::to_attributes(font);
         let attrs = if self.letter_spacing == 0.0 {
             attrs
         } else {
-            attrs.letter_spacing(self.letter_spacing)
+            attrs.letter_spacing(self.letter_spacing / self.size.0)
         };
 
         buffer.set_text(
@@ -206,227 +438,4 @@ where
     fn from(text: Text<'a>) -> Self {
         Element::new(text)
     }
-}
-
-/// Display Title Large
-///
-/// Hero & player titles. One per screen. The single largest thing in view. Tight tracking, line-height near 1.
-pub fn display_large<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(52)
-        .line_height(1.5)
-        .letter_spacing(-0.5)
-        .color(color::TEXT_PRIMARY)
-}
-
-/// Display Title Medium
-///
-/// Hero & player titles. One per screen. The single largest thing in view. Tight tracking, line-height near 1.
-pub fn display_medium<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(44)
-        .line_height(1.5)
-        .letter_spacing(-0.5)
-        .color(color::TEXT_PRIMARY)
-}
-
-/// Heading Large
-///
-/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
-pub fn heading_large<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(26)
-        .line_height(1.15)
-        .letter_spacing(-0.25)
-        .color(color::TEXT_PRIMARY)
-}
-
-/// Header Medium
-///
-/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
-pub fn heading_medium<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(22)
-        .line_height(1.2)
-        .letter_spacing(-0.25)
-        .color(color::TEXT_PRIMARY)
-}
-
-/// Title Small
-///
-/// Drawer tiles, episode names, top search result. The largest text inside a panel or overlay.
-pub fn title_small<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(18)
-        .color(color::TEXT_PRIMARY)
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
-/// The context decides what variant the text should form to if
-/// the given text has alt variants.
-pub enum Variant {
-    #[default]
-    /// Primary format.
-    Main,
-    /// Secondary format.
-    Alt,
-}
-
-/// Subtitle
-///
-/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
-pub fn subtitle<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
-    let color = match ctx {
-        Variant::Main => color::TEXT_PRIMARY,
-        Variant::Alt => color::TEXT_SECONDARY,
-    };
-
-    Text::new(input)
-        .font(font::medium())
-        .size(18)
-        .line_height(1.4)
-        .color(color)
-}
-
-/// Lead
-///
-/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
-pub fn lead<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
-    let color = match ctx {
-        Variant::Main => color::with_alpha(color::TEXT_PRIMARY, 0.78),
-        Variant::Alt => color::TEXT_SECONDARY,
-    };
-
-    Text::new(input)
-        .font(font::regular())
-        .size(16)
-        .line_height(1.6)
-        .color(color)
-}
-
-/// Body
-pub fn body<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::regular())
-        .size(14)
-        .line_height(1.6)
-        .color(color::with_alpha(color::TEXT_PRIMARY, 0.82))
-}
-
-/// Section Heading
-///
-/// Supporting lines beneath a title, search input, and reading copy. Lighter weights, relaxed line-height.
-pub fn section_heading<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(14)
-        .letter_spacing(0.4)
-        .color(color::TEXT_PRIMARY)
-}
-
-/// Card Title
-///
-/// The interface's center of gravity. Card titles, list rows, buttons, queue items. Most text lives here.
-pub fn card_title<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input).size(13).color(color::TEXT_SECONDARY)
-}
-
-/// Hero Label
-///
-/// Mirrors [card_title] but a stronger weight for hero buttons.
-pub fn hero_label<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input).size(13).font(font::bold())
-}
-
-/// Label
-///
-/// Design note: When inactive, labels should use [Variant::Alt].
-///
-/// The interface's center of gravity. Card titles, list rows, buttons, queue items. Most text lives here.
-pub fn label<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
-    let color = match ctx {
-        Variant::Main => color::TEXT_PRIMARY,
-        Variant::Alt => color::TEXT_SECONDARY,
-    };
-
-    Text::new(input).size(12).color(color)
-}
-
-/// Caption
-///
-/// The smallest text. Sub-captions, counts, badges and the all-caps eyebrows
-/// that label every section.
-pub fn caption<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::regular())
-        .size(11)
-        .color(color::TEXT_SECONDARY)
-}
-
-/// Eyebrow
-///
-/// Design note: should be all caps ALWAYS.
-///
-/// The smallest text. Sub-captions, counts, badges and the all-caps eyebrows
-/// that label every section.
-pub fn eyebrow<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
-    let color = match ctx {
-        Variant::Main => color::primary(),
-        Variant::Alt => color::TEXT_SECONDARY,
-    };
-
-    let size = match ctx {
-        Variant::Main => 10,
-        Variant::Alt => 11,
-    };
-
-    let font = match ctx {
-        Variant::Main => font::bold(),
-        Variant::Alt => font::semibold(),
-    };
-
-    Text::new(input)
-        .font(font)
-        .size(size)
-        .letter_spacing(0.8)
-        .color(color)
-}
-
-/// Micro Label
-///
-/// For field labels, meta tags.
-pub fn micro_label<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::regular())
-        .size(10)
-        .letter_spacing(0.5)
-}
-
-/// Lyric
-///
-/// Note: Main refers to the active lyric (full opacity) and alt is for queued entries.
-pub fn lyric<'a>(input: impl IntoFragment<'a>, ctx: Variant) -> Text<'a> {
-    let color = match ctx {
-        Variant::Main => color::TEXT_PRIMARY,
-        Variant::Alt => color::with_alpha(color::TEXT_PRIMARY, 0.5),
-    };
-
-    Text::new(input)
-        .font(font::semibold())
-        .size(22)
-        .color(color)
-}
-
-/// Media Overlay
-pub fn media_overlay<'a>(input: impl IntoFragment<'a>) -> Text<'a> {
-    Text::new(input)
-        .font(font::bold())
-        .size(10)
-        .letter_spacing(0.4)
-        .color(color::with_alpha(color::TEXT_PRIMARY, 0.78))
 }
