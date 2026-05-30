@@ -1,6 +1,7 @@
 use iced::widget::{container, row};
-use iced::{Center, Element, Length, padding};
+use iced::{Center, Element, padding};
 
+use super::chassis::icon_circle;
 use crate::widget::clickable::clickable;
 use crate::{color, font, icon, text};
 
@@ -42,14 +43,7 @@ pub fn dismiss_icon<'a, Message>(message: Message) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
-    let diameter = Length::Fixed(28.0);
-    let glyph = container(icon::filled("close").size(14))
-        .width(diameter)
-        .height(diameter)
-        .align_x(Center)
-        .align_y(Center);
-
-    clickable(glyph)
+    clickable(icon_circle("close", 28.0, 14.0))
         .background(color::border())
         .tint(color::border_strong())
         .border(color::border_strong())

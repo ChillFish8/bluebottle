@@ -198,16 +198,17 @@ impl Components {
             category("Icons", || vec![icons()]),
             category("Buttons", || vec![
                 nav_buttons(),
-                standard_buttons(),
                 icon_buttons(self.icon_states),
                 icon_flat_buttons(self.icon_flat_states),
                 icon_carousel_buttons(),
                 icon_overlay_buttons(),
                 dismiss_buttons(),
+                media_primary_buttons(),
+                media_transport_buttons(),
+                media_accent_buttons(),
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
                 hero_buttons(),
-                clickables(),
             ]),
             category("Navigation", || vec![
                 navigators(),
@@ -485,6 +486,7 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
         ]
+        .spacing(8)
         .align_x(Center),
         column![
             bluebottle_ui::button::nav("Home", "home", true, Message::Click),
@@ -496,6 +498,7 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", true, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", true, Message::Click),
         ]
+        .spacing(8)
         .align_x(Center),
         column![
             bluebottle_ui::button::nav("Home", "home", true, Message::Click),
@@ -507,43 +510,12 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
         ]
+        .spacing(8)
         .align_x(Center),
     ]
     .spacing(8);
 
     section("Nav Buttons", demo)
-}
-
-fn standard_buttons() -> Element<'static, Message> {
-    let demo = row![
-        column![
-            bluebottle_ui::button::standard(
-                "Episodes",
-                Some("subscriptions"),
-                false,
-                Message::Click
-            ),
-            bluebottle_ui::button::standard(
-                "Episodes",
-                Some("subscriptions"),
-                true,
-                Message::Click
-            ),
-            bluebottle_ui::button::disabled(Some("Disabled"), Some("subscriptions")),
-        ]
-        .spacing(8)
-        .align_x(Center),
-        column![
-            bluebottle_ui::button::standard("Genres", None, false, Message::Click),
-            bluebottle_ui::button::standard("Genres", None, true, Message::Click),
-            bluebottle_ui::button::disabled(Some("Disabled"), None,),
-        ]
-        .spacing(8)
-        .align_x(Center),
-    ]
-    .spacing(8);
-
-    section("Standard Buttons", demo)
 }
 
 fn icon_buttons(states: [bool; 4]) -> Element<'static, Message> {
@@ -642,6 +614,53 @@ fn dismiss_buttons() -> Element<'static, Message> {
     section("Dismiss Buttons", demo)
 }
 
+fn media_primary_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::{PrimarySizeVariant, primary};
+
+    let demo = row![
+        primary("play_arrow", PrimarySizeVariant::Small, Message::Click),
+        primary("play_arrow", PrimarySizeVariant::Medium, Message::Click),
+        primary("play_arrow", PrimarySizeVariant::Large, Message::Click),
+    ]
+    .padding(8)
+    .spacing(16)
+    .align_y(Center);
+
+    section("Primary Play / Pause", demo)
+}
+
+fn media_transport_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::{mode, skip, transport_mini};
+
+    let demo = row![
+        skip("skip_previous", Message::Click),
+        mode("shuffle", false, Message::Click),
+        mode("repeat", true, Message::Click),
+        skip("skip_next", Message::Click),
+        transport_mini("skip_previous", Message::Click),
+        transport_mini("skip_next", Message::Click),
+    ]
+    .padding(8)
+    .spacing(8)
+    .align_y(Center);
+
+    section("Transport Skip / Mode", demo)
+}
+
+fn media_accent_buttons() -> Element<'static, Message> {
+    use bluebottle_ui::button::{AccentSizeVariant, accent};
+
+    let demo = row![
+        accent("play_arrow", AccentSizeVariant::Main, Message::Click),
+        accent("play_arrow", AccentSizeVariant::Alt, Message::Click),
+    ]
+    .padding(8)
+    .spacing(8)
+    .align_y(Center);
+
+    section("Accent Hover-Reveal Play", demo)
+}
+
 fn hero_buttons() -> Element<'static, Message> {
     let demo = row![
         bluebottle_ui::button::hero("settings", "settings", Message::Click),
@@ -734,36 +753,6 @@ fn card<'a>(
             ..container::Style::default()
         })
         .into()
-}
-
-fn clickables() -> Element<'static, Message> {
-    use bluebottle_ui::clickable;
-
-    let demo = row![
-        Element::<Message>::from(clickable(text("Inert")).padding([6, 12])),
-        Element::<Message>::from(
-            clickable(text("Default"))
-                .padding([6, 12])
-                .on_press(Message::Click),
-        ),
-        Element::<Message>::from(
-            clickable(text("Primary tint"))
-                .padding([6, 12])
-                .tint(color::primary())
-                .on_press(Message::Click),
-        ),
-        Element::<Message>::from(
-            clickable(text("Square tile"))
-                .padding([12, 16])
-                .radius(8.0)
-                .on_press(Message::Click),
-        ),
-    ]
-    .padding(8)
-    .spacing(8)
-    .align_y(Center);
-
-    section("Clickables", demo)
 }
 
 fn navigators() -> Element<'static, Message> {

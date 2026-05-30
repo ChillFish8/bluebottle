@@ -17,9 +17,11 @@
 
 pub use iced::widget::button::{Status, Style};
 
+mod chassis;
 mod disabled;
 mod hero;
 mod icon;
+mod media;
 mod nav;
 mod pill;
 mod standard;
@@ -28,6 +30,15 @@ mod utility;
 pub use disabled::disabled;
 pub use hero::hero;
 pub use icon::{IconSizeVariant, icon, icon_carousel, icon_flat, icon_overlay};
+pub use media::{
+    AccentSizeVariant,
+    PrimarySizeVariant,
+    accent,
+    mode,
+    primary,
+    skip,
+    transport_mini,
+};
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;

@@ -1,8 +1,8 @@
-use iced::widget::container;
-use iced::{Center, Element, Length};
+use iced::Element;
 
+use super::chassis::icon_circle;
+use crate::color;
 use crate::widget::clickable::clickable;
-use crate::{color, icon};
 
 /// Size of an icon circle. Only the two specced sizes exist so the icons stay
 /// consistent across rows. Mirrors [`text::Variant`](crate::text::Variant).
@@ -34,7 +34,7 @@ where
 
     // The white fill brightens on hover through the tint. The on state swaps to
     // the accent fill and ring while the glyph stays white.
-    clickable(circle(icon_name, diameter, icon_size))
+    clickable(icon_circle(icon_name, diameter, icon_size))
         .background(color::border())
         .tint(color::hover_veil())
         .border(color::border_strong())
@@ -68,7 +68,7 @@ where
         color::TEXT_DARK
     };
 
-    clickable(circle(icon_name, 38.0, 16.0))
+    clickable(icon_circle(icon_name, 38.0, 16.0))
         .tint(color::border_strong())
         .resting_color(resting)
         .selected(on)
@@ -97,7 +97,7 @@ where
         color::TEXT_SECONDARY
     };
 
-    clickable(circle(icon_name, 26.0, 14.0))
+    clickable(icon_circle(icon_name, 26.0, 14.0))
         .background(color::hover_veil())
         .tint(color::with_alpha(color::WHITE, color::srgb_alpha(0.05)))
         .border(color::border())
@@ -121,28 +121,10 @@ pub fn icon_overlay<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    clickable(circle(icon_name, 32.0, 16.0))
+    clickable(icon_circle(icon_name, 32.0, 16.0))
         .background(color::with_alpha(color::WHITE, color::srgb_alpha(0.08)))
         .tint(color::with_alpha(color::WHITE, color::srgb_alpha(0.08)))
         .border(color::border_strong())
         .on_press(message)
-        .into()
-}
-
-/// Centred glyph in a fixed circle. Shared chassis for all variants.
-fn circle<'a, Message>(
-    icon_name: &'a str,
-    diameter: f32,
-    icon_size: f32,
-) -> Element<'a, Message>
-where
-    Message: 'a,
-{
-    let diameter = Length::Fixed(diameter);
-    container(icon::filled(icon_name).size(icon_size))
-        .width(diameter)
-        .height(diameter)
-        .align_x(Center)
-        .align_y(Center)
         .into()
 }
