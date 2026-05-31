@@ -301,4 +301,26 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
             renderer,
         )
     }
+
+    fn overlay<'b>(
+        &'b mut self,
+        tree: &'b mut Tree,
+        layout: Layout<'b>,
+        renderer: &iced::Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<iced::advanced::overlay::Element<'b, Message, iced::Theme, iced::Renderer>>
+    {
+        let child = layout.children().next().unwrap();
+        let state = tree.state.downcast_ref::<State>();
+        let offset = state.engine.offset;
+
+        self.content.as_widget_mut().overlay(
+            &mut tree.children[0],
+            child,
+            renderer,
+            viewport,
+            translation - Vector::new(0.0, offset),
+        )
+    }
 }

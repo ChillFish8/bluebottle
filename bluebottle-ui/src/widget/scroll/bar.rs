@@ -140,7 +140,10 @@ impl ScrollBar {
 
                 self.scrolled = now;
                 shell.request_redraw();
-                shell.capture_event();
+                // Do not call shell.capture_event() for wheel events.
+                // iced's UserInterface drops its cached overlay whenever
+                // the root sees a captured event, which would make any
+                // overlay (e.g. a DropDown) flicker once per wheel tick.
                 BarEvent::Wheel(dy)
             },
 
