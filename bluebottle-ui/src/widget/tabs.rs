@@ -31,9 +31,9 @@ use iced::{
 };
 
 use crate::animate::hover::{EPSILON, Hover, PressState};
+use crate::text::Variant;
 use crate::util::lerp;
 use crate::{color, font, icon, text};
-use crate::text::Variant;
 
 const UNDERLINE_THICKNESS: f32 = 2.0;
 const UNDERLINE_RADIUS: f32 = UNDERLINE_THICKNESS / 2.0;
@@ -219,17 +219,19 @@ where
 
         for item in self.items.iter_mut() {
             let icon_tree = child_trees.next().expect("icon tree");
-            let icon_node =
-                item.icon
-                    .as_widget_mut::<Message>()
-                    .layout(icon_tree, renderer, &inner_limits);
+            let icon_node = item.icon.as_widget_mut::<Message>().layout(
+                icon_tree,
+                renderer,
+                &inner_limits,
+            );
             let icon_size = icon_node.size();
 
             let label_tree = child_trees.next().expect("label tree");
-            let label_node =
-                item.label
-                    .as_widget_mut::<Message>()
-                    .layout(label_tree, renderer, &inner_limits);
+            let label_node = item.label.as_widget_mut::<Message>().layout(
+                label_tree,
+                renderer,
+                &inner_limits,
+            );
             let label_size = label_node.size();
 
             let inner_w = icon_size.width + ICON_LABEL_GAP + label_size.width;

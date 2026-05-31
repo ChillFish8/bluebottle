@@ -4,6 +4,7 @@ pub mod button;
 pub mod carousel_navigator;
 pub mod clickable;
 pub mod debug;
+pub mod dropdown;
 pub mod ellipsis_text;
 pub mod image;
 pub mod link;

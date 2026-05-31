@@ -356,8 +356,7 @@ impl<'a> Text<'a> {
     /// Mutable counterpart of [`Text::as_widget`].
     pub fn as_widget_mut<'b, Message: 'b>(
         &'b mut self,
-    ) -> &'b mut dyn Widget<Message, iced::Theme, iced::Renderer>
-    {
+    ) -> &'b mut dyn Widget<Message, iced::Theme, iced::Renderer> {
         self
     }
 

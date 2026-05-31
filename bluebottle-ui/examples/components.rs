@@ -94,6 +94,8 @@ struct Components {
     toggle_states: [bool; 3],
     icon_states: [bool; 4],
     icon_flat_states: [bool; 2],
+    dropdown_open: bool,
+    dropdown_choice: &'static str,
 }
 
 impl Default for Components {
@@ -110,9 +112,13 @@ impl Default for Components {
             toggle_states: [true, false, false],
             icon_states: [false, true, false, true],
             icon_flat_states: [false, true],
+            dropdown_open: true,
+            dropdown_choice: DROPDOWN_CHOICES[0],
         }
     }
 }
+
+const DROPDOWN_CHOICES: &[&str] = &["Recent", "A to Z", "Year", "Rating"];
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -132,6 +138,9 @@ enum Message {
     ToggleToolbar(usize),
     ToggleIcon(usize),
     ToggleIconFlat(usize),
+    DropdownToggle,
+    DropdownDismiss,
+    DropdownPick(&'static str),
 }
 
 fn toggle_at(slice: &mut [bool], i: usize) {
@@ -179,6 +188,19 @@ impl Components {
             Message::ToggleToolbar(i) => toggle_at(&mut self.toggle_states, i),
             Message::ToggleIcon(i) => toggle_at(&mut self.icon_states, i),
             Message::ToggleIconFlat(i) => toggle_at(&mut self.icon_flat_states, i),
+            Message::DropdownToggle => {
+                self.dropdown_open = !self.dropdown_open;
+                println!("dropdown toggle -> {}", self.dropdown_open);
+            },
+            Message::DropdownDismiss => {
+                self.dropdown_open = false;
+                println!("dropdown dismiss");
+            },
+            Message::DropdownPick(choice) => {
+                self.dropdown_choice = choice;
+                self.dropdown_open = false;
+                println!("dropdown pick {choice}");
+            },
             _ => {},
         }
     }
@@ -216,6 +238,9 @@ impl Components {
                 breadcrumbs(),
                 bars(self.selected_nav),
             ]),
+            category("Inputs", || {
+                vec![dropdown_demo(self.dropdown_open, self.dropdown_choice)]
+            }),
             category("Images & Media", || vec![
                 posters(),
                 episodes(),
@@ -224,7 +249,6 @@ impl Components {
                 media_images(),
                 clickable_card(),
             ]),
-            category("Inputs", || vec![]),
             category("Lists & Feedback", || vec![
                 smart_list_demo(
                     self.smart_list_show,
@@ -818,6 +842,45 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
     .spacing(12);
 
     section("Tabs", demo)
+}
+
+fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> {
+    let label = text(chosen).size(13);
+
+    // The clickables shrink to their text width on purpose. A `Length::Fill`
+    // width inside the `Length::Shrink` column collapses to zero, which is what
+    // produced the thin-line menu before. The column itself sizes to the widest
+    // item, so the rows still align.
+    let menu = DROPDOWN_CHOICES
+        .iter()
+        .fold(column![].spacing(2), |col, choice| {
+            col.push(
+                clickable(text(*choice).size(13))
+                    .on_press(Message::DropdownPick(choice))
+                    .padding(padding::all(6).left(10).right(10))
+                    .radius(6.0),
+            )
+        });
+
+    let widget = bluebottle_ui::dropdown(label, menu, open)
+        .on_toggle(|opening| {
+            if opening {
+                Message::DropdownToggle
+            } else {
+                Message::DropdownDismiss
+            }
+        })
+        .background(color::SECONDARY)
+        .hover_border(color::border())
+        .selected_background(color::HOVER)
+        .selected_border(color::border_strong())
+        .radius(10.0)
+        .padding(padding::all(8).left(12).right(12));
+
+    section(
+        "Dropdown",
+        container(widget).height(240).width(Length::Fill),
+    )
 }
 
 fn breadcrumbs() -> Element<'static, Message> {

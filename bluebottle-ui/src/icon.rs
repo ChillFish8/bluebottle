@@ -8,12 +8,20 @@ use crate::widget::text::Text;
 
 include!(concat!(env!("OUT_DIR"), "/icons_lut.rs"));
 
-const ICON_FILLED_FONT: Font = Font {
+pub(crate) const ICON_FILLED_FONT: Font = Font {
     family: Family::Name("Material Icons"),
     weight: Weight::Normal,
     stretch: Stretch::Normal,
     style: Style::Normal,
 };
+
+/// Returns the Unicode codepoint string for the given filled-Material icon.
+pub(crate) fn filled_codepoint(name: &str) -> &'static str {
+    FILLED_ICON_CODEPOINTS
+        .get(name)
+        .map(|c| &**c)
+        .unwrap_or_else(|| panic!("icon {name:?} does not exist"))
+}
 const ICON_OUTLINED_FONT: Font = Font {
     family: Family::Name("Material Icons Outlined"),
     weight: Weight::Normal,
@@ -51,7 +59,10 @@ pub fn outline(name: &str) -> Text<'_> {
         .get(name)
         .map(|c| &**c)
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
-    Text::new(code).size(24).line_height(1.0).font(ICON_OUTLINED_FONT)
+    Text::new(code)
+        .size(24)
+        .line_height(1.0)
+        .font(ICON_OUTLINED_FONT)
 }
 
 /// Get a new icon widget in the filled format.
@@ -60,5 +71,8 @@ pub fn filled(name: &str) -> Text<'_> {
         .get(name)
         .map(|c| &**c)
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
-    Text::new(code).size(24).line_height(1.0).font(ICON_FILLED_FONT)
+    Text::new(code)
+        .size(24)
+        .line_height(1.0)
+        .font(ICON_FILLED_FONT)
 }
