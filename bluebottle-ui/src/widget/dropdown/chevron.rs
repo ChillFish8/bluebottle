@@ -37,7 +37,7 @@ use iced::{
 };
 
 use crate::animate::hover::Hover;
-use crate::icon;
+use crate::{color, icon};
 
 const DEFAULT_SIZE: f32 = 14.0;
 const GLYPH: &str = "expand_more";
@@ -47,7 +47,7 @@ pub fn chevron<Message>(open: bool) -> Chevron<Message> {
     Chevron {
         open,
         size: DEFAULT_SIZE,
-        color: None,
+        color: color::TEXT_SECONDARY,
         _marker: std::marker::PhantomData,
     }
 }
@@ -56,7 +56,7 @@ pub fn chevron<Message>(open: bool) -> Chevron<Message> {
 pub struct Chevron<Message> {
     open: bool,
     size: f32,
-    color: Option<Color>,
+    color: Color,
     _marker: std::marker::PhantomData<fn() -> Message>,
 }
 
@@ -69,7 +69,7 @@ impl<Message> Chevron<Message> {
 
     /// Pegs the glyph to a fixed colour instead of riding the cascade.
     pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
+        self.color = color;
         self
     }
 }
@@ -121,7 +121,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> 
         tree: &Tree,
         renderer: &mut iced::Renderer,
         _theme: &iced::Theme,
-        style: &renderer::Style,
+        _style: &renderer::Style,
         layout: Layout<'_>,
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
@@ -129,7 +129,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> 
         let state = tree.state.downcast_ref::<State>();
         let factor = state.rotation.current(Instant::now());
         let bounds = layout.bounds();
-        let text_color = self.color.unwrap_or(style.text_color);
+        let text_color = self.color;
         let glyph_size = self.size;
 
         let geometry = state.cache.draw(renderer, bounds.size(), |frame| {
