@@ -1,11 +1,10 @@
-//! Material Icons
+//! Material Icons rendered through the design system's [`Text`] widget.
 
 use std::borrow::Cow;
 
-use iced::advanced::text;
 use iced::font::{Family, Font, Stretch, Style, Weight};
-use iced::widget::Text;
-use iced::widget::text::Catalog;
+
+use crate::widget::text::Text;
 
 include!(concat!(env!("OUT_DIR"), "/icons_lut.rs"));
 
@@ -47,36 +46,19 @@ pub fn exists(name: &str) -> bool {
 }
 
 /// Get a new icon widget in the outline format.
-pub fn outline<Theme, Renderer>(name: &str) -> Text<'_, Theme, Renderer>
-where
-    Theme: Catalog,
-    Renderer: text::Renderer,
-    Renderer::Font: From<Font>,
-{
+pub fn outline(name: &str) -> Text<'_> {
     let code = OUTLINE_ICON_CODEPOINTS
         .get(name)
         .map(|c| &**c)
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
-    Text::new(code)
-        .size(24)
-        .line_height(1.0)
-        .font(ICON_OUTLINED_FONT)
+    Text::new(code).size(24).line_height(1.0).font(ICON_OUTLINED_FONT)
 }
 
 /// Get a new icon widget in the filled format.
-pub fn filled<Theme, Renderer>(name: &str) -> Text<'_, Theme, Renderer>
-where
-    Theme: Catalog,
-    Renderer: text::Renderer,
-    Renderer::Font: From<Font>,
-{
+pub fn filled(name: &str) -> Text<'_> {
     let code = FILLED_ICON_CODEPOINTS
         .get(name)
         .map(|c| &**c)
         .unwrap_or_else(|| panic!("icon {name:?} does not exist"));
-
-    Text::new(code)
-        .size(24)
-        .line_height(1.0)
-        .font(ICON_FILLED_FONT)
+    Text::new(code).size(24).line_height(1.0).font(ICON_FILLED_FONT)
 }

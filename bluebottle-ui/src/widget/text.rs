@@ -264,7 +264,7 @@ pub struct Text<'a> {
 }
 
 impl<'a> Text<'a> {
-    fn new(content: impl IntoFragment<'a>) -> Self {
+    pub(crate) fn new(content: impl IntoFragment<'a>) -> Self {
         Self {
             content: content.into_fragment(),
             size: Pixels(14.0),
@@ -341,6 +341,24 @@ impl<'a> Text<'a> {
     /// cascade. Lets a wrapping widget match an affordance to the text.
     pub fn text_color(&self) -> Option<Color> {
         self.color
+    }
+
+    /// Borrows this text as the iced [`Widget`] trait object the advanced
+    /// API expects. Wrapping widgets that hold a `Text` concretely use this
+    /// to call `layout`, `draw`, and friends without boxing through
+    /// [`Element`].
+    pub fn as_widget<'b, Message: 'b>(
+        &'b self,
+    ) -> &'b dyn Widget<Message, iced::Theme, iced::Renderer> {
+        self
+    }
+
+    /// Mutable counterpart of [`Text::as_widget`].
+    pub fn as_widget_mut<'b, Message: 'b>(
+        &'b mut self,
+    ) -> &'b mut dyn Widget<Message, iced::Theme, iced::Renderer>
+    {
+        self
     }
 
     /// Resolves the font, falling back to the renderer default.

@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
-use bluebottle_ui::{clickable, color, font, icon};
+use bluebottle_ui::{clickable, color, font, icon, tab};
 use iced::widget::{column, container, image, row, stack, text};
 use iced::{
     Background,
@@ -224,9 +224,7 @@ impl Components {
                 media_images(),
                 clickable_card(),
             ]),
-            category("Inputs", || vec![
-
-            ]),
+            category("Inputs", || vec![]),
             category("Lists & Feedback", || vec![
                 smart_list_demo(
                     self.smart_list_show,
@@ -782,46 +780,39 @@ fn navigators() -> Element<'static, Message> {
 }
 
 fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
-    let text_tab = |label: &'static str| -> Element<'static, Message> {
-        text(label).size(14).into()
+    let bar_fill = color::with_alpha(color::GLASS_BASE, color::srgb_alpha(0.92));
+    let on_glass = move |bar: Element<'static, Message>| {
+        container(bar).style(move |_theme| container::Style {
+            background: Some(Background::Color(bar_fill)),
+            ..container::Style::default()
+        })
     };
 
-    let mut idx = 0;
-    let mut icon_tab =
-        |icon_name: &'static str, label: &'static str| -> Element<'static, Message> {
-            let this_idx = idx;
-            idx += 1;
-
-            let color = (this_idx == selected_icon).then_some(color::primary());
-
-            row![
-                icon::filled(icon_name).size(20).color_maybe(color),
-                text(label).size(14),
-            ]
-            .spacing(8)
-            .align_y(Center)
-            .into()
-        };
-
     let demo = column![
-        bluebottle_ui::tabs(
-            [
-                text_tab("Overview"),
-                text_tab("Episodes"),
-                text_tab("Reviews"),
-            ],
-            selected,
-            Message::TabSelected,
+        on_glass(
+            bluebottle_ui::tabs(
+                [
+                    tab("info", "Overview"),
+                    tab("playlist_play", "Episodes"),
+                    tab("rate_review", "Reviews"),
+                ],
+                selected,
+                Message::TabSelected,
+            )
+            .into(),
         ),
-        bluebottle_ui::tabs(
-            [
-                icon_tab("home", "Home"),
-                icon_tab("movie", "Movies"),
-                icon_tab("tv", "Shows"),
-                icon_tab("music_note", "Music"),
-            ],
-            selected_icon,
-            Message::IconTabSelected,
+        on_glass(
+            bluebottle_ui::tabs(
+                [
+                    tab("home", "Home"),
+                    tab("movie", "Movies"),
+                    tab("tv", "Shows"),
+                    tab("music_note", "Music"),
+                ],
+                selected_icon,
+                Message::IconTabSelected,
+            )
+            .into(),
         ),
     ]
     .spacing(12);

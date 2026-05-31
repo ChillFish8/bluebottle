@@ -18,5 +18,5 @@ pub use self::widget::sidebar::sidebar;
 pub use self::widget::skeleton::skeleton;
 pub use self::widget::smart_list::{smart_group, smart_list};
 pub use self::widget::splash_background::{splash_background, splash_panel};
-pub use self::widget::tabs::tabs;
+pub use self::widget::tabs::{Tab, tab, tabs};
 pub use self::widget::*;
