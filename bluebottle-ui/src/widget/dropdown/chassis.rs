@@ -31,6 +31,7 @@ use iced::{
     Point,
     Rectangle,
     Size,
+    Transformation,
     Vector,
     alignment,
     mouse,
@@ -659,6 +660,65 @@ where
     }
 }
 
+impl<Message> DropdownOverlay<'_, '_, Message> {
+    fn viewport_size(&self) -> Size {
+        Size::new(self.viewport.width, self.viewport.height)
+    }
+
+    fn menu_below_trigger(&self, bounds: Rectangle) -> bool {
+        bounds.y >= self.trigger_bounds.y + self.trigger_bounds.height
+    }
+
+    /// Top-left the menu should land at given its size. Same algorithm as
+    /// [`Self::layout`] so the rendering path can re-derive the anchor against
+    /// the trigger's just-captured position. iced reuses the overlay layout
+    /// from the previous update pass, so without this the menu renders one
+    /// scroll-step behind the trigger.
+    fn menu_anchor(&self, menu_size: Size) -> Point {
+        let viewport = self.viewport_size();
+
+        let mut pos = Point::new(
+            self.position.x,
+            self.position.y + self.trigger_bounds.height + self.offset,
+        );
+
+        if pos.x + menu_size.width > viewport.width {
+            pos.x = (viewport.width - menu_size.width).max(0.0);
+        }
+        if pos.x < 0.0 {
+            pos.x = 0.0;
+        }
+
+        if pos.y + menu_size.height > viewport.height {
+            let above = self.position.y - menu_size.height - self.offset;
+            if above >= 0.0 {
+                pos.y = above;
+            } else {
+                pos.y = (viewport.height - menu_size.height).max(0.0);
+            }
+        }
+
+        pos
+    }
+
+    /// Returns `(fresh_bounds, shift)` for compensating the gap between
+    /// iced's stored overlay layout and the trigger's current position. The
+    /// shift is zero when nothing has moved between update and draw.
+    fn lag_compensation(&self, stored: Rectangle) -> (Rectangle, Vector) {
+        let anchor = self.menu_anchor(stored.size());
+
+        let fresh = Rectangle {
+            x: anchor.x,
+            y: anchor.y,
+            width: stored.width,
+            height: stored.height,
+        };
+        let shift = Vector::new(anchor.x - stored.x, anchor.y - stored.y);
+
+        (fresh, shift)
+    }
+}
+
 struct DropdownOverlay<'a, 'b, Message> {
     menu_tree: &'b mut Tree,
     menu: &'b mut Element<'a, Message>,
@@ -698,27 +758,8 @@ where
         );
 
         let menu_size = node.bounds().size();
-        let mut pos = Point::new(
-            self.position.x,
-            self.position.y + self.trigger_bounds.height + self.offset,
-        );
 
-        if pos.x + menu_size.width > bounds.width {
-            pos.x = (bounds.width - menu_size.width).max(0.0);
-        }
-        if pos.x < 0.0 {
-            pos.x = 0.0;
-        }
-        if pos.y + menu_size.height > bounds.height {
-            let above = self.position.y - menu_size.height - self.offset;
-            if above >= 0.0 {
-                pos.y = above;
-            } else {
-                pos.y = (bounds.height - menu_size.height).max(0.0);
-            }
-        }
-
-        node.move_to(pos)
+        node.move_to(self.menu_anchor(menu_size))
     }
 
     fn draw(
@@ -729,73 +770,74 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        let bounds = layout.bounds();
+        let stored = layout.bounds();
         let factor = self.factor;
+
         if factor <= EPSILON {
             return;
         }
 
-        // Roll the menu down by revealing a top strip of its full layout that
-        // grows from zero to full height with the open factor. Content is laid
-        // out at full size and clipped, so the menu drops on open and rolls back
-        // on close without scaling its contents.
-        let revealed_height = (bounds.height * factor).max(0.0);
-        let revealed = Rectangle {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: revealed_height,
-        };
+        // iced rebuilds our overlay struct on every draw so `self.position`
+        // is current, but reuses the layout captured during the previous
+        // update pass. Re-derive the anchor from the live position and
+        // translate the renderer by the delta so the menu lands where the
+        // trigger is now rather than one frame back.
+        let (fresh, shift) = self.lag_compensation(stored);
+
+        // Roll the menu out of the trigger. Below-trigger menus roll
+        // downward from the top edge. Above-trigger menus roll upward from
+        // the bottom edge. The trigger-adjacent edge stays fully drawn.
+        let revealed = revealed_band(stored, factor, self.menu_below_trigger(fresh));
+
         let pill = Border {
             radius: self.radius.into(),
             ..Border::default()
         };
 
-        // The shadow sits below the visible strip so the elevation grows with
-        // the menu. Drawn outside the clip so the soft edge extends past the
-        // revealed band.
-        renderer.fill_quad(
-            Quad {
-                bounds: revealed,
-                border: pill,
-                shadow: style::scale_shadow(style::ELEVATION_RESTING, factor),
-                ..Quad::default()
-            },
-            Color::TRANSPARENT,
-        );
-
-        renderer.with_layer(revealed, |renderer| {
+        renderer.with_translation(shift, |renderer| {
             renderer.fill_quad(
                 Quad {
-                    bounds,
+                    bounds: revealed,
                     border: pill,
-                    ..Quad::default()
-                },
-                self.background,
-            );
-            renderer.fill_quad(
-                Quad {
-                    bounds,
-                    border: Border {
-                        radius: self.radius.into(),
-                        width: 1.0,
-                        color: self.border,
-                    },
+                    shadow: style::scale_shadow(style::ELEVATION_RESTING, factor),
                     ..Quad::default()
                 },
                 Color::TRANSPARENT,
             );
 
-            let content_layout = layout.children().next().expect("dropdown menu child");
-            self.menu.as_widget().draw(
-                self.menu_tree,
-                renderer,
-                theme,
-                style,
-                content_layout,
-                cursor,
-                &bounds,
-            );
+            renderer.with_layer(revealed, |renderer| {
+                renderer.fill_quad(
+                    Quad {
+                        bounds: stored,
+                        border: pill,
+                        ..Quad::default()
+                    },
+                    self.background,
+                );
+                renderer.fill_quad(
+                    Quad {
+                        bounds: stored,
+                        border: Border {
+                            radius: self.radius.into(),
+                            width: 1.0,
+                            color: self.border,
+                        },
+                        ..Quad::default()
+                    },
+                    Color::TRANSPARENT,
+                );
+
+                let content_layout = layout.children().next().expect("dropdown menu child");
+                self.menu.as_widget().draw(
+                    self.menu_tree,
+                    renderer,
+                    theme,
+                    style,
+                    content_layout,
+                    cursor * Transformation::translate(-shift.x, -shift.y),
+                    &stored,
+                );
+            });
         });
     }
 
@@ -812,14 +854,16 @@ where
             return;
         }
 
-        let bounds = layout.bounds();
+        let stored = layout.bounds();
         let content_layout = layout.children().next().expect("dropdown menu child");
+        let (fresh, shift) = self.lag_compensation(stored);
 
-        // The visible band is `revealed`. While the menu is rolling open, the
-        // cursor may sit over a clipped (invisible) item — masking the cursor
-        // there keeps the menu's children from registering hover, press, or
-        // pointer cursor for content the user cannot see yet.
-        let menu_cursor = mask_cursor_to_revealed(cursor, bounds, self.factor);
+        // Mask against `fresh` (where the menu actually paints) then back
+        // into stored coordinates for the menu's children, whose layout
+        // still sits in the stored frame.
+        let menu_below = self.menu_below_trigger(fresh);
+        let masked = mask_cursor_to_revealed(cursor, fresh, self.factor, menu_below);
+        let menu_cursor = masked * Transformation::translate(-shift.x, -shift.y);
 
         self.menu.as_widget_mut().update(
             self.menu_tree,
@@ -829,7 +873,7 @@ where
             renderer,
             clipboard,
             shell,
-            &bounds,
+            &stored,
         );
 
         if shell.is_event_captured() {
@@ -848,18 +892,18 @@ where
                 shell.capture_event();
             },
 
-            // Capture the dismiss so the same press does not also activate a
-            // widget underneath the open menu. The trigger path captures on
-            // toggle for the same reason; this keeps the two consistent.
+            // Hit-test against `fresh` so a press on the menu's
+            // currently-rendered position counts as inside. Capturing keeps
+            // the dismiss-press from also activating whatever sits below.
             Event::Mouse(mouse::Event::ButtonPressed(
                 mouse::Button::Left | mouse::Button::Right,
-            )) if !cursor.is_over(bounds) && !cursor.is_over(self.trigger_bounds) => {
+            )) if !cursor.is_over(fresh) && !cursor.is_over(self.trigger_bounds) => {
                 shell.publish(on_toggle(false));
                 shell.capture_event();
             },
 
             Event::Touch(touch::Event::FingerPressed { position, .. })
-                if !bounds.contains(*position)
+                if !fresh.contains(*position)
                     && !self.trigger_bounds.contains(*position) =>
             {
                 shell.publish(on_toggle(false));
@@ -879,8 +923,11 @@ where
         if !self.expanded {
             return mouse::Interaction::None;
         }
-        let bounds = layout.bounds();
-        let menu_cursor = mask_cursor_to_revealed(cursor, bounds, self.factor);
+        let stored = layout.bounds();
+        let (fresh, shift) = self.lag_compensation(stored);
+        let menu_below = self.menu_below_trigger(fresh);
+        let masked = mask_cursor_to_revealed(cursor, fresh, self.factor, menu_below);
+        let menu_cursor = masked * Transformation::translate(-shift.x, -shift.y);
         let content_layout = layout.children().next().expect("dropdown menu child");
         self.menu.as_widget().mouse_interaction(
             self.menu_tree,
@@ -916,6 +963,7 @@ fn mask_cursor_to_revealed(
     cursor: mouse::Cursor,
     bounds: Rectangle,
     factor: f32,
+    menu_below: bool,
 ) -> mouse::Cursor {
     let Some(position) = cursor.position() else {
         return cursor;
@@ -923,13 +971,29 @@ fn mask_cursor_to_revealed(
     if !bounds.contains(position) {
         return cursor;
     }
-    let revealed = Rectangle {
-        height: bounds.height * factor.clamp(0.0, 1.0),
-        ..bounds
-    };
+    let revealed = revealed_band(bounds, factor, menu_below);
     if revealed.contains(position) {
         cursor
     } else {
         mouse::Cursor::Unavailable
+    }
+}
+
+/// The currently-visible strip of the menu within `bounds`, anchored to the
+/// edge adjacent to the trigger so the roll grows out of the trigger.
+fn revealed_band(bounds: Rectangle, factor: f32, menu_below: bool) -> Rectangle {
+    let height = bounds.height * factor.clamp(0.0, 1.0);
+
+    let y = if menu_below {
+        bounds.y
+    } else {
+        bounds.y + bounds.height - height
+    };
+
+    Rectangle {
+        x: bounds.x,
+        y,
+        width: bounds.width,
+        height,
     }
 }

@@ -11,6 +11,7 @@
 //! The chevron rides the cascaded text colour. Set [`Chevron::color`] to peg
 //! it to a fixed tone, otherwise it picks up whatever the parent draws with.
 
+use std::cell::Cell;
 use std::time::Instant;
 
 use iced::advanced::graphics::geometry::{
@@ -76,10 +77,20 @@ impl<Message> Chevron<Message> {
 
 struct State {
     rotation: Hover,
-    /// Reuses the rasterised glyph between settled frames. Cleared every event
-    /// while the rotation is in flight; the resting and fully-open states then
-    /// share the cached geometry until the next flip.
+
+    /// Reuses the rasterised glyph between frames. `draw` re-rasterises when
+    /// the live rotation diverges from the cached factor so a settled frame
+    /// lands on the exact target angle.
     cache: Cache<iced::Renderer>,
+
+    /// Rotation factor the cache was last populated with. `None` forces the
+    /// next draw to repopulate.
+    last_factor: Cell<Option<f32>>,
+
+    /// Animating-state observed at the most recent redraw. Holds across the
+    /// animating-to-settled edge so one extra redraw fires and the cache
+    /// repopulates at the target angle.
+    was_animating: Cell<bool>,
 }
 
 impl Default for State {
@@ -87,6 +98,8 @@ impl Default for State {
         Self {
             rotation: Hover::default(),
             cache: Cache::new(),
+            last_factor: Cell::new(None),
+            was_animating: Cell::new(false),
         }
     }
 }
@@ -129,11 +142,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> 
         let state = tree.state.downcast_ref::<State>();
         let factor = state.rotation.current(Instant::now());
         let bounds = layout.bounds();
+
+        let stale = match state.last_factor.get() {
+            Some(last) => (factor - last).abs() > f32::EPSILON,
+            None => true,
+        };
+
+        if stale {
+            state.cache.clear();
+            state.last_factor.set(Some(factor));
+        }
+
         let text_color = self.color;
         let glyph_size = self.size;
 
         let geometry = state.cache.draw(renderer, bounds.size(), |frame| {
             let center = frame.center();
+
             frame.translate(Vector::new(center.x, center.y));
             frame.rotate(Radians(factor * std::f32::consts::PI));
             frame.translate(Vector::new(-center.x, -center.y));
@@ -163,14 +188,19 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> 
         tree::State::new(State {
             rotation: Hover::settled(self.open),
             cache: Cache::new(),
+            last_factor: Cell::new(None),
+            was_animating: Cell::new(false),
         })
     }
 
     fn diff(&self, tree: &mut Tree) {
         let state = tree.state.downcast_mut::<State>();
+
         if state.rotation.flip(self.open, Instant::now()) {
-            // A new tween has started; previous-frame glyph is stale.
-            state.cache.clear();
+            // A flip mid-flight retargets at the same instantaneous factor
+            // that is already cached. Drop the cache so the next draw lays
+            // down the new curve.
+            state.last_factor.set(None);
         }
     }
 
@@ -185,17 +215,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> 
         shell: &mut Shell<'_, Message>,
         _viewport: &Rectangle,
     ) {
+        // Gate on RedrawRequested. A non-redraw event arriving between the
+        // settling tick and the next frame would otherwise clobber
+        // `was_animating` and the post-settle redraw would never fire.
+        let Event::Window(window::Event::RedrawRequested(_)) = event else {
+            return;
+        };
+
         let state = tree.state.downcast_ref::<State>();
-        let now = Instant::now();
-        if state.rotation.animating(now) {
-            // Mid-tween the rotation moves every frame; invalidate so the next
-            // draw re-rasterises at the current angle. When settled the cache
-            // sticks and the closure is skipped.
-            state.cache.clear();
-            if let Event::Window(window::Event::RedrawRequested(_)) = event {
-                shell.request_redraw();
-            }
+        let animating = state.rotation.animating(Instant::now());
+
+        // One extra redraw on the animating-to-settled edge lets `draw`
+        // repopulate the cache at the exact target angle.
+        if animating || state.was_animating.get() {
+            shell.request_redraw();
         }
+
+        state.was_animating.set(animating);
     }
 }
 
