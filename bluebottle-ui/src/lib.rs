@@ -10,7 +10,6 @@ mod widget;
 
 pub use self::widget::breadcrumb::breadcrumb;
 pub use self::widget::clickable::clickable;
-pub use self::widget::dropdown::{Dropdown, dropdown};
 pub use self::widget::link::link;
 pub use self::widget::media_card::media_card;
 pub use self::widget::media_image::media_image;
@@ -20,4 +19,4 @@ pub use self::widget::skeleton::skeleton;
 pub use self::widget::smart_list::{smart_group, smart_list};
 pub use self::widget::splash_background::{splash_background, splash_panel};
 pub use self::widget::tabs::{Tab, tab, tabs};
-pub use self::widget::*;
+pub use self::widget::{dropdown, *};

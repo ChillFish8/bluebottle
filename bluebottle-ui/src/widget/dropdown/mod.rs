@@ -1,9 +1,9 @@
 mod chassis;
 mod chevron;
-mod filter;
-mod inline;
-mod season;
-mod sort;
-mod source;
+
+pub mod filter;
+pub mod labelled;
+pub mod season;
+pub mod source;
 
 pub use chassis::{Dropdown, dropdown};

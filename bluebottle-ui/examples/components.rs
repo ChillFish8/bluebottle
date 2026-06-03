@@ -96,6 +96,13 @@ struct Components {
     icon_flat_states: [bool; 2],
     dropdown_open: bool,
     dropdown_choice: &'static str,
+    source_open: bool,
+    source_choice: &'static str,
+    season_choice: usize,
+    labelled_open: bool,
+    labelled_choice: &'static str,
+    filter_open: bool,
+    filter_choices: [bool; 4],
 }
 
 impl Default for Components {
@@ -114,11 +121,20 @@ impl Default for Components {
             icon_flat_states: [false, true],
             dropdown_open: true,
             dropdown_choice: DROPDOWN_CHOICES[0],
+            source_open: false,
+            source_choice: SOURCE_LIBRARIES[0],
+            season_choice: 0,
+            labelled_open: false,
+            labelled_choice: DROPDOWN_CHOICES[0],
+            filter_open: false,
+            filter_choices: [true, false, false, true],
         }
     }
 }
 
 const DROPDOWN_CHOICES: &[&str] = &["Recent", "A to Z", "Year", "Rating"];
+const SOURCE_LIBRARIES: &[&str] = &["Local Library", "Bedroom Plex", "Office Cast"];
+const FILTER_TAGS: &[&str] = &["Action", "Comedy", "Drama", "Sci-Fi"];
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -141,6 +157,13 @@ enum Message {
     DropdownToggle,
     DropdownDismiss,
     DropdownPick(&'static str),
+    SourceToggle(bool),
+    SourcePick(&'static str),
+    SeasonPick(usize),
+    LabelledToggle(bool),
+    LabelledPick(&'static str),
+    FilterToggle(bool),
+    FilterChoice(usize),
 }
 
 fn toggle_at(slice: &mut [bool], i: usize) {
@@ -201,6 +224,21 @@ impl Components {
                 self.dropdown_open = false;
                 println!("dropdown pick {choice}");
             },
+            Message::SourceToggle(open) => self.source_open = open,
+            Message::SourcePick(choice) => {
+                self.source_choice = choice;
+                self.source_open = false;
+            },
+            Message::SeasonPick(choice) => {
+                self.season_choice = choice;
+            },
+            Message::LabelledToggle(open) => self.labelled_open = open,
+            Message::LabelledPick(choice) => {
+                self.labelled_choice = choice;
+                self.labelled_open = false;
+            },
+            Message::FilterToggle(open) => self.filter_open = open,
+            Message::FilterChoice(i) => toggle_at(&mut self.filter_choices, i),
             _ => {},
         }
     }
@@ -239,7 +277,13 @@ impl Components {
                 bars(self.selected_nav),
             ]),
             category("Inputs", || {
-                vec![dropdown_demo(self.dropdown_open, self.dropdown_choice)]
+                vec![
+                    dropdown_demo(self.dropdown_open, self.dropdown_choice),
+                    source_demo(self.source_open, self.source_choice),
+                    season_demo(self.season_choice),
+                    labelled_demo(self.labelled_open, self.labelled_choice),
+                    filter_demo(self.filter_open, self.filter_choices),
+                ]
             }),
             category("Images & Media", || vec![
                 posters(),
@@ -862,7 +906,7 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
             )
         });
 
-    let widget = bluebottle_ui::dropdown(label, menu, open)
+    let widget = bluebottle_ui::dropdown::dropdown(label, menu, open)
         .on_toggle(|opening| {
             if opening {
                 Message::DropdownToggle
@@ -878,9 +922,107 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
         .padding(padding::all(8).left(12).right(12));
 
     section(
-        "Dropdown",
+        "Dropdown (chassis)",
         container(widget).height(240).width(Length::Fill),
     )
+}
+
+fn source_demo(open: bool, chosen: &'static str) -> Element<'static, Message> {
+    let label = text(chosen).size(13);
+
+    let menu = SOURCE_LIBRARIES.iter().fold(
+        column![].spacing(4).width(Length::Fill),
+        |col, library| {
+            col.push(bluebottle_ui::dropdown::source::row(
+                text(*library).size(13),
+                *library == chosen,
+                Message::SourcePick(library),
+            ))
+        },
+    );
+
+    let widget = bluebottle_ui::dropdown::source::source(label, menu, open)
+        .on_toggle(Message::SourceToggle);
+
+    section("Source", container(widget).height(240).width(Length::Fill))
+}
+
+fn seasons() -> Vec<bluebottle_ui::dropdown::season::SeasonInfo> {
+    use bluebottle_ui::dropdown::season::season_info;
+
+    vec![
+        season_info("Season 1", "Pilot run", 2021, 10),
+        season_info("Season 2", "Expanded ensemble", 2022, 12),
+        season_info("Season 3", "World tour", 2023, 12),
+        season_info("Specials", "Holiday and side stories", 2024, 4),
+    ]
+}
+
+fn season_demo(selected: usize) -> Element<'static, Message> {
+    let widget = bluebottle_ui::dropdown::season::season(
+        seasons(),
+        selected,
+        Message::SeasonPick,
+    );
+
+    section("Season", container(widget).height(240).width(Length::Fill))
+}
+
+fn labelled_demo(open: bool, chosen: &'static str) -> Element<'static, Message> {
+    // The prefix sits dimmed so the chosen value reads as the emphasis.
+    let label = text("Sort:").size(13).color(color::TEXT_DARK);
+    let value = text(chosen).size(13);
+
+    let menu = DROPDOWN_CHOICES.iter().fold(
+        column![].spacing(4).width(Length::Fill),
+        |col, choice| {
+            col.push(bluebottle_ui::dropdown::labelled::row(
+                text(*choice).size(13),
+                *choice == chosen,
+                Message::LabelledPick(choice),
+            ))
+        },
+    );
+
+    let widget = bluebottle_ui::dropdown::labelled::labelled(label, value, menu, open)
+        .on_toggle(Message::LabelledToggle);
+
+    section(
+        "Labelled",
+        container(widget).height(240).width(Length::Fill),
+    )
+}
+
+fn filter_demo(open: bool, choices: [bool; 4]) -> Element<'static, Message> {
+    let active = choices.iter().filter(|c| **c).count();
+    let label_text = if active > 0 {
+        format!("Genres · {active}")
+    } else {
+        "Genres".to_string()
+    };
+    let label = text(label_text).size(13);
+
+    let menu = FILTER_TAGS.iter().enumerate().fold(
+        column![].spacing(4).width(Length::Fill),
+        |col, (i, tag)| {
+            let glyph = if choices[i] {
+                "check_box"
+            } else {
+                "check_box_outline_blank"
+            };
+            let mark = icon::filled(glyph).size(16);
+            let content = row![mark, text(*tag).size(13)].spacing(8).align_y(Center);
+            col.push(bluebottle_ui::dropdown::filter::row(
+                content,
+                Message::FilterChoice(i),
+            ))
+        },
+    );
+
+    let widget = bluebottle_ui::dropdown::filter::filter(label, menu, open)
+        .on_toggle(Message::FilterToggle);
+
+    section("Filter", container(widget).height(240).width(Length::Fill))
 }
 
 fn breadcrumbs() -> Element<'static, Message> {

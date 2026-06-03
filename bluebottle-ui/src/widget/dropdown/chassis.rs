@@ -9,10 +9,13 @@
 //! the design system's `Hover` budget, anchored below the trigger, sized to
 //! its content, and clamped inside the viewport.
 //!
-//! Controlled by the caller. `expanded` is held in the caller's state and the
-//! widget dispatches [`Dropdown::on_toggle`] on trigger press, on Escape, and
-//! on a click outside the menu while it is open. Without `on_toggle` the
-//! widget is inert.
+//! Runs in one of two modes depending on whether [`Dropdown::on_toggle`] is
+//! wired. With a toggle callback the chassis is controlled. The caller holds
+//! `expanded` and the widget dispatches `on_toggle` on trigger press, on
+//! Escape, and on a click outside the menu. Without a toggle callback the
+//! chassis self-manages. `expanded` flips inside the widget's own state on the
+//! same events. The `expanded` builder argument seeds the initial value in
+//! that mode.
 
 use std::time::Instant;
 
@@ -61,9 +64,10 @@ const DEFAULT_MENU_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-/// Creates a controlled dropdown. The trigger renders the `label` and a
-/// chevron, the menu floats below it while `expanded` is true. Inert until
-/// [`Dropdown::on_toggle`] is set.
+/// Creates a dropdown. The trigger renders the `label` and a chevron, the
+/// menu floats below it while expanded. With [`Dropdown::on_toggle`] wired the
+/// caller owns the `expanded` value. Without it the chassis self-manages and
+/// the argument is the initial open state.
 pub fn dropdown<'a, Message>(
     label: impl Into<Element<'a, Message>>,
     menu: impl Into<Element<'a, Message>>,
@@ -101,6 +105,7 @@ where
         menu_radius: DEFAULT_MENU_RADIUS,
         menu_padding: DEFAULT_MENU_PADDING,
         menu_offset: DEFAULT_MENU_OFFSET,
+        menu_width: Length::Shrink,
     }
 }
 
@@ -127,6 +132,7 @@ pub struct Dropdown<'a, Message> {
     menu_radius: f32,
     menu_padding: Padding,
     menu_offset: f32,
+    menu_width: Length,
 }
 
 impl<'a, Message> Dropdown<'a, Message>
@@ -134,8 +140,8 @@ where
     Message: Clone + 'a,
 {
     /// Sets the toggle callback. Fires `true` when the trigger opens the menu
-    /// and `false` on close, dismiss, or Escape. Required to make the widget
-    /// interactive.
+    /// and `false` on close, dismiss, or Escape. Wiring this puts the chassis
+    /// in controlled mode. Without it the chassis self-manages `expanded`.
     pub fn on_toggle(mut self, f: impl Fn(bool) -> Message + 'a) -> Self {
         self.on_toggle = Some(Box::new(f));
         self
@@ -244,8 +250,25 @@ where
         self
     }
 
-    fn interactive(&self) -> bool {
+    /// Width of the menu surface. Defaults to [`Length::Shrink`] so the menu
+    /// sizes to its widest row. Pass a fixed width to give a Fill-width child
+    /// column something concrete to stretch into so the row chrome paints
+    /// edge-to-edge.
+    pub fn menu_width(mut self, width: impl Into<Length>) -> Self {
+        self.menu_width = width.into();
+        self
+    }
+
+    fn controlled(&self) -> bool {
         self.on_toggle.is_some()
+    }
+
+    fn current_expanded(&self, state: &ChassisState) -> bool {
+        if self.controlled() {
+            self.expanded
+        } else {
+            state.expanded
+        }
     }
 }
 
@@ -256,12 +279,16 @@ struct ChassisState {
     /// selected fill and the overlay menu's roll-down, so the two reads stay
     /// frame-locked without needing two parallel tracks.
     open: Hover,
-    /// `self.expanded` snapshotted at the moment of a press over the trigger
-    /// so the matching release dispatches against the state we were in when
-    /// the click started. Without this snapshot, an external flip between
-    /// press and release (e.g. an auto-dismiss timer) inverts the toggle and
-    /// re-opens the menu.
+    /// `expanded` snapshotted at the moment of a press over the trigger so the
+    /// matching release toggles against the state we were in when the click
+    /// started. Without this snapshot, an external flip between press and
+    /// release (e.g. an auto-dismiss timer) inverts the toggle and re-opens
+    /// the menu.
     press_expanded: bool,
+    /// Source of truth for `expanded` when the chassis runs uncontrolled.
+    /// Seeded from `self.expanded` at mount and mutated on press, Escape, and
+    /// outside-click. Ignored entirely when `on_toggle` is wired.
+    expanded: bool,
 }
 
 impl<'a, Message> From<Dropdown<'a, Message>> for Element<'a, Message>
@@ -311,11 +338,7 @@ where
         let now = Instant::now();
         let bounds = layout.bounds();
 
-        let hover_factor = if self.interactive() {
-            state.press.hover.current(now)
-        } else {
-            0.0
-        };
+        let hover_factor = state.press.hover.current(now);
         let selected_factor = state.open.current(now);
         let glass_factor = if self.selected_background.is_some() {
             hover_factor * (1.0 - selected_factor)
@@ -454,6 +477,7 @@ where
             press: PressState::default(),
             open: Hover::settled(self.expanded),
             press_expanded: self.expanded,
+            expanded: self.expanded,
         })
     }
 
@@ -464,8 +488,25 @@ where
     fn diff(&self, tree: &mut Tree) {
         tree.diff_children(&[&self.trigger, &self.menu]);
 
-        let state = tree.state.downcast_mut::<ChassisState>();
-        state.open.flip(self.expanded, Instant::now());
+        let current = {
+            let state = tree.state.downcast_mut::<ChassisState>();
+            let value = self.current_expanded(state);
+            state.open.flip(value, Instant::now());
+            value
+        };
+
+        // The chevron's `open` was baked into the trigger Element at builder
+        // time. In controlled mode the caller threads the current value
+        // through, so the chevron tracks. In uncontrolled mode we override
+        // the freshly-applied flip with the live state value here. The
+        // trigger is a Row of [label, chevron] so the chevron tree sits at
+        // children[1] under the trigger tree.
+        if !self.controlled()
+            && let Some(trigger_tree) = tree.children.first_mut()
+            && let Some(chevron_tree) = trigger_tree.children.get_mut(1)
+        {
+            chevron::flip_state(chevron_tree, current);
+        }
     }
 
     fn operate(
@@ -508,10 +549,6 @@ where
             viewport,
         );
 
-        if !self.interactive() {
-            return;
-        }
-
         let now = Instant::now();
         let bounds = layout.bounds();
         let over = cursor.is_over(bounds);
@@ -528,18 +565,25 @@ where
                 if !shell.is_event_captured() {
                     let landed = state.press.press(over);
                     if landed {
-                        state.press_expanded = self.expanded;
+                        state.press_expanded = if self.on_toggle.is_some() {
+                            self.expanded
+                        } else {
+                            state.expanded
+                        };
                     }
                 }
             },
 
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 let dispatch = state.press.release(over);
-                if dispatch
-                    && !shell.is_event_captured()
-                    && let Some(on_toggle) = &self.on_toggle
-                {
-                    shell.publish(on_toggle(!state.press_expanded));
+                if dispatch && !shell.is_event_captured() {
+                    let next = !state.press_expanded;
+                    if let Some(on_toggle) = &self.on_toggle {
+                        shell.publish(on_toggle(next));
+                    } else {
+                        state.expanded = next;
+                        shell.request_redraw();
+                    }
                     shell.capture_event();
                 }
             },
@@ -577,7 +621,7 @@ where
             return inner;
         }
 
-        if self.interactive() && cursor.is_over(layout.bounds()) {
+        if cursor.is_over(layout.bounds()) {
             return mouse::Interaction::Pointer;
         }
 
@@ -592,12 +636,21 @@ where
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
-        let factor = tree
-            .state
-            .downcast_ref::<ChassisState>()
-            .open
-            .current(Instant::now());
-        let alive = self.expanded || factor > EPSILON;
+        // Split-borrow `state` from `children` so the uncontrolled overlay
+        // can hold a mutable reference into `state.expanded` for the lifetime
+        // of the overlay element.
+        let Tree {
+            state, children, ..
+        } = tree;
+        let state = state.downcast_mut::<ChassisState>();
+        let factor = state.open.current(Instant::now());
+        let controlled = self.on_toggle.is_some();
+        let current_expanded = if controlled {
+            self.expanded
+        } else {
+            state.expanded
+        };
+        let alive = current_expanded || factor > EPSILON;
 
         let trigger_layout = layout.children().next().expect("dropdown trigger");
         let local_bounds = layout.bounds();
@@ -605,7 +658,7 @@ where
 
         // Trigger and menu trees are disjoint slots; split lets both overlay
         // paths borrow the children mutably for the same widget call.
-        let (trigger_children, menu_children) = tree.children.split_at_mut(1);
+        let (trigger_children, menu_children) = children.split_at_mut(1);
         let trigger_tree = &mut trigger_children[0];
         let menu_tree = &mut menu_children[0];
 
@@ -631,11 +684,17 @@ where
                 width: local_bounds.width,
                 height: local_bounds.height,
             };
+            let uncontrolled_expanded = if controlled {
+                None
+            } else {
+                Some(&mut state.expanded)
+            };
             Some(overlay::Element::new(Box::new(DropdownOverlay {
                 menu_tree,
                 menu: &mut self.menu,
                 on_toggle: self.on_toggle.as_deref(),
-                expanded: self.expanded,
+                uncontrolled_expanded,
+                expanded: current_expanded,
                 factor,
                 trigger_bounds,
                 position,
@@ -645,6 +704,7 @@ where
                 radius: self.menu_radius,
                 padding: self.menu_padding,
                 offset: self.menu_offset,
+                width: self.menu_width,
             })))
         } else {
             None
@@ -723,6 +783,10 @@ struct DropdownOverlay<'a, 'b, Message> {
     menu_tree: &'b mut Tree,
     menu: &'b mut Element<'a, Message>,
     on_toggle: Option<&'b (dyn Fn(bool) -> Message + 'a)>,
+    /// Direct write path into `ChassisState.expanded` for uncontrolled mode.
+    /// `Some` here is the marker for self-managing dismissal. `None` means the
+    /// chassis is controlled and `on_toggle` carries the close.
+    uncontrolled_expanded: Option<&'b mut bool>,
     expanded: bool,
     factor: f32,
     trigger_bounds: Rectangle,
@@ -733,6 +797,7 @@ struct DropdownOverlay<'a, 'b, Message> {
     radius: f32,
     padding: Padding,
     offset: f32,
+    width: Length,
 }
 
 impl<Message> overlay::Overlay<Message, iced::Theme, iced::Renderer>
@@ -742,20 +807,15 @@ where
 {
     fn layout(&mut self, renderer: &iced::Renderer, bounds: Size) -> layout::Node {
         let limits = layout::Limits::new(Size::ZERO, bounds)
-            .width(Length::Shrink)
+            .width(self.width)
             .height(Length::Shrink);
 
-        let node = layout::padded(
-            &limits,
-            Length::Shrink,
-            Length::Shrink,
-            self.padding,
-            |inner| {
+        let node =
+            layout::padded(&limits, self.width, Length::Shrink, self.padding, |inner| {
                 self.menu
                     .as_widget_mut()
                     .layout(self.menu_tree, renderer, inner)
-            },
-        );
+            });
 
         let menu_size = node.bounds().size();
 
@@ -827,7 +887,8 @@ where
                     Color::TRANSPARENT,
                 );
 
-                let content_layout = layout.children().next().expect("dropdown menu child");
+                let content_layout =
+                    layout.children().next().expect("dropdown menu child");
                 self.menu.as_widget().draw(
                     self.menu_tree,
                     renderer,
@@ -876,20 +937,29 @@ where
             &stored,
         );
 
+        // Captured release inside the menu means a child widget just dispatched
+        // its on_press. In uncontrolled mode that is a selection, so close the
+        // menu. Controlled mode leaves close timing to the caller's `on_toggle`
+        // wiring, since the published message is what flips `expanded`.
         if shell.is_event_captured() {
+            if matches!(
+                event,
+                Event::Mouse(mouse::Event::ButtonReleased(
+                    mouse::Button::Left | mouse::Button::Right,
+                )) | Event::Touch(touch::Event::FingerLifted { .. }),
+            ) && let Some(expanded) = self.uncontrolled_expanded.as_deref_mut()
+            {
+                *expanded = false;
+                shell.request_redraw();
+            }
             return;
         }
 
-        let Some(on_toggle) = self.on_toggle else {
-            return;
-        };
-
-        match event {
+        let dismiss = match event {
             Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
                 if key == &keyboard::Key::Named(Named::Escape) =>
             {
-                shell.publish(on_toggle(false));
-                shell.capture_event();
+                true
             },
 
             // Hit-test against `fresh` so a press on the menu's
@@ -897,20 +967,29 @@ where
             // the dismiss-press from also activating whatever sits below.
             Event::Mouse(mouse::Event::ButtonPressed(
                 mouse::Button::Left | mouse::Button::Right,
-            )) if !cursor.is_over(fresh) && !cursor.is_over(self.trigger_bounds) => {
-                shell.publish(on_toggle(false));
-                shell.capture_event();
-            },
+            )) if !cursor.is_over(fresh) && !cursor.is_over(self.trigger_bounds) => true,
 
             Event::Touch(touch::Event::FingerPressed { position, .. })
                 if !fresh.contains(*position)
                     && !self.trigger_bounds.contains(*position) =>
             {
-                shell.publish(on_toggle(false));
-                shell.capture_event();
+                true
             },
 
-            _ => {},
+            _ => false,
+        };
+
+        if !dismiss {
+            return;
+        }
+
+        if let Some(on_toggle) = self.on_toggle {
+            shell.publish(on_toggle(false));
+            shell.capture_event();
+        } else if let Some(expanded) = self.uncontrolled_expanded.as_deref_mut() {
+            *expanded = false;
+            shell.request_redraw();
+            shell.capture_event();
         }
     }
 

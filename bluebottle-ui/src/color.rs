@@ -47,6 +47,11 @@ pub const GLASS_TOP: Color =
 pub const GLASS_BASE: Color =
     Color::from_rgba(20.0 / 255.0, 18.0 / 255.0, 42.0 / 255.0, 0.96);
 
+/// Opaque violet glass. Shares its rgb with [`GLASS_TOP`] so a dropdown menu
+/// floating in front of an inspect drawer reads as a fully-lit slice of the
+/// same surface.
+pub const GLASS_OPAQUE: Color = with_alpha(GLASS_TOP, 1.0);
+
 /// Dimming wash behind drawers and modals.
 pub const SCRIM: Color = Color::from_rgba(8.0 / 255.0, 10.0 / 255.0, 20.0 / 255.0, 0.55);
 
@@ -67,6 +72,18 @@ pub fn border_strong() -> Color {
 /// Subtle row hover over dark surfaces. sRGB 4%.
 pub fn hover_veil() -> Color {
     with_alpha(WHITE, srgb_alpha(0.04))
+}
+
+/// White-glass surface fill. sRGB 8%. The overlay button's resting and hover
+/// fill, the source dropdown's capsule trigger, and the dropdown row's hover
+/// veil all sample from here so the family stays uniform.
+pub fn overlay_fill() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.08))
+}
+
+/// Selected-row accent fill. source, season, sort. sRGB 13%.
+pub fn accent_row_selected() -> Color {
+    with_alpha(primary(), srgb_alpha(0.13))
 }
 
 // Fixed semantics outside the accent quartet.

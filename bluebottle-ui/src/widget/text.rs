@@ -343,6 +343,23 @@ impl<'a> Text<'a> {
         self.color
     }
 
+    /// Returns the natural shaped width of this run in logical pixels with no
+    /// wrapping. Locks the global font system, so call sparingly. Falls back
+    /// to [`font::regular`] when the run has no explicit font, since the
+    /// renderer's default font is not available without a renderer handle.
+    pub fn shape_width(&self) -> f32 {
+        let font = self.font.unwrap_or_else(font::regular);
+        let mut font_system = gtext::font_system().write().expect("font system");
+        let (_, min_bounds) = self.shape(
+            &self.content,
+            Size::new(f32::INFINITY, f32::INFINITY),
+            font,
+            cosmic_text::Wrap::None,
+            font_system.raw(),
+        );
+        min_bounds.width
+    }
+
     /// Borrows this text as the iced [`Widget`] trait object the advanced
     /// API expects. Wrapping widgets that hold a `Text` concretely use this
     /// to call `layout`, `draw`, and friends without boxing through

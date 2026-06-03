@@ -104,6 +104,16 @@ impl Default for State {
     }
 }
 
+/// Flips the rotation animation on a chevron tree state without rebuilding the
+/// element. The dropdown chassis uses this to override the baked-in `open`
+/// value when it manages expansion state internally.
+pub(super) fn flip_state(tree: &mut Tree, open: bool) {
+    let state = tree.state.downcast_mut::<State>();
+    if state.rotation.flip(open, Instant::now()) {
+        state.last_factor.set(None);
+    }
+}
+
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Chevron<Message> {
     fn size(&self) -> Size<Length> {
         Size {

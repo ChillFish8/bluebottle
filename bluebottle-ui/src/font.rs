@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use iced::Font;
-use iced::font::{Family, Weight};
+use iced::font::{Family, Style, Weight};
 
 /// Noto Sans English & Latin
 static NOTO_DEFAULT: &[u8] =
@@ -38,6 +38,13 @@ pub const fn regular() -> Font {
     let mut font = Font::DEFAULT;
     font.family = Family::SansSerif;
     font.weight = Weight::Normal;
+    font
+}
+
+/// Use the default (Noto) font with regular weighting and italic style.
+pub const fn regular_italic() -> Font {
+    let mut font = regular();
+    font.style = Style::Italic;
     font
 }
 
