@@ -180,11 +180,13 @@ fn header_row<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let summary = text::label(
-        format!("{label} \u{2014} {active} selected"),
-        text::Variant::Alt,
-    )
-    .font(font::medium());
+    let with_seperator = format!("{} •", label.to_uppercase());
+    let label =
+        text::eyebrow(with_seperator, text::Variant::Main).color(color::TEXT_SECONDARY);
+    let select_count = text::eyebrow(format!("{active} SELECTED"), text::Variant::Main)
+        .color(color::TEXT_MUTED);
+
+    let summary = iced::widget::row![label, select_count].spacing(4);
 
     let (action_label, action_value) = if active > 0 {
         ("Clear", false)
