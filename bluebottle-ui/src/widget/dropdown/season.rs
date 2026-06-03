@@ -100,7 +100,6 @@ where
 
 const TRIGGER_GAP: f32 = 8.0;
 
-const ROW_TITLE_SIZE: f32 = 13.0;
 const ROW_LINE_SPACING: f32 = 2.0;
 const MENU_ROW_SPACING: f32 = 4.0;
 

@@ -99,8 +99,7 @@ struct Components {
     source_open: bool,
     source_choice: &'static str,
     season_choice: usize,
-    labelled_open: bool,
-    labelled_choice: &'static str,
+    labelled_choice: usize,
     filter_open: bool,
     filter_choices: [bool; 4],
 }
@@ -124,8 +123,7 @@ impl Default for Components {
             source_open: false,
             source_choice: SOURCE_LIBRARIES[0],
             season_choice: 0,
-            labelled_open: false,
-            labelled_choice: DROPDOWN_CHOICES[0],
+            labelled_choice: 0,
             filter_open: false,
             filter_choices: [true, false, false, true],
         }
@@ -160,8 +158,7 @@ enum Message {
     SourceToggle(bool),
     SourcePick(&'static str),
     SeasonPick(usize),
-    LabelledToggle(bool),
-    LabelledPick(&'static str),
+    LabelledPick(usize),
     FilterToggle(bool),
     FilterChoice(usize),
 }
@@ -232,10 +229,8 @@ impl Components {
             Message::SeasonPick(choice) => {
                 self.season_choice = choice;
             },
-            Message::LabelledToggle(open) => self.labelled_open = open,
             Message::LabelledPick(choice) => {
                 self.labelled_choice = choice;
-                self.labelled_open = false;
             },
             Message::FilterToggle(open) => self.filter_open = open,
             Message::FilterChoice(i) => toggle_at(&mut self.filter_choices, i),
@@ -281,7 +276,7 @@ impl Components {
                     dropdown_demo(self.dropdown_open, self.dropdown_choice),
                     source_demo(self.source_open, self.source_choice),
                     season_demo(self.season_choice),
-                    labelled_demo(self.labelled_open, self.labelled_choice),
+                    labelled_demo(self.labelled_choice),
                     filter_demo(self.filter_open, self.filter_choices),
                 ]
             }),
@@ -968,24 +963,13 @@ fn season_demo(selected: usize) -> Element<'static, Message> {
     section("Season", container(widget).height(240).width(Length::Fill))
 }
 
-fn labelled_demo(open: bool, chosen: &'static str) -> Element<'static, Message> {
-    // The prefix sits dimmed so the chosen value reads as the emphasis.
-    let label = text("Sort:").size(13).color(color::TEXT_DARK);
-    let value = text(chosen).size(13);
-
-    let menu = DROPDOWN_CHOICES.iter().fold(
-        column![].spacing(4).width(Length::Fill),
-        |col, choice| {
-            col.push(bluebottle_ui::dropdown::labelled::row(
-                text(*choice).size(13),
-                *choice == chosen,
-                Message::LabelledPick(choice),
-            ))
-        },
+fn labelled_demo(selected: usize) -> Element<'static, Message> {
+    let widget = bluebottle_ui::dropdown::labelled::labelled(
+        "Sort:",
+        DROPDOWN_CHOICES.iter().copied(),
+        selected,
+        Message::LabelledPick,
     );
-
-    let widget = bluebottle_ui::dropdown::labelled::labelled(label, value, menu, open)
-        .on_toggle(Message::LabelledToggle);
 
     section(
         "Labelled",
