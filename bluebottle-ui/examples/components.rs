@@ -993,10 +993,14 @@ fn season_demo(selected: usize) -> Element<'static, Message> {
 }
 
 fn labelled_demo(selected: usize) -> Element<'static, Message> {
+    const LABELLED_COUNTS: &[&str] = &["128", "96", "42", "18"];
+
     let widget = bluebottle_ui::dropdown::labelled::labelled(
         "Sort:",
+        Some("filter_list"),
         DROPDOWN_CHOICES.iter().copied(),
         selected,
+        LABELLED_COUNTS.iter().copied(),
         Message::LabelledPick,
     );
 
