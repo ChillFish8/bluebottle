@@ -100,7 +100,7 @@ struct Components {
     source_choice: &'static str,
     season_choice: usize,
     labelled_choice: usize,
-    filter_choices: [bool; 4],
+    filter_choices: Vec<bool>,
 }
 
 impl Default for Components {
@@ -123,14 +123,39 @@ impl Default for Components {
             source_choice: SOURCE_LIBRARIES[0],
             season_choice: 0,
             labelled_choice: 0,
-            filter_choices: [true, false, false, true],
+            filter_choices: {
+                let mut v = vec![false; FILTER_TAGS.len()];
+                if let Some(slot) = v.get_mut(0) {
+                    *slot = true;
+                }
+                if let Some(slot) = v.get_mut(3) {
+                    *slot = true;
+                }
+                v
+            },
         }
     }
 }
 
 const DROPDOWN_CHOICES: &[&str] = &["Recent", "A to Z", "Year", "Rating"];
-const SOURCE_LIBRARIES: &[&str] = &["Local Library", "Bedroom Plex", "Office Cast"];
-const FILTER_TAGS: &[&str] = &["Action", "Comedy", "Drama", "Sci-Fi"];
+const SOURCE_LIBRARIES: &[&str] = &[
+    "Local Library",
+    "Bedroom Plex",
+    "Office Cast",
+    "Living Room Jellyfin",
+    "Studio NAS",
+    "Cabin Backup",
+];
+const FILTER_TAGS: &[&str] = &[
+    "Action",
+    "Comedy",
+    "Drama",
+    "Sci-Fi",
+    "Fantasy",
+    "Romance",
+    "Documentary",
+    "Animation",
+];
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -158,6 +183,7 @@ enum Message {
     SeasonPick(usize),
     LabelledPick(usize),
     FilterChoice(usize),
+    FilterBulk(bool),
 }
 
 fn toggle_at(slice: &mut [bool], i: usize) {
@@ -230,6 +256,11 @@ impl Components {
                 self.labelled_choice = choice;
             },
             Message::FilterChoice(i) => toggle_at(&mut self.filter_choices, i),
+            Message::FilterBulk(all) => {
+                for choice in self.filter_choices.iter_mut() {
+                    *choice = all;
+                }
+            },
             _ => {},
         }
     }
@@ -273,7 +304,7 @@ impl Components {
                     source_demo(self.source_open, self.source_choice),
                     season_demo(self.season_choice),
                     labelled_demo(self.labelled_choice),
-                    filter_demo(self.filter_choices),
+                    filter_demo(&self.filter_choices),
                 ]
             }),
             category("Images & Media", || vec![
@@ -945,7 +976,9 @@ fn seasons() -> Vec<bluebottle_ui::dropdown::season::SeasonInfo> {
         season_info("Season 1", "Pilot run", 2021, 10),
         season_info("Season 2", "Expanded ensemble", 2022, 12),
         season_info("Season 3", "World tour", 2023, 12),
-        season_info("Specials", "Holiday and side stories", 2024, 4),
+        season_info("Season 4", "Origin arc", 2024, 11),
+        season_info("Season 5", "Festival run", 2025, 13),
+        season_info("Specials", "Holiday and side stories", 2026, 4),
     ]
 }
 
@@ -973,15 +1006,16 @@ fn labelled_demo(selected: usize) -> Element<'static, Message> {
     )
 }
 
-fn filter_demo(choices: [bool; 4]) -> Element<'static, Message> {
+fn filter_demo(choices: &[bool]) -> Element<'static, Message> {
     let widget = bluebottle_ui::dropdown::filter::filter(
         "Genres",
         FILTER_TAGS.iter().copied(),
-        choices,
+        choices.iter().copied(),
         Message::FilterChoice,
+        Message::FilterBulk,
     );
 
-    section("Filter", container(widget).height(240).width(Length::Fill))
+    section("Filter", container(widget).height(360).width(Length::Fill))
 }
 
 fn breadcrumbs() -> Element<'static, Message> {

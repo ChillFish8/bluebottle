@@ -18,8 +18,8 @@ use iced::{Length, alignment, padding};
 
 use super::chassis::Dropdown;
 use super::season;
+use crate::font;
 use crate::widget::text;
-use crate::{color, font};
 
 const PREFIX_GAP: f32 = 8.0;
 const MENU_ROW_SPACING: f32 = 4.0;
@@ -96,5 +96,5 @@ fn trigger_value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
 fn value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
     text::card_title(content)
         .font(font::semibold())
-        .color(color::TEXT_PRIMARY)
+        .inherit_color()
 }

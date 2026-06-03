@@ -18,7 +18,18 @@ use iced::advanced::graphics::geometry::{Cache, Renderer as GeometryRenderer};
 use iced::advanced::widget::{Tree, tree};
 use iced::advanced::{Clipboard, Layout, Renderer, Shell, Widget, layout, renderer};
 use iced::widget::canvas;
-use iced::{Element, Event, Length, Point, Rectangle, Size, Vector, mouse, window};
+use iced::{
+    Color,
+    Element,
+    Event,
+    Length,
+    Point,
+    Rectangle,
+    Size,
+    Vector,
+    mouse,
+    window,
+};
 
 use crate::animate::hover::{EPSILON, Hover};
 use crate::color;
@@ -68,6 +79,7 @@ struct State {
     cache: Cache<iced::Renderer>,
     last_factor: Cell<Option<f32>>,
     last_alpha: Cell<Option<f32>>,
+    last_primary: Cell<Option<Color>>,
     was_animating: Cell<bool>,
 }
 
@@ -93,6 +105,7 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
             cache: Cache::new(),
             last_factor: Cell::new(None),
             last_alpha: Cell::new(None),
+            last_primary: Cell::new(None),
             was_animating: Cell::new(false),
         })
     }
@@ -137,6 +150,7 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
         state.last_selected = self.selected;
         state.last_factor.set(None);
         state.last_alpha.set(None);
+        state.last_primary.set(None);
     }
 
     fn draw(
@@ -158,9 +172,16 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
             return;
         }
 
-        let stale = match (state.last_factor.get(), state.last_alpha.get()) {
-            (Some(lf), Some(la)) => {
-                (factor - lf).abs() > f32::EPSILON || (alpha - la).abs() > f32::EPSILON
+        let primary = color::primary();
+        let stale = match (
+            state.last_factor.get(),
+            state.last_alpha.get(),
+            state.last_primary.get(),
+        ) {
+            (Some(lf), Some(la), Some(lp)) => {
+                (factor - lf).abs() > f32::EPSILON
+                    || (alpha - la).abs() > f32::EPSILON
+                    || lp != primary
             },
             _ => true,
         };
@@ -169,12 +190,13 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
             state.cache.clear();
             state.last_factor.set(Some(factor));
             state.last_alpha.set(Some(alpha));
+            state.last_primary.set(Some(primary));
         }
 
         let bounds = layout.bounds();
         let size = self.size;
         let stroke_width = size * STROKE_RATIO;
-        let stroke_color = color::with_alpha(color::primary(), alpha);
+        let stroke_color = color::with_alpha(primary, alpha);
 
         let geometry = state.cache.draw(renderer, bounds.size(), |frame| {
             let scale = |(x, y): (f32, f32)| Point::new(x * size, y * size);

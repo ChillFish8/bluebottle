@@ -10,6 +10,7 @@ use iced::{Element, Length, Padding};
 use super::chassis::{Dropdown, dropdown};
 use crate::color;
 use crate::widget::clickable::{Clickable, clickable};
+use crate::widget::scrollable::scrollable;
 
 const TRIGGER_RADIUS: f32 = 999.0;
 
@@ -39,6 +40,8 @@ const ROW_PADDING: Padding = Padding {
     left: 10.0,
 };
 
+const MENU_MAX_HEIGHT: f32 = 168.0;
+
 /// A source-style dropdown.
 ///
 /// The trigger reads as a capsule chip. The fill, hover veil, and resting
@@ -54,6 +57,10 @@ pub fn source<'a, Message>(
 where
     Message: Clone + 'a,
 {
+    let menu = scrollable(menu.into())
+        .max_height(MENU_MAX_HEIGHT)
+        .fade_edges(color::GLASS_OPAQUE);
+
     dropdown(label, menu, expanded)
         .radius(TRIGGER_RADIUS)
         .padding(TRIGGER_PADDING)

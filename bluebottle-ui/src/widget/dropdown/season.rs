@@ -14,6 +14,7 @@ use iced::{Element, Length, Padding, alignment, padding};
 use super::chassis::{Dropdown, dropdown};
 use crate::widget::clickable::{Clickable, clickable};
 use crate::widget::ellipsis_text::ellipsis_text;
+use crate::widget::scrollable::scrollable;
 use crate::widget::text;
 use crate::{color, font};
 
@@ -92,6 +93,7 @@ where
         .selected(selected)
         .tint(color::overlay_fill())
         .selected_background(color::accent_row_selected())
+        .resting_color(color::TEXT_PRIMARY)
         .selected_color(color::primary())
         .radius(ROW_RADIUS)
         .padding(ROW_PADDING)
@@ -109,6 +111,11 @@ const SEASON_MENU_WIDTH: f32 = ROW_WIDTH + MENU_PADDING.left + MENU_PADDING.righ
 const TICK_GLYPH_SIZE: f32 = 14.0;
 pub(super) const TICK_GAP: f32 = 8.0;
 const TITLE_YEAR_GAP: f32 = 6.0;
+
+const MAX_ROWS: usize = 4;
+const ROW_FULL_HEIGHT: f32 = 56.0;
+const ROWS_CAP: f32 =
+    (MAX_ROWS as f32) * ROW_FULL_HEIGHT + ((MAX_ROWS - 1) as f32) * MENU_ROW_SPACING;
 
 /// The animated check used in the left column of a menu row. Fades to accent
 /// colour while selected and to transparent while not, so the tick column
@@ -163,15 +170,19 @@ where
     let trigger_label: Element<'a, Message> =
         trigger_label(&items, selected, trigger_width);
 
-    let mut menu = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
+    let mut rows = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
-        menu = menu.push(row(
+        rows = rows.push(row(
             season_row_content(item, index == selected),
             index == selected,
             on_select(index),
         ));
     }
+
+    let menu = scrollable(rows)
+        .max_height(ROWS_CAP)
+        .fade_edges(color::GLASS_OPAQUE);
 
     panel(trigger_label, menu, false).menu_width(Length::Fixed(SEASON_MENU_WIDTH))
 }
@@ -242,7 +253,7 @@ where
 
     let season_title = text::card_title(item.title.clone())
         .font(font::semibold())
-        .color(color::TEXT_PRIMARY);
+        .inherit_color();
     let year = text::micro_label(item.year.to_string())
         .font(font::medium())
         .color(color::TEXT_SECONDARY);

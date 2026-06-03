@@ -556,11 +556,13 @@ where
 
         match event {
             // Release dispatch (matching the design system's button convention)
-            // with a press-time snapshot of `expanded`. The snapshot is what
-            // closes the re-open race: if `expanded` flips between press and
-            // release (auto-dismiss, an outside-click handler, etc.), the
-            // release still toggles relative to the value the user was acting
-            // on, not the new one.
+            // with a press-time snapshot of `expanded`. iced masks the main
+            // tree's cursor while the menu overlay is alive, so the trigger
+            // only ever sees press-release pairs in the closed-to-open
+            // direction, but the snapshot still guards against `expanded`
+            // flipping mid-cycle through some other path (auto-dismiss
+            // timer, programmatic close, etc.) and pinning the toggle to
+            // the value the user was acting on.
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if !shell.is_event_captured() {
                     let landed = state.press.press(over);
@@ -948,16 +950,32 @@ where
                 true
             },
 
-            // Hit-test against `fresh` so a press on the menu's
-            // currently-rendered position counts as inside. Capturing keeps
-            // the dismiss-press from also activating whatever sits below.
-            Event::Mouse(mouse::Event::ButtonPressed(
-                mouse::Button::Left | mouse::Button::Right,
-            )) if !cursor.is_over(fresh) && !cursor.is_over(self.trigger_bounds) => true,
+            // Left-press anywhere outside the menu dismisses, trigger
+            // included. iced masks the main tree's cursor to Unavailable
+            // while any overlay claims a region, so the chassis trigger
+            // never sees the closing press through its own update path,
+            // and routing the close through the dismiss-guard here keeps
+            // trigger-to-close working. Capturing prevents the press from
+            // also activating whatever sits below.
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+                if !cursor.is_over(fresh) =>
+            {
+                true
+            },
 
+            // Right-press still treats the trigger as inside so a future
+            // context-menu on the trigger is not silently dismissed.
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
+                if !cursor.is_over(fresh) && !cursor.is_over(self.trigger_bounds) =>
+            {
+                true
+            },
+
+            // Touch follows the left-mouse rule. iced masks touch positions
+            // the same way it masks the cursor, so trigger-tap-to-close
+            // also needs the dismiss-guard path.
             Event::Touch(touch::Event::FingerPressed { position, .. })
-                if !fresh.contains(*position)
-                    && !self.trigger_bounds.contains(*position) =>
+                if !fresh.contains(*position) =>
             {
                 true
             },
