@@ -18,11 +18,10 @@ use iced::{Length, alignment};
 
 use super::chassis::Dropdown;
 use super::season;
-use crate::{color, font};
 use crate::widget::text;
+use crate::{color, font};
 
 const PREFIX_GAP: f32 = 4.0;
-const VALUE_SIZE: f32 = 13.0;
 const MENU_ROW_SPACING: f32 = 4.0;
 
 /// A self-managing labelled-prefix dropdown.
@@ -59,11 +58,13 @@ where
     let mut menu = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
-        menu = menu.push(season::row(
-            value_text(item.clone()),
-            index == selected,
-            on_select(index),
-        ));
+        let content = Row::new()
+            .push(season::tick_glyph(index == selected))
+            .push(value_text(item.clone()))
+            .spacing(season::TICK_GAP)
+            .align_y(alignment::Vertical::Center);
+
+        menu = menu.push(season::row(content, index == selected, on_select(index)));
     }
 
     season::panel(trigger, menu, false)
@@ -84,13 +85,11 @@ fn trigger_width(label: &str, items: &[Cow<'static, str>]) -> f32 {
 }
 
 fn prefix_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
-    text::label(content, text::Variant::Alt)
-        .font(font::medium())
+    text::label(content, text::Variant::Alt).font(font::medium())
 }
 
 fn trigger_value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
-    text::label(content, text::Variant::Main)
-        .font(font::semibold())
+    text::label(content, text::Variant::Main).font(font::semibold())
 }
 
 fn value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {

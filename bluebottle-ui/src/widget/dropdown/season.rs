@@ -107,8 +107,22 @@ const ROW_WIDTH: f32 = 260.0;
 const SEASON_MENU_WIDTH: f32 = ROW_WIDTH + MENU_PADDING.left + MENU_PADDING.right;
 
 const TICK_GLYPH_SIZE: f32 = 14.0;
-const TICK_GAP: f32 = 8.0;
+pub(super) const TICK_GAP: f32 = 8.0;
 const TITLE_YEAR_GAP: f32 = 6.0;
+
+/// The check glyph used in the left column of a menu row. Renders accent
+/// colour when `selected` and transparent otherwise so the tick column
+/// reserves the same width on every row.
+pub(super) fn tick_glyph<'a>(selected: bool) -> crate::widget::text::Text<'a> {
+    let tick_color = if selected {
+        color::primary()
+    } else {
+        Color::TRANSPARENT
+    };
+    icon::filled("check")
+        .size(TICK_GLYPH_SIZE)
+        .color(tick_color)
+}
 
 /// One season's worth of menu data. Build with [`season_info`].
 #[derive(Clone)]
@@ -231,14 +245,7 @@ fn season_row_content<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let tick_color = if selected {
-        color::primary()
-    } else {
-        Color::TRANSPARENT
-    };
-    let tick = icon::filled("check")
-        .size(TICK_GLYPH_SIZE)
-        .color(tick_color);
+    let tick = tick_glyph(selected);
 
     let season_title = text::card_title(item.title.clone())
         .font(font::semibold())
