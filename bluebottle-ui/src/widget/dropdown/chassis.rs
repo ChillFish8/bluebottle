@@ -937,21 +937,7 @@ where
             &stored,
         );
 
-        // Captured release inside the menu means a child widget just dispatched
-        // its on_press. In uncontrolled mode that is a selection, so close the
-        // menu. Controlled mode leaves close timing to the caller's `on_toggle`
-        // wiring, since the published message is what flips `expanded`.
         if shell.is_event_captured() {
-            if matches!(
-                event,
-                Event::Mouse(mouse::Event::ButtonReleased(
-                    mouse::Button::Left | mouse::Button::Right,
-                )) | Event::Touch(touch::Event::FingerLifted { .. }),
-            ) && let Some(expanded) = self.uncontrolled_expanded.as_deref_mut()
-            {
-                *expanded = false;
-                shell.request_redraw();
-            }
             return;
         }
 

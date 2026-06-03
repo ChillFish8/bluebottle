@@ -8,13 +8,13 @@
 
 use std::borrow::Cow;
 
-use iced::widget::{Row, Space, column, container, text};
+use iced::widget::{Row, Space, column, container};
 use iced::{Color, Element, Length, Padding, alignment, padding};
 
 use super::chassis::{Dropdown, dropdown};
 use crate::widget::clickable::{Clickable, clickable};
 use crate::widget::ellipsis_text::ellipsis_text;
-use crate::widget::text::{Variant, caption, label, micro_label};
+use crate::widget::text;
 use crate::{color, font, icon};
 
 const TRIGGER_RADIUS: f32 = 8.0;
@@ -185,12 +185,12 @@ fn trigger_width(items: &[SeasonInfo]) -> f32 {
     (widest / 10.0).ceil() * 10.0
 }
 
-fn trigger_title_text<'a>(item: &SeasonInfo) -> crate::widget::text::Text<'a> {
-    label(item.title.clone(), Variant::Main).font(font::semibold())
+fn trigger_title_text<'a>(item: &SeasonInfo) -> text::Text<'a> {
+    text::label(item.title.clone(), text::Variant::Main).font(font::semibold())
 }
 
-fn trigger_eps_text<'a>(item: &SeasonInfo) -> crate::widget::text::Text<'a> {
-    caption(format!("· {} eps", item.episode_count)).font(font::medium())
+fn trigger_eps_text<'a>(item: &SeasonInfo) -> text::Text<'a> {
+    text::caption(format!("· {} eps", item.episode_count)).font(font::medium())
 }
 
 /// Builds the trigger row at the precomputed fixed width. Title sits flush
@@ -241,16 +241,23 @@ where
         .size(TICK_GLYPH_SIZE)
         .color(tick_color);
 
+    let season_title = text::card_title(item.title.clone())
+        .font(font::semibold())
+        .color(color::TEXT_PRIMARY);
+    let year = text::micro_label(item.year.to_string())
+        .font(font::medium())
+        .color(color::TEXT_SECONDARY);
+
     let title_line = Row::new()
-        .push(text(item.title.clone()).size(ROW_TITLE_SIZE))
-        .push(micro_label(item.year.to_string()).color(color::TEXT_DARK))
+        .push(season_title)
+        .push(year)
         .spacing(TITLE_YEAR_GAP)
         .align_y(alignment::Vertical::Center);
 
     let subtitle = ellipsis_text(
-        micro_label(item.subtitle.clone())
+        text::micro_label(item.subtitle.clone())
             .font(font::regular_italic())
-            .color(color::TEXT_DARK),
+            .color(color::TEXT_SECONDARY),
     )
     .width(Length::Fill);
 
@@ -258,7 +265,9 @@ where
         .spacing(ROW_LINE_SPACING)
         .width(Length::Fill);
 
-    let eps = micro_label(format!("{} eps", item.episode_count)).color(color::TEXT_DARK);
+    let eps = text::micro_label(format!("{} eps", item.episode_count))
+        .font(font::medium())
+        .color(color::TEXT_SECONDARY);
 
     Row::new()
         .push(tick)
