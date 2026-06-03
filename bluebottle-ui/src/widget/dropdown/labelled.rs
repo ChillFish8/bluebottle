@@ -14,14 +14,14 @@
 use std::borrow::Cow;
 
 use iced::widget::{Row, column};
-use iced::{Length, alignment};
+use iced::{Length, alignment, padding};
 
 use super::chassis::Dropdown;
 use super::season;
 use crate::widget::text;
 use crate::{color, font};
 
-const PREFIX_GAP: f32 = 4.0;
+const PREFIX_GAP: f32 = 8.0;
 const MENU_ROW_SPACING: f32 = 4.0;
 
 /// A self-managing labelled-prefix dropdown.
@@ -51,6 +51,7 @@ where
     let trigger = Row::new()
         .push(prefix_text(label))
         .push(trigger_value_text(value))
+        .padding(padding::bottom(1))
         .spacing(PREFIX_GAP)
         .width(Length::Fixed(trigger_width))
         .align_y(alignment::Vertical::Center);
