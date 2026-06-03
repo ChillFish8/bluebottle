@@ -727,10 +727,6 @@ impl<Message> DropdownOverlay<'_, '_, Message> {
         Size::new(self.viewport.width, self.viewport.height)
     }
 
-    fn menu_below_trigger(&self, bounds: Rectangle) -> bool {
-        bounds.y >= self.trigger_bounds.y + self.trigger_bounds.height
-    }
-
     /// Top-left the menu should land at given its size. Same algorithm as
     /// [`Self::layout`] so the rendering path can re-derive the anchor against
     /// the trigger's just-captured position. iced reuses the overlay layout
@@ -778,6 +774,13 @@ impl<Message> DropdownOverlay<'_, '_, Message> {
         let shift = Vector::new(anchor.x - stored.x, anchor.y - stored.y);
 
         (fresh, shift)
+    }
+
+    /// Same anchor math as [`Self::lag_compensation`] but skips building the
+    /// fresh rectangle when only the shift is needed.
+    fn lag_shift(&self, stored: Rectangle) -> Vector {
+        let anchor = self.menu_anchor(stored.size());
+        Vector::new(anchor.x - stored.x, anchor.y - stored.y)
     }
 }
 
@@ -844,22 +847,29 @@ where
         // update pass. Re-derive the anchor from the live position and
         // translate the renderer by the delta so the menu lands where the
         // trigger is now rather than one frame back.
-        let (fresh, shift) = self.lag_compensation(stored);
-
-        // Roll the menu out of the trigger. Below-trigger menus roll
-        // downward from the top edge. Above-trigger menus roll upward from
-        // the bottom edge. The trigger-adjacent edge stays fully drawn.
-        let revealed = revealed_band(stored, factor, self.menu_below_trigger(fresh));
+        let shift = self.lag_shift(stored);
 
         let pill = Border {
             radius: self.radius.into(),
             ..Border::default()
         };
 
+        // Scale the chrome (surface fill and 1 px ring) by factor so the
+        // whole menu fades together rather than the rectangle popping in
+        // beneath a fading content layer.
+        let background = Color {
+            a: self.background.a * factor,
+            ..self.background
+        };
+        let border = Color {
+            a: self.border.a * factor,
+            ..self.border
+        };
+
         renderer.with_translation(shift, |renderer| {
             renderer.fill_quad(
                 Quad {
-                    bounds: revealed,
+                    bounds: stored,
                     border: pill,
                     shadow: style::scale_shadow(style::ELEVATION_RESTING, factor),
                     ..Quad::default()
@@ -867,14 +877,14 @@ where
                 Color::TRANSPARENT,
             );
 
-            renderer.with_layer(revealed, |renderer| {
+            renderer.with_layer(stored, |renderer| {
                 renderer.fill_quad(
                     Quad {
                         bounds: stored,
                         border: pill,
                         ..Quad::default()
                     },
-                    self.background,
+                    background,
                 );
                 renderer.fill_quad(
                     Quad {
@@ -882,7 +892,7 @@ where
                         border: Border {
                             radius: self.radius.into(),
                             width: 1.0,
-                            color: self.border,
+                            color: border,
                         },
                         ..Quad::default()
                     },
@@ -900,6 +910,27 @@ where
                     cursor * Transformation::translate(-shift.x, -shift.y),
                     &stored,
                 );
+
+                // Fade the whole menu in and out by tinting the content
+                // layer with the surface colour at (1 - factor) opacity.
+                // The alpha is taken straight from `1 - factor` rather than
+                // scaled by `self.background.a`, so a translucent menu
+                // surface still gets a fully-opaque veil at factor = 0 and
+                // the content underneath cannot peek through.
+                let veil_alpha = (1.0 - factor).clamp(0.0, 1.0);
+                if veil_alpha > EPSILON {
+                    renderer.fill_quad(
+                        Quad {
+                            bounds: stored,
+                            border: pill,
+                            ..Quad::default()
+                        },
+                        Color {
+                            a: veil_alpha,
+                            ..self.background
+                        },
+                    );
+                }
             });
         });
     }
@@ -921,12 +952,17 @@ where
         let content_layout = layout.children().next().expect("dropdown menu child");
         let (fresh, shift) = self.lag_compensation(stored);
 
-        // Mask against `fresh` (where the menu actually paints) then back
-        // into stored coordinates for the menu's children, whose layout
-        // still sits in the stored frame.
-        let menu_below = self.menu_below_trigger(fresh);
-        let masked = mask_cursor_to_revealed(cursor, fresh, self.factor, menu_below);
-        let menu_cursor = masked * Transformation::translate(-shift.x, -shift.y);
+        // The menu fades rather than rolls, but rows still should not react
+        // to clicks while the fade is in flight. Mask the cursor while the
+        // menu is mid-animation so accidental presses during the open or
+        // close band do not register on whatever happens to sit underneath
+        // the cursor at the moment.
+        let translated = cursor * Transformation::translate(-shift.x, -shift.y);
+        let menu_cursor = if self.factor < 1.0 - EPSILON {
+            mouse::Cursor::Unavailable
+        } else {
+            translated
+        };
 
         self.menu.as_widget_mut().update(
             self.menu_tree,
@@ -1007,10 +1043,13 @@ where
             return mouse::Interaction::None;
         }
         let stored = layout.bounds();
-        let (fresh, shift) = self.lag_compensation(stored);
-        let menu_below = self.menu_below_trigger(fresh);
-        let masked = mask_cursor_to_revealed(cursor, fresh, self.factor, menu_below);
-        let menu_cursor = masked * Transformation::translate(-shift.x, -shift.y);
+        let shift = self.lag_shift(stored);
+        let translated = cursor * Transformation::translate(-shift.x, -shift.y);
+        let menu_cursor = if self.factor < 1.0 - EPSILON {
+            mouse::Cursor::Unavailable
+        } else {
+            translated
+        };
         let content_layout = layout.children().next().expect("dropdown menu child");
         self.menu.as_widget().mouse_interaction(
             self.menu_tree,
@@ -1034,49 +1073,5 @@ where
             renderer,
             operation,
         );
-    }
-}
-
-/// Returns the cursor as-is when it sits inside the menu's currently-revealed
-/// band, and [`mouse::Cursor::Unavailable`] when it sits over a clipped (and
-/// therefore invisible) part of the menu. The cursor passes through unchanged
-/// when it is outside the menu's full bounds, so the dismiss-guard above
-/// still sees real positions.
-fn mask_cursor_to_revealed(
-    cursor: mouse::Cursor,
-    bounds: Rectangle,
-    factor: f32,
-    menu_below: bool,
-) -> mouse::Cursor {
-    let Some(position) = cursor.position() else {
-        return cursor;
-    };
-    if !bounds.contains(position) {
-        return cursor;
-    }
-    let revealed = revealed_band(bounds, factor, menu_below);
-    if revealed.contains(position) {
-        cursor
-    } else {
-        mouse::Cursor::Unavailable
-    }
-}
-
-/// The currently-visible strip of the menu within `bounds`, anchored to the
-/// edge adjacent to the trigger so the roll grows out of the trigger.
-fn revealed_band(bounds: Rectangle, factor: f32, menu_below: bool) -> Rectangle {
-    let height = bounds.height * factor.clamp(0.0, 1.0);
-
-    let y = if menu_below {
-        bounds.y
-    } else {
-        bounds.y + bounds.height - height
-    };
-
-    Rectangle {
-        x: bounds.x,
-        y,
-        width: bounds.width,
-        height,
     }
 }
