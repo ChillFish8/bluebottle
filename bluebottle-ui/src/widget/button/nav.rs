@@ -20,6 +20,7 @@ use iced::{
 };
 
 use crate::animate::hover::{EPSILON, Hover, PressState};
+use crate::widget::path_trace::trace_partial;
 use crate::{color, font, icon, text};
 
 const NAV_ICON_PADDING: [u16; 2] = [4, 16];
@@ -181,39 +182,6 @@ fn half_outline(puck: Rectangle, dir: f32) -> Vec<Point> {
 
     points.push(Point::new(cx, cy - r));
     points
-}
-
-/// Adds the leading `factor` fraction of `route`'s arc length to `builder` as a
-/// fresh sub-path, interpolating the final segment so the tip lands mid-edge.
-fn trace_partial(builder: &mut canvas::path::Builder, route: &[Point], factor: f32) {
-    let total: f32 = route.windows(2).map(|w| distance(w[0], w[1])).sum();
-    let target = factor.clamp(0.0, 1.0) * total;
-
-    builder.move_to(route[0]);
-
-    let mut walked = 0.0;
-    for window in route.windows(2) {
-        let segment = distance(window[0], window[1]);
-        if walked + segment >= target {
-            let t = if segment > 0.0 {
-                (target - walked) / segment
-            } else {
-                0.0
-            };
-            builder.line_to(lerp(window[0], window[1], t));
-            break;
-        }
-        builder.line_to(window[1]);
-        walked += segment;
-    }
-}
-
-fn distance(a: Point, b: Point) -> f32 {
-    (a.x - b.x).hypot(a.y - b.y)
-}
-
-fn lerp(a: Point, b: Point, t: f32) -> Point {
-    Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
 }
 
 impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer> for NavButton<'a, Message>

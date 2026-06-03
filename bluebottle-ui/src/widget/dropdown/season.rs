@@ -9,13 +9,13 @@
 use std::borrow::Cow;
 
 use iced::widget::{Row, Space, column, container};
-use iced::{Color, Element, Length, Padding, alignment, padding};
+use iced::{Element, Length, Padding, alignment, padding};
 
 use super::chassis::{Dropdown, dropdown};
 use crate::widget::clickable::{Clickable, clickable};
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::text;
-use crate::{color, font, icon};
+use crate::{color, font};
 
 const TRIGGER_RADIUS: f32 = 8.0;
 
@@ -110,18 +110,11 @@ const TICK_GLYPH_SIZE: f32 = 14.0;
 pub(super) const TICK_GAP: f32 = 8.0;
 const TITLE_YEAR_GAP: f32 = 6.0;
 
-/// The check glyph used in the left column of a menu row. Renders accent
-/// colour when `selected` and transparent otherwise so the tick column
-/// reserves the same width on every row.
-pub(super) fn tick_glyph<'a>(selected: bool) -> crate::widget::text::Text<'a> {
-    let tick_color = if selected {
-        color::primary()
-    } else {
-        Color::TRANSPARENT
-    };
-    icon::filled("check")
-        .size(TICK_GLYPH_SIZE)
-        .color(tick_color)
+/// The animated check used in the left column of a menu row. Fades to accent
+/// colour while selected and to transparent while not, so the tick column
+/// reserves a stable width across rows and the transition is not a snap.
+pub(super) fn tick_glyph<'a, Message: 'a>(selected: bool) -> Element<'a, Message> {
+    super::tick::animated_tick(selected, TICK_GLYPH_SIZE).into()
 }
 
 /// One season's worth of menu data. Build with [`season_info`].

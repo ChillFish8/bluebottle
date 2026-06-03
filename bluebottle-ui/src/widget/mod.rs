@@ -10,6 +10,7 @@ pub mod image;
 pub mod link;
 pub mod media_card;
 pub mod media_image;
+pub mod path_trace;
 pub(crate) mod scroll;
 pub mod scrollable;
 pub mod separator;
