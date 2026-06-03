@@ -100,7 +100,6 @@ struct Components {
     source_choice: &'static str,
     season_choice: usize,
     labelled_choice: usize,
-    filter_open: bool,
     filter_choices: [bool; 4],
 }
 
@@ -124,7 +123,6 @@ impl Default for Components {
             source_choice: SOURCE_LIBRARIES[0],
             season_choice: 0,
             labelled_choice: 0,
-            filter_open: false,
             filter_choices: [true, false, false, true],
         }
     }
@@ -159,7 +157,6 @@ enum Message {
     SourcePick(&'static str),
     SeasonPick(usize),
     LabelledPick(usize),
-    FilterToggle(bool),
     FilterChoice(usize),
 }
 
@@ -232,7 +229,6 @@ impl Components {
             Message::LabelledPick(choice) => {
                 self.labelled_choice = choice;
             },
-            Message::FilterToggle(open) => self.filter_open = open,
             Message::FilterChoice(i) => toggle_at(&mut self.filter_choices, i),
             _ => {},
         }
@@ -277,7 +273,7 @@ impl Components {
                     source_demo(self.source_open, self.source_choice),
                     season_demo(self.season_choice),
                     labelled_demo(self.labelled_choice),
-                    filter_demo(self.filter_open, self.filter_choices),
+                    filter_demo(self.filter_choices),
                 ]
             }),
             category("Images & Media", || vec![
@@ -977,34 +973,13 @@ fn labelled_demo(selected: usize) -> Element<'static, Message> {
     )
 }
 
-fn filter_demo(open: bool, choices: [bool; 4]) -> Element<'static, Message> {
-    let active = choices.iter().filter(|c| **c).count();
-    let label_text = if active > 0 {
-        format!("Genres · {active}")
-    } else {
-        "Genres".to_string()
-    };
-    let label = text(label_text).size(13);
-
-    let menu = FILTER_TAGS.iter().enumerate().fold(
-        column![].spacing(4).width(Length::Fill),
-        |col, (i, tag)| {
-            let glyph = if choices[i] {
-                "check_box"
-            } else {
-                "check_box_outline_blank"
-            };
-            let mark = icon::filled(glyph).size(16);
-            let content = row![mark, text(*tag).size(13)].spacing(8).align_y(Center);
-            col.push(bluebottle_ui::dropdown::filter::row(
-                content,
-                Message::FilterChoice(i),
-            ))
-        },
+fn filter_demo(choices: [bool; 4]) -> Element<'static, Message> {
+    let widget = bluebottle_ui::dropdown::filter::filter(
+        "Genres",
+        FILTER_TAGS.iter().copied(),
+        choices,
+        Message::FilterChoice,
     );
-
-    let widget = bluebottle_ui::dropdown::filter::filter(label, menu, open)
-        .on_toggle(Message::FilterToggle);
 
     section("Filter", container(widget).height(240).width(Length::Fill))
 }
