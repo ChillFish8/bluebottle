@@ -47,6 +47,13 @@ const CHECKBOX_SIZE: f32 = 16.0;
 // the trigger row, not by leading whitespace here.
 const SUFFIX_GAP_HINT: &str = "\u{00b7} ";
 
+// Minimum visible gap between the label and the count inside the trigger
+// row. Folded into `trigger_width` so the rounded width always leaves at
+// least this much slack for the fill spacer to consume — without it, a
+// label whose natural width lands close to a 10 px boundary can crash
+// into the count when the rounding leaves almost no slack.
+const TRIGGER_MIN_GAP: f32 = 12.0;
+
 const HEADER_PADDING: Padding = Padding {
     top: 4.0,
     right: 10.0,
@@ -143,7 +150,7 @@ where
 fn trigger_width(label: &str, item_count: usize) -> f32 {
     let label_width = base_text(Cow::Owned(label.to_owned())).shape_width();
     let suffix_width = count_text(item_count).shape_width();
-    let widest = label_width + suffix_width;
+    let widest = label_width + TRIGGER_MIN_GAP + suffix_width;
     (widest / 10.0).ceil() * 10.0
 }
 

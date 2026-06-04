@@ -50,6 +50,14 @@ impl ItemRow {
         self.count = Some(count.into());
         self
     }
+
+    /// Attaches an optional count in one chain. `None` clears any
+    /// previously-attached count, so a single `.opt_count(maybe)` call
+    /// expresses both "show this value" and "no count" without branching.
+    pub fn opt_count(mut self, count: Option<impl Into<Cow<'static, str>>>) -> Self {
+        self.count = count.map(Into::into);
+        self
+    }
 }
 
 /// Free-function form of [`ItemRow::new`] for call-site brevity.
@@ -66,6 +74,12 @@ pub fn item_row(name: impl Into<Cow<'static, str>>) -> ItemRow {
 /// renders flush-right inside the menu row. The selected index drives
 /// both the trigger value and the menu's checked row. Each row presses
 /// with `on_select(i)`. The chrome inherits [`super::season::panel`].
+///
+/// # Panics
+///
+/// The icon name is forwarded to [`crate::icon::filled`] without a
+/// fallback, so an unknown Material Icon name will panic on the first
+/// draw. Pass icon names that are known to the build's codepoint table.
 pub fn labelled<'a, Message>(
     label: impl Into<Cow<'static, str>>,
     icon: Option<&'static str>,
@@ -113,8 +127,8 @@ where
     let mut menu = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
-        let count = item.count.clone().unwrap_or(Cow::Borrowed(""));
-        let content = menu_row_content(item.name.clone(), index == selected, count);
+        let content =
+            menu_row_content(item.name.clone(), index == selected, item.count.clone());
         menu = menu.push(season::row(content, index == selected, on_select(index)));
     }
 
@@ -124,7 +138,7 @@ where
 fn menu_row_content<'a, Message>(
     value: Cow<'static, str>,
     selected: bool,
-    count: Cow<'static, str>,
+    count: Option<Cow<'static, str>>,
 ) -> iced::Element<'a, Message>
 where
     Message: Clone + 'a,
@@ -135,7 +149,7 @@ where
         .spacing(season::TICK_GAP)
         .align_y(alignment::Vertical::Center);
 
-    if !count.is_empty() {
+    if let Some(count) = count {
         let count_text = text::micro_label(count)
             .font(font::medium())
             .color(color::TEXT_SECONDARY);
