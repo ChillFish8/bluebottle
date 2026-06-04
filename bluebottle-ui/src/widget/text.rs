@@ -348,14 +348,21 @@ impl<'a> Text<'a> {
     /// to [`font::regular`] when the run has no explicit font, since the
     /// renderer's default font is not available without a renderer handle.
     pub fn shape_width(&self) -> f32 {
-        let font = self.font.unwrap_or_else(font::regular);
         let mut font_system = gtext::font_system().write().expect("font system");
+        self.shape_one(font_system.raw())
+    }
+
+    /// Shapes this run inside an already-locked font system and returns the
+    /// natural width. Shared by [`Self::shape_width`], [`shape_widths`], and
+    /// [`shape_widest`] so the locking story is centralised.
+    fn shape_one(&self, font_system: &mut cosmic_text::FontSystem) -> f32 {
+        let font = self.font.unwrap_or_else(font::regular);
         let (_, min_bounds) = self.shape(
             &self.content,
             Size::new(f32::INFINITY, f32::INFINITY),
             font,
             cosmic_text::Wrap::None,
-            font_system.raw(),
+            font_system,
         );
         min_bounds.width
     }
@@ -426,6 +433,43 @@ impl<'a> Text<'a> {
         let min_bounds = gtext::align(&mut buffer, font_system, self.align_x);
         (buffer, min_bounds)
     }
+}
+
+/// Shapes each run and returns its natural width in logical pixels. Locks the
+/// global font system once for the batch so a loop of widths does not pay one
+/// lock acquisition per item.
+///
+/// The write lock is held across the entire iteration. Materialise lazy
+/// adapters (collect into a `Vec`) before calling so per-yield work does not
+/// serialise against other text shaping.
+pub fn shape_widths<'a, I>(runs: I) -> Vec<f32>
+where
+    I: IntoIterator<Item = &'a Text<'a>>,
+{
+    let runs = runs.into_iter();
+    let mut widths = Vec::with_capacity(runs.size_hint().0);
+
+    let mut font_system = gtext::font_system().write().expect("font system");
+    for run in runs {
+        widths.push(run.shape_one(font_system.raw()));
+    }
+
+    widths
+}
+
+/// Shapes each run and returns the widest width without allocating an
+/// intermediate `Vec`. Holds the font lock for the iteration, same contract
+/// as [`shape_widths`].
+pub fn shape_widest<'a, I>(runs: I) -> f32
+where
+    I: IntoIterator<Item = &'a Text<'a>>,
+{
+    let mut max = 0.0_f32;
+    let mut font_system = gtext::font_system().write().expect("font system");
+    for run in runs {
+        max = max.max(run.shape_one(font_system.raw()));
+    }
+    max
 }
 
 #[derive(Default)]

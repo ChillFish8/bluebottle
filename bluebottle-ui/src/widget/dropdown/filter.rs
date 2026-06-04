@@ -1,45 +1,23 @@
-//! Multi-select filter. Inherits [`super::season`]'s panel chrome.
+//! Multi-select filter dropdown built on season's panel chrome. The trigger
+//! reads `label · N` and the menu opens onto a pinned header with a Select
+//! all or Clear link above the row list.
 //!
-//! The trigger reads `label · N` where N is the active-pick count, omitting
-//! the count fragment when nothing is selected. The trigger row width snaps
-//! to the widest possible rendering so the chevron stays put as picks come
-//! and go. The menu opens onto a pinned header carrying `label — N selected`
-//! on the left and a Select all or Clear link on the right, followed by the
-//! row list. Rows are capped at six before scrolling, with fades at each
-//! edge so off-band rows dissolve into the menu surface.
-//!
-//! Row style differs from season. The bordered glass checkbox alone signals
-//! state, so the row stays transparent regardless of checked and the hover
-//! veil is the only fill that ever paints. This keeps multiple-on filter
-//! menus from flooding with accent colour.
-//!
-//! The widget owns its own open state. Toggling a row does not close the
-//! menu, so the user can flip several entries in one session.
+//! Each row is a bordered glass checkbox and a label. The row chrome stays
+//! transparent across states so a fully-on menu does not flood with accent.
 
 use std::borrow::Cow;
 
 use iced::widget::{Row, Space, column};
-use iced::{Element, Length, Padding, alignment, padding};
+use iced::{Element, Length, alignment, padding};
 
 use super::chassis::Dropdown;
-use super::season;
+use super::{internal, season};
 use crate::widget::button::{CheckboxSizeVariant, checkbox};
-use crate::widget::clickable::{Clickable, clickable};
+use crate::widget::clickable::Clickable;
 use crate::widget::link::link;
 use crate::widget::scrollable::scrollable;
 use crate::widget::text;
 use crate::{color, font};
-
-const ROW_RADIUS: f32 = 8.0;
-
-const ROW_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 10.0,
-    bottom: 6.0,
-    left: 10.0,
-};
-
-const MENU_ROW_SPACING: f32 = 4.0;
 
 // Matches season's `"· N eps"` prefix so the count text reads the same on
 // both triggers. The label-to-count gap is provided by the fill spacer in
@@ -48,17 +26,10 @@ const SUFFIX_GAP_HINT: &str = "\u{00b7} ";
 
 // Minimum visible gap between the label and the count inside the trigger
 // row. Folded into `trigger_width` so the rounded width always leaves at
-// least this much slack for the fill spacer to consume — without it, a
-// label whose natural width lands close to a 10 px boundary can crash
-// into the count when the rounding leaves almost no slack.
+// least this much slack for the fill spacer to consume. Without it, a label
+// whose natural width lands close to a 10 px boundary can crash into the
+// count.
 const TRIGGER_MIN_GAP: f32 = 12.0;
-
-const HEADER_PADDING: Padding = Padding {
-    top: 4.0,
-    right: 10.0,
-    bottom: 8.0,
-    left: 10.0,
-};
 
 const MENU_INNER_SPACING: f32 = 4.0;
 
@@ -66,17 +37,12 @@ const MAX_ROWS: usize = 6;
 // Each row is the 20 px checkbox plus ROW_PADDING (6 + 6). The 4 px slack
 // covers descender depth on the row title across font fallbacks.
 const ROW_FULL_HEIGHT: f32 = 40.0;
-const ROWS_CAP: f32 =
-    (MAX_ROWS as f32) * ROW_FULL_HEIGHT + ((MAX_ROWS - 1) as f32) * MENU_ROW_SPACING;
+const ROWS_CAP: f32 = (MAX_ROWS as f32) * ROW_FULL_HEIGHT
+    + ((MAX_ROWS - 1) as f32) * internal::MENU_ROW_SPACING;
 
-/// A self-managing filter dropdown.
-///
-/// `items` supplies the row labels in order. `checked` runs parallel and
-/// gives each row's current state. Pressing a row fires `on_toggle(i)`. The
-/// header carries a Select all or Clear link that fires `on_bulk(true)` or
-/// `on_bulk(false)` respectively. The trigger reads `label` plus a middle
-/// dot count of the active picks. Width snaps to the widest natural
-/// rendering so the chevron stays stable across selection counts.
+/// A self-managing filter dropdown. Rows toggle through `on_toggle(i)` and
+/// the header link fires `on_bulk(true)` for Select all or `on_bulk(false)`
+/// for Clear.
 pub fn filter<'a, Message>(
     label: impl Into<Cow<'static, str>>,
     items: impl IntoIterator<Item = impl Into<Cow<'static, str>>>,
@@ -98,7 +64,9 @@ where
     let header = header_row(label.as_ref(), active, &on_bulk);
     let trigger = trigger_label(label, active, trigger_width);
 
-    let mut rows = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
+    let mut rows = column![]
+        .spacing(internal::MENU_ROW_SPACING)
+        .width(Length::Fill);
     for (index, item) in items.iter().enumerate() {
         let is_checked = checked.get(index).copied().unwrap_or(false);
         rows = rows.push(row(
@@ -119,13 +87,8 @@ where
     season::panel(trigger, menu, false)
 }
 
-/// A filter menu row.
-///
-/// `content` carries the checkbox glyph alongside the row label. The row
-/// never paints a selected fill or ring. The `checked` flag drives the text
-/// colour ease between resting and accent on the design system's standard
-/// 100 ms hover budget. Background and ring stay transparent regardless of
-/// state so multiple-on filter menus do not flood with accent colour.
+/// A filter menu row. The checkbox carries the state and the row chrome
+/// stays transparent in every state.
 pub fn row<'a, Message>(
     content: impl Into<Element<'a, Message>>,
     checked: bool,
@@ -134,25 +97,22 @@ pub fn row<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    clickable(content)
-        .on_press(on_press)
-        .selected(checked)
-        .tint(color::overlay_fill())
+    internal::row(content, checked, on_press)
         .resting_color(color::TEXT_PRIMARY)
         .selected_color(color::primary())
-        .radius(ROW_RADIUS)
-        .padding(ROW_PADDING)
-        .width(Length::Fill)
 }
 
-/// Computes the fixed trigger row width. Rounds the widest natural rendering
-/// up to the nearest 10 px so the trigger stays stable across selection
-/// counts.
+/// Fixed trigger row width. Shapes the label and the widest count fragment
+/// under a single font lock, then rounds up to the nearest 10 px.
 fn trigger_width(label: &str, item_count: usize) -> f32 {
-    let label_width = base_text(Cow::Owned(label.to_owned())).shape_width();
-    let suffix_width = count_text(item_count).shape_width();
-    let widest = label_width + TRIGGER_MIN_GAP + suffix_width;
-    (widest / 10.0).ceil() * 10.0
+    let label_text = base_text(label);
+    let count_text = count_text(item_count);
+    let widths = text::shape_widths([&label_text, &count_text]);
+
+    internal::round_up_10_min(
+        widths[0] + TRIGGER_MIN_GAP + widths[1],
+        internal::TRIGGER_MIN_WIDTH,
+    )
 }
 
 fn trigger_label<'a, Message>(
@@ -180,12 +140,12 @@ where
         .into()
 }
 
-fn base_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
-    text::label(content, text::Variant::Main).font(font::semibold())
+fn base_text<'a>(content: impl iced::widget::text::IntoFragment<'a>) -> text::Text<'a> {
+    internal::trigger_main_text(content)
 }
 
 fn count_text<'a>(active: usize) -> text::Text<'a> {
-    text::caption(format!("{SUFFIX_GAP_HINT}{active}")).font(font::medium())
+    internal::count_caption(format!("{SUFFIX_GAP_HINT}{active}"))
 }
 
 fn header_row<'a, Message>(
@@ -215,14 +175,7 @@ where
         on_bulk(action_value),
     );
 
-    Row::new()
-        .push(summary)
-        .push(Space::new().width(Length::Fill))
-        .push(action)
-        .padding(HEADER_PADDING)
-        .align_y(alignment::Vertical::Center)
-        .width(Length::Fill)
-        .into()
+    internal::header_row(summary, action)
 }
 
 fn menu_row_content<'a, Message>(
@@ -241,7 +194,7 @@ where
     Row::new()
         .push(box_)
         .push(title)
-        .spacing(season::TICK_GAP)
+        .spacing(internal::TICK_GAP)
         .align_y(alignment::Vertical::Center)
         .into()
 }

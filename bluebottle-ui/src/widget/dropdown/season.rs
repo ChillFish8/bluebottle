@@ -1,10 +1,5 @@
-//! Season selector. The reference r8 panel dropdown.
-//!
-//! Exposes two layers. [`panel`] is the bare panel chassis that
-//! [`super::filter`] and [`super::labelled`] share for their chrome. [`season`]
-//! is the data-driven builder on top. The caller hands it a slice of
-//! [`SeasonInfo`] and the picked-index callback, and the widget owns the
-//! `expanded` state internally.
+//! Season selector. The reference r8 panel dropdown that filter and labelled
+//! inherit their chrome from.
 
 use std::borrow::Cow;
 
@@ -12,7 +7,8 @@ use iced::widget::{Row, Space, column, container};
 use iced::{Element, Length, Padding, alignment, padding};
 
 use super::chassis::{Dropdown, dropdown};
-use crate::widget::clickable::{Clickable, clickable};
+use super::internal;
+use crate::widget::clickable::Clickable;
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::scrollable::scrollable;
 use crate::widget::text;
@@ -37,22 +33,8 @@ const MENU_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-const ROW_RADIUS: f32 = 8.0;
-
-const ROW_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 10.0,
-    bottom: 6.0,
-    left: 10.0,
-};
-
-/// The bare panel chassis shared by season, filter, and labelled.
-///
-/// The trigger reads as an r8 panel pill. The fill, hover veil, and resting
-/// hairline match the bordered glass icon button so the pill slots into
-/// toolbars beside one. While the menu is open the fill stays put and only
-/// the hairline swaps to the accent colour. The menu drops below as a deep
-/// violet-glass surface at r12.
+/// The bare panel chassis shared by season, filter, and labelled. An r8 pill
+/// trigger with bordered glass chrome over an r12 violet-glass menu.
 pub fn panel<'a, Message>(
     label: impl Into<Element<'a, Message>>,
     menu: impl Into<Element<'a, Message>>,
@@ -75,11 +57,8 @@ where
         .menu_width(Length::Fixed(MENU_WIDTH))
 }
 
-/// A season menu row.
-///
-/// Pass `selected = true` for the active option so the row paints the accent
-/// fill and the label and tick cascade through `primary()`. Unselected rows
-/// stay transparent and lean on the row-hover veil for affordance.
+/// A season menu row. The selected row paints the accent fill while
+/// unselected rows stay transparent and lean on the hover veil.
 pub fn row<'a, Message>(
     content: impl Into<Element<'a, Message>>,
     selected: bool,
@@ -88,41 +67,25 @@ pub fn row<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    clickable(content)
-        .on_press(on_press)
-        .selected(selected)
-        .tint(color::overlay_fill())
-        .selected_background(color::accent_row_selected())
+    internal::row(content, selected, on_press)
         .resting_color(color::TEXT_PRIMARY)
         .selected_color(color::primary())
-        .radius(ROW_RADIUS)
-        .padding(ROW_PADDING)
-        .width(Length::Fill)
+        .selected_background(color::accent_row_selected())
 }
 
 const TRIGGER_GAP: f32 = 8.0;
 
 const ROW_LINE_SPACING: f32 = 2.0;
-const MENU_ROW_SPACING: f32 = 4.0;
 
 const ROW_WIDTH: f32 = 260.0;
 const SEASON_MENU_WIDTH: f32 = ROW_WIDTH + MENU_PADDING.left + MENU_PADDING.right;
 
-const TICK_GLYPH_SIZE: f32 = 14.0;
-pub(super) const TICK_GAP: f32 = 8.0;
 const TITLE_YEAR_GAP: f32 = 6.0;
 
 const MAX_ROWS: usize = 4;
 const ROW_FULL_HEIGHT: f32 = 56.0;
-const ROWS_CAP: f32 =
-    (MAX_ROWS as f32) * ROW_FULL_HEIGHT + ((MAX_ROWS - 1) as f32) * MENU_ROW_SPACING;
-
-/// The animated check used in the left column of a menu row. Fades to accent
-/// colour while selected and to transparent while not, so the tick column
-/// reserves a stable width across rows and the transition is not a snap.
-pub(super) fn tick_glyph<'a, Message: 'a>(selected: bool) -> Element<'a, Message> {
-    crate::widget::animated_tick::animated_tick(selected, TICK_GLYPH_SIZE).into()
-}
+const ROWS_CAP: f32 = (MAX_ROWS as f32) * ROW_FULL_HEIGHT
+    + ((MAX_ROWS - 1) as f32) * internal::MENU_ROW_SPACING;
 
 /// One season's worth of menu data. Build with [`season_info`].
 #[derive(Clone)]
@@ -133,9 +96,8 @@ pub struct SeasonInfo {
     episode_count: u32,
 }
 
-/// Builds a [`SeasonInfo`] from a title, a subtitle, an air year, and the
-/// number of episodes. The subtitle, year, and episode count compose into the
-/// dim second line of the menu row.
+/// Builds a [`SeasonInfo`]. The subtitle, year, and episode count compose
+/// into the dim second line of the menu row.
 pub fn season_info(
     title: impl Into<Cow<'static, str>>,
     subtitle: impl Into<Cow<'static, str>>,
@@ -150,12 +112,8 @@ pub fn season_info(
     }
 }
 
-/// A self-managing season dropdown.
-///
-/// The widget owns its open state. The trigger label tracks `items[selected]`
-/// and the menu rows render the rich two-line layout per [`SeasonInfo`]. Each
-/// row presses with `on_select(i)` where `i` is the zero-based index into the
-/// supplied iterator. The chassis chrome comes from [`panel`].
+/// A self-managing season dropdown. The trigger label tracks
+/// `items[selected]` and each menu row presses with `on_select(i)`.
 pub fn season<'a, Message>(
     items: impl IntoIterator<Item = SeasonInfo>,
     selected: usize,
@@ -170,7 +128,9 @@ where
     let trigger_label: Element<'a, Message> =
         trigger_label(&items, selected, trigger_width);
 
-    let mut rows = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
+    let mut rows = column![]
+        .spacing(internal::MENU_ROW_SPACING)
+        .width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
         rows = rows.push(row(
@@ -187,31 +147,36 @@ where
     panel(trigger_label, menu, false).menu_width(Length::Fixed(SEASON_MENU_WIDTH))
 }
 
-/// Computes the fixed trigger row width. Rounds the widest natural row up to
-/// the nearest 10 px so the trigger stays stable across selections.
+/// Fixed trigger row width. Shapes title and eps for every item in one font
+/// lock, sums each pair, and rounds the widest sum up to the nearest 10 px.
 fn trigger_width(items: &[SeasonInfo]) -> f32 {
-    let widest = items
-        .iter()
-        .map(|item| {
-            trigger_title_text(item).shape_width()
-                + TRIGGER_GAP
-                + trigger_eps_text(item).shape_width()
-        })
-        .fold(0.0, f32::max);
+    let mut runs: Vec<text::Text<'_>> = Vec::with_capacity(items.len() * 2);
+    for item in items {
+        runs.push(trigger_title_text(item.title.as_ref()));
+        runs.push(trigger_eps_text(item));
+    }
 
-    (widest / 10.0).ceil() * 10.0
+    let widths = text::shape_widths(runs.iter());
+    let widest = widths
+        .chunks_exact(2)
+        .map(|pair| pair[0] + TRIGGER_GAP + pair[1])
+        .fold(0.0_f32, f32::max);
+
+    internal::round_up_10_min(widest, internal::TRIGGER_MIN_WIDTH)
 }
 
-fn trigger_title_text<'a>(item: &SeasonInfo) -> text::Text<'a> {
-    text::label(item.title.clone(), text::Variant::Main).font(font::semibold())
+fn trigger_title_text<'a>(
+    content: impl iced::widget::text::IntoFragment<'a>,
+) -> text::Text<'a> {
+    internal::trigger_main_text(content)
 }
 
 fn trigger_eps_text<'a>(item: &SeasonInfo) -> text::Text<'a> {
-    text::caption(format!("· {} eps", item.episode_count)).font(font::medium())
+    internal::count_caption(format!("· {} eps", item.episode_count))
 }
 
-/// Builds the trigger row at the precomputed fixed width. Title sits flush
-/// left, episode count flush right, with a fill spacer between.
+/// Builds the trigger row at the precomputed fixed width. Title flush left,
+/// episode count flush right.
 fn trigger_label<'a, Message>(
     items: &[SeasonInfo],
     selected: usize,
@@ -222,7 +187,7 @@ where
 {
     let inner = match items.get(selected) {
         Some(item) => {
-            let title = trigger_title_text(item);
+            let title = trigger_title_text(item.title.clone());
             let optically_aligned = container(title).padding(padding::bottom(1));
 
             Row::new()
@@ -239,9 +204,8 @@ where
         .into()
 }
 
-/// Builds the two-line content inside a single season row. The tick column
-/// reserves space even when not selected so the title columns line up across
-/// rows.
+/// Two-line content for one season row. The tick column reserves its slot
+/// even when not selected so titles line up across rows.
 fn season_row_content<'a, Message>(
     item: &SeasonInfo,
     selected: bool,
@@ -249,7 +213,7 @@ fn season_row_content<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let tick = tick_glyph(selected);
+    let tick = internal::tick_glyph(selected);
 
     let season_title = text::card_title(item.title.clone())
         .font(font::semibold())
@@ -283,7 +247,7 @@ where
         .push(tick)
         .push(main)
         .push(eps)
-        .spacing(TICK_GAP)
+        .spacing(internal::TICK_GAP)
         .align_y(alignment::Vertical::Center)
         .into()
 }

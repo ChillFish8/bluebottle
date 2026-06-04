@@ -1,15 +1,6 @@
-//! Source / library selector. A capsule chip trigger over the rich menu.
-//!
-//! The trigger is a fully-rounded capsule that reads as a status chip. A
-//! colored dot signals connection state, followed by the storage glyph and
-//! the source name. The menu picks up the same deep violet-glass surface as
-//! [`super::season`] but with a wider r14 radius. The selected row carries
-//! the 1 px inset accent ring unique to this widget.
-//!
-//! Driven by a list of [`SourceEntry`] values. Each row carries the source
-//! name with a resolution chip on the right, a status line with an inline
-//! glowing status dot and any tag pills, and the host plus episode count
-//! beneath.
+//! Source / library selector. The trigger is a capsule chip with a glowing
+//! status dot, the library glyph, and the active source name. Each menu row
+//! carries the rich [`SourceEntry`] layout.
 
 use std::borrow::Cow;
 
@@ -27,7 +18,8 @@ use iced::{
 };
 
 use super::chassis::{Dropdown, dropdown};
-use crate::widget::clickable::{Clickable, clickable};
+use super::internal;
+use crate::widget::clickable::Clickable;
 use crate::widget::scrollable::scrollable;
 use crate::widget::{button, text};
 use crate::{color, font, icon};
@@ -50,8 +42,8 @@ const MENU_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-const ROW_RADIUS: f32 = 8.0;
-
+// Source rows are taller than the shared default so the rich layout
+// breathes inside the menu.
 const ROW_PADDING: Padding = Padding {
     top: 10.0,
     right: 12.0,
@@ -83,15 +75,8 @@ const MENU_WIDTH: f32 = 320.0;
 const MENU_MAX_HEIGHT: f32 = 320.0;
 
 const MENU_INNER_SPACING: f32 = 4.0;
-const MENU_ROW_SPACING: f32 = 4.0;
 const ROW_LINE_SPACING: f32 = 8.0;
 const ROW_COLUMN_GAP: f32 = 12.0;
-const HEADER_PADDING: Padding = Padding {
-    top: 4.0,
-    right: 10.0,
-    bottom: 4.0,
-    left: 10.0,
-};
 const FOOTER_PADDING: Padding = Padding {
     top: 4.0,
     right: 4.0,
@@ -99,10 +84,9 @@ const FOOTER_PADDING: Padding = Padding {
     left: 4.0,
 };
 
-/// Connection state of a source. Drives the colour of the trigger dot and
-/// the status line inside each menu row. Offline is not represented since a
-/// source we cannot reach cannot answer whether it holds the show, so it has
-/// no place in the picker.
+/// Connection state of a source. Drives the trigger dot colour and the row
+/// status line. Offline is intentionally absent. A source that cannot answer
+/// whether it holds the show has no place in the picker.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SourceStatus {
     Online,
@@ -193,10 +177,8 @@ pub struct SourceEntry {
     resolution: Resolution,
 }
 
-/// Builds a [`SourceEntry`] from the display name, connection status,
-/// host address, episode count, deployment tags, and serving resolution.
-/// Tags render as bordered glass pills in the order given. The Recommended
-/// tag picks up the accent tint. The rest read secondary.
+/// Builds a [`SourceEntry`]. Tags render as bordered glass pills in the
+/// order given, accent for Recommended and secondary for the rest.
 pub fn source_entry(
     name: impl Into<Cow<'static, str>>,
     status: SourceStatus,
@@ -215,12 +197,9 @@ pub fn source_entry(
     }
 }
 
-/// A self-managing source dropdown.
-///
-/// The trigger is a capsule chip reading status, storage glyph, source name,
-/// and chevron. The menu surfaces the rich row layout one row per entry. The
-/// selected row carries the inset accent ring. Optional footer action wires
-/// in through [`Source::footer_action`].
+/// A self-managing source dropdown. The trigger is a capsule chip and the
+/// menu surfaces one row per entry. Wire optional extras through
+/// [`Source::footer_action`] and [`Source::on_toggle`].
 pub fn source<'a, Message>(
     entries: impl IntoIterator<Item = SourceEntry>,
     selected: usize,
@@ -256,8 +235,7 @@ impl<'a, Message> Source<'a, Message>
 where
     Message: Clone + 'a,
 {
-    /// Pins a footer link below the rows. The link reads at the Label role
-    /// and fires the supplied message when pressed.
+    /// Pins a ghost-button footer below the rows.
     pub fn footer_action(
         mut self,
         label: impl Into<Cow<'static, str>>,
@@ -270,9 +248,8 @@ where
         self
     }
 
-    /// Forwards open and close events from the underlying chassis. Wiring
-    /// this also puts the chassis into controlled mode so the caller owns
-    /// the expanded state.
+    /// Forwards open and close events. Wiring this puts the chassis into
+    /// controlled mode so the caller owns `expanded`.
     pub fn on_toggle(mut self, f: impl Fn(bool) -> Message + 'a) -> Self {
         self.on_toggle = Some(Box::new(f));
         self
@@ -289,7 +266,9 @@ where
 
         let header = header_row(src.entries.len());
 
-        let mut rows = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
+        let mut rows = column![]
+            .spacing(internal::MENU_ROW_SPACING)
+            .width(Length::Fill);
         for (index, entry) in src.entries.iter().enumerate() {
             let selected = index == src.selected;
             rows = rows.push(row(
@@ -329,9 +308,8 @@ where
     }
 }
 
-/// The bare panel chassis shared with the data-driven [`source`] builder.
-/// Exposed for callers that need to compose a custom trigger or menu while
-/// reusing the chip chrome.
+/// The bare panel chassis for callers that need to compose a custom trigger
+/// or menu over the same chip chrome.
 pub fn panel<'a, Message>(
     label: impl Into<Element<'a, Message>>,
     menu: impl Into<Element<'a, Message>>,
@@ -364,15 +342,10 @@ pub fn row<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    clickable(content)
-        .on_press(on_press)
-        .selected(selected)
-        .tint(color::overlay_fill())
+    internal::row(content, selected, on_press)
+        .padding(ROW_PADDING)
         .selected_background(color::accent_row_selected())
         .selected_border(color::primary())
-        .radius(ROW_RADIUS)
-        .padding(ROW_PADDING)
-        .width(Length::Fill)
 }
 
 fn trigger_label<'a, Message>(
@@ -416,24 +389,24 @@ where
         .into()
 }
 
-fn trigger_name_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
-    text::label(content, text::Variant::Main).font(font::semibold())
+fn trigger_name_text<'a>(
+    content: impl iced::widget::text::IntoFragment<'a>,
+) -> text::Text<'a> {
+    internal::trigger_main_text(content)
 }
 
-/// Widest natural rendering rounded up to the nearest 10 px, clamped to a
-/// 120 px floor so the chip reads at a consistent minimum even with short
-/// source names.
+/// Widest natural rendering rounded up to the nearest 10 px, clamped to
+/// [`TRIGGER_MIN_WIDTH`] so the chip never collapses below a readable
+/// minimum.
 fn trigger_width(entries: &[SourceEntry]) -> f32 {
-    let name_width = entries
+    let names: Vec<text::Text<'_>> = entries
         .iter()
-        .map(|e| trigger_name_text(e.name.clone()).shape_width())
-        .fold(0.0_f32, f32::max);
+        .map(|e| trigger_name_text(e.name.as_ref()))
+        .collect();
+    let name_width = internal::widest_shaped(names.iter());
 
     let chrome = STATUS_DOT_SIZE + LIBRARY_ICON_SIZE + (TRIGGER_GAP * 3.0);
-    let widest = name_width + chrome;
-    let rounded = (widest / 10.0).ceil() * 10.0;
-
-    rounded.max(TRIGGER_MIN_WIDTH)
+    internal::round_up_10_min(name_width + chrome, TRIGGER_MIN_WIDTH)
 }
 
 fn row_content<'a, Message>(entry: &SourceEntry, selected: bool) -> Element<'a, Message>
@@ -506,9 +479,8 @@ where
         .into()
 }
 
-/// A glowing colored dot. The container fills with `tint` at full opacity,
-/// rounded to a pill, with a centered shadow at 60 percent sRGB alpha so the
-/// glow rings all the way around.
+/// A glowing coloured dot. A `tint` fill behind a centred shadow at 60
+/// percent sRGB alpha so the halo rings all the way around.
 fn status_dot<'a, Message: 'a>(tint: Color) -> Element<'a, Message> {
     container(space().width(STATUS_DOT_SIZE).height(STATUS_DOT_SIZE))
         .style(move |_theme| container::Style {
@@ -527,8 +499,7 @@ fn status_dot<'a, Message: 'a>(tint: Color) -> Element<'a, Message> {
         .into()
 }
 
-/// A bordered glass pill in the given tint. The fill is the tint at 28
-/// percent sRGB alpha behind a 1 px solid tint ring.
+/// A bordered glass pill. Tint at 28 percent sRGB behind a 1 px solid ring.
 fn bordered_chip<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     tint: Color,
@@ -569,14 +540,7 @@ where
     let count = text::eyebrow(format!("{count} libraries"), text::Variant::Main)
         .color(color::TEXT_SECONDARY);
 
-    Row::new()
-        .push(label)
-        .push(Space::new().width(Length::Fill))
-        .push(count)
-        .padding(HEADER_PADDING)
-        .align_y(alignment::Vertical::Center)
-        .width(Length::Fill)
-        .into()
+    internal::header_row(label, count)
 }
 
 fn footer_row<'a, Message>(footer: FooterAction<Message>) -> Element<'a, Message>

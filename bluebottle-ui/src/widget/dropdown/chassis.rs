@@ -1,21 +1,9 @@
-//! The core dropdown widget. Every styled dropdown in the design system
-//! composes around this chassis so the trigger affordances and menu motion stay
-//! in step with the rest of the system.
+//! Shared chassis for the dropdown family. Every styled variant composes on
+//! top of it so the trigger affordances and menu motion stay in step.
 //!
-//! The chassis owns a trigger row of `[label, chevron]` and a menu that floats
-//! below it. The trigger paints the same hover glass, selected fill, and 1 px
-//! ring vocabulary as [`crate::widget::clickable::Clickable`] so a dropdown
-//! reads as a button at rest. The menu eases in with a 100 ms grow and fade on
-//! the design system's `Hover` budget, anchored below the trigger, sized to
-//! its content, and clamped inside the viewport.
-//!
-//! Runs in one of two modes depending on whether [`Dropdown::on_toggle`] is
-//! wired. With a toggle callback the chassis is controlled. The caller holds
-//! `expanded` and the widget dispatches `on_toggle` on trigger press, on
-//! Escape, and on a click outside the menu. Without a toggle callback the
-//! chassis self-manages. `expanded` flips inside the widget's own state on the
-//! same events. The `expanded` builder argument seeds the initial value in
-//! that mode.
+//! Runs uncontrolled when [`Dropdown::on_toggle`] is left unset. The chassis
+//! holds the open state and dismisses on Escape and outside clicks. Wiring a
+//! callback puts the caller in control of `expanded`.
 
 use std::time::Instant;
 
@@ -50,7 +38,7 @@ const TRIGGER_GAP: f32 = 8.0;
 const CHEVRON_SIZE: f32 = 14.0;
 const DEFAULT_RADIUS: f32 = 10.0;
 const DEFAULT_MENU_RADIUS: f32 = 10.0;
-const DEFAULT_MENU_OFFSET: f32 = 4.0;
+const MENU_OFFSET: f32 = 4.0;
 const DEFAULT_TRIGGER_PADDING: Padding = Padding {
     top: 6.0,
     right: 10.0,
@@ -64,10 +52,9 @@ const DEFAULT_MENU_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-/// Creates a dropdown. The trigger renders the `label` and a chevron, the
-/// menu floats below it while expanded. With [`Dropdown::on_toggle`] wired the
-/// caller owns the `expanded` value. Without it the chassis self-manages and
-/// the argument is the initial open state.
+/// Creates a dropdown. The trigger renders `label` next to a chevron and the
+/// menu floats below while expanded. Without [`Dropdown::on_toggle`] the
+/// chassis self-manages and `expanded` seeds the initial open state.
 pub fn dropdown<'a, Message>(
     label: impl Into<Element<'a, Message>>,
     menu: impl Into<Element<'a, Message>>,
@@ -89,13 +76,10 @@ where
         on_toggle: None,
         expanded,
         tint: color::HOVER,
-        resting_color: None,
         background: None,
         selected_background: None,
         selected_border: None,
-        selected_color: None,
         border: None,
-        hover_border: None,
         radius: DEFAULT_RADIUS,
         padding: DEFAULT_TRIGGER_PADDING,
         width: Length::Shrink,
@@ -104,7 +88,6 @@ where
         menu_border: color::border(),
         menu_radius: DEFAULT_MENU_RADIUS,
         menu_padding: DEFAULT_MENU_PADDING,
-        menu_offset: DEFAULT_MENU_OFFSET,
         menu_width: Length::Shrink,
     }
 }
@@ -116,13 +99,10 @@ pub struct Dropdown<'a, Message> {
     on_toggle: Option<Box<dyn Fn(bool) -> Message + 'a>>,
     expanded: bool,
     tint: Color,
-    resting_color: Option<Color>,
     background: Option<Color>,
     selected_background: Option<Color>,
     selected_border: Option<Color>,
-    selected_color: Option<Color>,
     border: Option<Color>,
-    hover_border: Option<Color>,
     radius: f32,
     padding: Padding,
     width: Length,
@@ -131,7 +111,6 @@ pub struct Dropdown<'a, Message> {
     menu_border: Color,
     menu_radius: f32,
     menu_padding: Padding,
-    menu_offset: f32,
     menu_width: Length,
 }
 
@@ -139,9 +118,8 @@ impl<'a, Message> Dropdown<'a, Message>
 where
     Message: Clone + 'a,
 {
-    /// Sets the toggle callback. Fires `true` when the trigger opens the menu
-    /// and `false` on close, dismiss, or Escape. Wiring this puts the chassis
-    /// in controlled mode. Without it the chassis self-manages `expanded`.
+    /// Forwards open and close events. Wiring this puts the chassis into
+    /// controlled mode so the caller owns `expanded`.
     pub fn on_toggle(mut self, f: impl Fn(bool) -> Message + 'a) -> Self {
         self.on_toggle = Some(Box::new(f));
         self
@@ -150,12 +128,6 @@ where
     /// Overrides the hover-tint colour. Defaults to [`color::HOVER`].
     pub fn tint(mut self, color: Color) -> Self {
         self.tint = color;
-        self
-    }
-
-    /// Overrides the resting label and chevron colour.
-    pub fn resting_color(mut self, color: Color) -> Self {
-        self.resting_color = Some(color);
         self
     }
 
@@ -177,22 +149,9 @@ where
         self
     }
 
-    /// The label and chevron colour while the dropdown is open. Eases from
-    /// the resting colour.
-    pub fn selected_color(mut self, color: Color) -> Self {
-        self.selected_color = Some(color);
-        self
-    }
-
     /// A resting 1 px ring around the trigger.
     pub fn border(mut self, color: Color) -> Self {
         self.border = Some(color);
-        self
-    }
-
-    /// A 1 px ring that fades in with the hover tint.
-    pub fn hover_border(mut self, color: Color) -> Self {
-        self.hover_border = Some(color);
         self
     }
 
@@ -241,12 +200,6 @@ where
     /// Padding inside the menu surface.
     pub fn menu_padding(mut self, padding: impl Into<Padding>) -> Self {
         self.menu_padding = padding.into();
-        self
-    }
-
-    /// Vertical gap between the trigger and the menu, in logical pixels.
-    pub fn menu_offset(mut self, offset: f32) -> Self {
-        self.menu_offset = offset;
         self
     }
 
@@ -380,23 +333,6 @@ where
             );
         }
 
-        if glass_factor > EPSILON
-            && let Some(border_color) = self.hover_border
-        {
-            renderer.fill_quad(
-                Quad {
-                    bounds,
-                    border: Border {
-                        width: 1.0,
-                        color: color::fade(border_color, glass_factor),
-                        ..pill
-                    },
-                    ..Quad::default()
-                },
-                Color::TRANSPARENT,
-            );
-        }
-
         if selected_factor > EPSILON
             && let Some(fill) = self.selected_background
         {
@@ -449,12 +385,9 @@ where
             );
         }
 
-        let resting = self.resting_color.unwrap_or(style.text_color);
-        let text_color = match self.selected_color {
-            Some(on) => color::ease(resting, on, selected_factor),
-            None => resting,
+        let content_style = Style {
+            text_color: style.text_color,
         };
-        let content_style = Style { text_color };
 
         let trigger_layout = layout.children().next().expect("dropdown trigger");
         self.trigger.as_widget().draw(
@@ -705,7 +638,7 @@ where
                 border: self.menu_border,
                 radius: self.menu_radius,
                 padding: self.menu_padding,
-                offset: self.menu_offset,
+                offset: MENU_OFFSET,
                 width: self.menu_width,
             })))
         } else {

@@ -1,15 +1,6 @@
-//! Labelled-prefix dropdown. Inherits [`super::season`]'s panel chrome.
-//!
-//! Pairs a caller-supplied prefix string with the chosen value in the trigger.
-//! Reads as `prefix value` followed by the chevron. Use for sort, quality,
-//! view, or any single-axis picker where the value is the emphasis and a
-//! short prefix clarifies the axis.
-//!
-//! The widget owns its own open state. The caller passes the choices as an
-//! iterator of strings and a current index. Selection emits the picked index
-//! through `on_select`. The trigger row width snaps to the longest natural
-//! label-plus-value pairing, rounded up to the nearest 10 px, so picking
-//! between values does not jitter the chevron.
+//! Labelled-prefix dropdown built on season's panel chrome. Pairs a caller
+//! prefix with the chosen value in the trigger, for any single-axis picker
+//! where the value is the emphasis.
 
 use std::borrow::Cow;
 
@@ -17,19 +8,17 @@ use iced::widget::{Row, Space, column, container};
 use iced::{Length, alignment, padding};
 
 use super::chassis::Dropdown;
-use super::season;
+use super::{internal, season};
 use crate::widget::text;
 use crate::{color, font, icon};
 
 const PREFIX_GAP: f32 = 8.0;
-const MENU_ROW_SPACING: f32 = 4.0;
 
 const TRIGGER_ICON_SIZE: f32 = 13.0;
 const ICON_LABEL_GAP: f32 = 4.0;
 
-/// One menu choice. Carries the display name and an optional count
-/// rendered flush-right inside the menu row. Build with [`item_row`] or
-/// `ItemRow::new` and chain [`ItemRow::count`] for the right column.
+/// One menu choice. Carries the display name and an optional count rendered
+/// flush right inside the menu row.
 #[derive(Clone)]
 pub struct ItemRow {
     name: Cow<'static, str>,
@@ -51,9 +40,8 @@ impl ItemRow {
         self
     }
 
-    /// Attaches an optional count in one chain. `None` clears any
-    /// previously-attached count, so a single `.opt_count(maybe)` call
-    /// expresses both "show this value" and "no count" without branching.
+    /// Attaches an optional count. `None` clears any previously-attached
+    /// count.
     pub fn opt_count(mut self, count: Option<impl Into<Cow<'static, str>>>) -> Self {
         self.count = count.map(Into::into);
         self
@@ -65,21 +53,13 @@ pub fn item_row(name: impl Into<Cow<'static, str>>) -> ItemRow {
     ItemRow::new(name)
 }
 
-/// A self-managing labelled-prefix dropdown.
-///
-/// The trigger reads as `[icon] label value` to the left of the chevron.
-/// `icon` is an optional Material Icon name shown flush-left in the
-/// trigger through the design system's icon widget. `items` supplies the
-/// menu choices as [`ItemRow`] values. The optional [`ItemRow::count`]
-/// renders flush-right inside the menu row. The selected index drives
-/// both the trigger value and the menu's checked row. Each row presses
-/// with `on_select(i)`. The chrome inherits [`super::season::panel`].
+/// A self-managing labelled-prefix dropdown. The trigger reads as
+/// `[icon] label value` and each row presses with `on_select(i)`.
 ///
 /// # Panics
 ///
-/// The icon name is forwarded to [`crate::icon::filled`] without a
-/// fallback, so an unknown Material Icon name will panic on the first
-/// draw. Pass icon names that are known to the build's codepoint table.
+/// `icon` is forwarded to [`crate::icon::filled`] without a fallback. An
+/// unknown Material Icon name panics on the first draw.
 pub fn labelled<'a, Message>(
     label: impl Into<Cow<'static, str>>,
     icon: Option<&'static str>,
@@ -124,7 +104,9 @@ where
         .width(Length::Fixed(trigger_width))
         .align_y(alignment::Vertical::Center);
 
-    let mut menu = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
+    let mut menu = column![]
+        .spacing(internal::MENU_ROW_SPACING)
+        .width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
         let content =
@@ -144,9 +126,9 @@ where
     Message: Clone + 'a,
 {
     let mut row = Row::new()
-        .push(season::tick_glyph(selected))
+        .push(internal::tick_glyph(selected))
         .push(value_text(value))
-        .spacing(season::TICK_GAP)
+        .spacing(internal::TICK_GAP)
         .align_y(alignment::Vertical::Center);
 
     if let Some(count) = count {
@@ -159,16 +141,20 @@ where
     row.width(Length::Fill).into()
 }
 
-/// Computes the fixed trigger row width. Rounds the widest natural
-/// label-plus-value pairing up to the nearest 10 px so the trigger stays
-/// stable across selections. The icon's own width and gap are added when
-/// one is present so the column accommodates it.
+/// Fixed trigger row width. Shapes the prefix label and every value in one
+/// font lock, then adds the icon column and prefix gap before rounding up to
+/// the nearest 10 px.
 fn trigger_width(label: &str, items: &[ItemRow], icon: Option<&'static str>) -> f32 {
-    let label_width = prefix_text(Cow::Owned(label.to_owned())).shape_width();
-    let max_value_width = items
+    let label_text = prefix_text(label);
+    let value_texts: Vec<text::Text<'_>> = items
         .iter()
-        .map(|item| trigger_value_text(item.name.clone()).shape_width())
-        .fold(0.0_f32, f32::max);
+        .map(|item| trigger_value_text(&item.name))
+        .collect();
+
+    let widths =
+        text::shape_widths(std::iter::once(&label_text).chain(value_texts.iter()));
+    let label_width = widths[0];
+    let max_value_width = widths[1..].iter().copied().fold(0.0_f32, f32::max);
 
     let icon_width = if icon.is_some() {
         TRIGGER_ICON_SIZE + ICON_LABEL_GAP
@@ -176,16 +162,22 @@ fn trigger_width(label: &str, items: &[ItemRow], icon: Option<&'static str>) -> 
         0.0
     };
 
-    let widest = icon_width + label_width + PREFIX_GAP + max_value_width;
-    (widest / 10.0).ceil() * 10.0
+    internal::round_up_10_min(
+        icon_width + label_width + PREFIX_GAP + max_value_width,
+        internal::TRIGGER_MIN_WIDTH,
+    )
 }
 
-fn prefix_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
+fn prefix_text<'a>(
+    content: impl iced::widget::text::IntoFragment<'a>,
+) -> text::Text<'a> {
     text::label(content, text::Variant::Alt).font(font::medium())
 }
 
-fn trigger_value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {
-    text::label(content, text::Variant::Main).font(font::semibold())
+fn trigger_value_text<'a>(
+    content: impl iced::widget::text::IntoFragment<'a>,
+) -> text::Text<'a> {
+    internal::trigger_main_text(content)
 }
 
 fn value_text<'a>(content: Cow<'static, str>) -> text::Text<'a> {

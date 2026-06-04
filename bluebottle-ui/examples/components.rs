@@ -971,7 +971,7 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
             }
         })
         .background(color::SECONDARY)
-        .hover_border(color::border())
+        .border(color::border())
         .selected_background(color::HOVER)
         .selected_border(color::border_strong())
         .radius(10.0)
