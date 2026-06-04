@@ -8,10 +8,10 @@
 //! row list. Rows are capped at six before scrolling, with fades at each
 //! edge so off-band rows dissolve into the menu surface.
 //!
-//! Row style differs from season. The checkbox glyph alone signals state, so
-//! the row stays transparent regardless of checked and the hover veil is the
-//! only fill that ever paints. This keeps multiple-on filter menus from
-//! flooding with accent colour.
+//! Row style differs from season. The bordered glass checkbox alone signals
+//! state, so the row stays transparent regardless of checked and the hover
+//! veil is the only fill that ever paints. This keeps multiple-on filter
+//! menus from flooding with accent colour.
 //!
 //! The widget owns its own open state. Toggling a row does not close the
 //! menu, so the user can flip several entries in one session.
@@ -23,11 +23,12 @@ use iced::{Element, Length, Padding, alignment, padding};
 
 use super::chassis::Dropdown;
 use super::season;
+use crate::widget::button::{CheckboxSizeVariant, checkbox};
 use crate::widget::clickable::{Clickable, clickable};
 use crate::widget::link::link;
 use crate::widget::scrollable::scrollable;
 use crate::widget::text;
-use crate::{color, font, icon};
+use crate::{color, font};
 
 const ROW_RADIUS: f32 = 8.0;
 
@@ -39,8 +40,6 @@ const ROW_PADDING: Padding = Padding {
 };
 
 const MENU_ROW_SPACING: f32 = 4.0;
-
-const CHECKBOX_SIZE: f32 = 16.0;
 
 // Matches season's `"· N eps"` prefix so the count text reads the same on
 // both triggers. The label-to-count gap is provided by the fill spacer in
@@ -231,19 +230,14 @@ fn menu_row_content<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let glyph_name = if checked {
-        "check_box"
-    } else {
-        "check_box_outline_blank"
-    };
-    let glyph = icon::filled(glyph_name).size(CHECKBOX_SIZE);
+    let box_ = checkbox::<Message>(checked, CheckboxSizeVariant::Alt, None);
 
     let title = text::card_title(label)
         .font(font::semibold())
         .inherit_color();
 
     Row::new()
-        .push(glyph)
+        .push(box_)
         .push(title)
         .spacing(season::TICK_GAP)
         .align_y(alignment::Vertical::Center)

@@ -1,4 +1,4 @@
-//! A self-animating check used in the left column of dropdown menu rows.
+//! A self-animating check glyph.
 //!
 //! On the rising edge of `selected` the check strokes in as a single
 //! continuous path. The pen starts at the upper-left tip, sweeps down to the
@@ -8,6 +8,7 @@
 //! budget. Re-selection always restarts the draw-in, never snaps to
 //! fully-drawn.
 //!
+//! Used by the dropdown menu rows and the bordered glass checkbox button.
 //! The partial-stroke reveal shares the helpers in
 //! [`crate::widget::path_trace`] with the animated nav puck border.
 
@@ -52,7 +53,8 @@ const P_JOINT: (f32, f32) = (0.38, 0.73);
 const P_RIGHT: (f32, f32) = (0.82, 0.29);
 
 /// Builds an animated tick at the given glyph size. The check strokes in
-/// while `selected` is true and fades out while it is false.
+/// while `selected` is true and fades out while it is false. Defaults to the
+/// accent stroke colour. Override with [`AnimatedTick::color`].
 pub fn animated_tick<'a, Message: 'a>(
     selected: bool,
     size: f32,
@@ -60,6 +62,7 @@ pub fn animated_tick<'a, Message: 'a>(
     AnimatedTick {
         selected,
         size,
+        color: None,
         _marker: std::marker::PhantomData,
     }
 }
@@ -68,7 +71,16 @@ pub fn animated_tick<'a, Message: 'a>(
 pub struct AnimatedTick<'a, Message> {
     selected: bool,
     size: f32,
+    color: Option<Color>,
     _marker: std::marker::PhantomData<&'a fn() -> Message>,
+}
+
+impl<Message> AnimatedTick<'_, Message> {
+    /// Overrides the stroke colour. Defaults to [`color::primary`].
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
 }
 
 struct State {
@@ -93,23 +105,6 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
         }
     }
 
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State {
-            stroke: Hover::settled(self.selected).with_fade(STROKE_DURATION),
-            alpha: Hover::settled(self.selected),
-            last_selected: self.selected,
-            cache: Cache::new(),
-            last_factor: Cell::new(None),
-            last_alpha: Cell::new(None),
-            last_primary: Cell::new(None),
-            was_animating: Cell::new(false),
-        })
-    }
-
     fn layout(
         &mut self,
         _tree: &mut Tree,
@@ -125,6 +120,90 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
                 Size::new(self.size, self.size),
             );
         layout::Node::new(bounded)
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        _theme: &iced::Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_ref::<State>();
+        let now = Instant::now();
+        let factor = state.stroke.current(now);
+        let alpha = state.alpha.current(now);
+
+        if alpha < EPSILON || factor < EPSILON {
+            return;
+        }
+
+        let stroke = self.color.unwrap_or_else(color::primary);
+        let stale = match (
+            state.last_factor.get(),
+            state.last_alpha.get(),
+            state.last_primary.get(),
+        ) {
+            (Some(lf), Some(la), Some(lp)) => {
+                (factor - lf).abs() > f32::EPSILON
+                    || (alpha - la).abs() > f32::EPSILON
+                    || lp != stroke
+            },
+            _ => true,
+        };
+
+        if stale {
+            state.cache.clear();
+            state.last_factor.set(Some(factor));
+            state.last_alpha.set(Some(alpha));
+            state.last_primary.set(Some(stroke));
+        }
+
+        let bounds = layout.bounds();
+        let size = self.size;
+        let stroke_width = size * STROKE_RATIO;
+        let stroke_color = color::with_alpha(stroke, alpha);
+
+        let geometry = state.cache.draw(renderer, bounds.size(), |frame| {
+            let scale = |(x, y): (f32, f32)| Point::new(x * size, y * size);
+            let route = [scale(P_LEFT), scale(P_JOINT), scale(P_RIGHT)];
+
+            let mut builder = canvas::path::Builder::new();
+            trace_partial(&mut builder, &route, factor);
+
+            frame.stroke(
+                &builder.build(),
+                canvas::Stroke::default()
+                    .with_color(stroke_color)
+                    .with_width(stroke_width)
+                    .with_line_cap(canvas::LineCap::Round)
+                    .with_line_join(canvas::LineJoin::Round),
+            );
+        });
+
+        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
+            renderer.draw_geometry(geometry);
+        });
+    }
+
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State {
+            stroke: Hover::settled(self.selected).with_fade(STROKE_DURATION),
+            alpha: Hover::settled(self.selected),
+            last_selected: self.selected,
+            cache: Cache::new(),
+            last_factor: Cell::new(None),
+            last_alpha: Cell::new(None),
+            last_primary: Cell::new(None),
+            was_animating: Cell::new(false),
+        })
     }
 
     fn diff(&self, tree: &mut Tree) {
@@ -151,73 +230,6 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
         state.last_factor.set(None);
         state.last_alpha.set(None);
         state.last_primary.set(None);
-    }
-
-    fn draw(
-        &self,
-        tree: &Tree,
-        renderer: &mut iced::Renderer,
-        _theme: &iced::Theme,
-        _style: &renderer::Style,
-        layout: Layout<'_>,
-        _cursor: mouse::Cursor,
-        _viewport: &Rectangle,
-    ) {
-        let state = tree.state.downcast_ref::<State>();
-        let now = Instant::now();
-        let factor = state.stroke.current(now);
-        let alpha = state.alpha.current(now);
-
-        if alpha < EPSILON || factor < EPSILON {
-            return;
-        }
-
-        let primary = color::primary();
-        let stale = match (
-            state.last_factor.get(),
-            state.last_alpha.get(),
-            state.last_primary.get(),
-        ) {
-            (Some(lf), Some(la), Some(lp)) => {
-                (factor - lf).abs() > f32::EPSILON
-                    || (alpha - la).abs() > f32::EPSILON
-                    || lp != primary
-            },
-            _ => true,
-        };
-
-        if stale {
-            state.cache.clear();
-            state.last_factor.set(Some(factor));
-            state.last_alpha.set(Some(alpha));
-            state.last_primary.set(Some(primary));
-        }
-
-        let bounds = layout.bounds();
-        let size = self.size;
-        let stroke_width = size * STROKE_RATIO;
-        let stroke_color = color::with_alpha(primary, alpha);
-
-        let geometry = state.cache.draw(renderer, bounds.size(), |frame| {
-            let scale = |(x, y): (f32, f32)| Point::new(x * size, y * size);
-            let route = [scale(P_LEFT), scale(P_JOINT), scale(P_RIGHT)];
-
-            let mut builder = canvas::path::Builder::new();
-            trace_partial(&mut builder, &route, factor);
-
-            frame.stroke(
-                &builder.build(),
-                canvas::Stroke::default()
-                    .with_color(stroke_color)
-                    .with_width(stroke_width)
-                    .with_line_cap(canvas::LineCap::Round)
-                    .with_line_join(canvas::LineJoin::Round),
-            );
-        });
-
-        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
-            renderer.draw_geometry(geometry);
-        });
     }
 
     fn update(

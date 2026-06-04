@@ -1,6 +1,5 @@
 mod chassis;
 mod chevron;
-mod tick;
 
 pub mod filter;
 pub mod labelled;

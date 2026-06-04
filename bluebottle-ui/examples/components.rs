@@ -94,6 +94,7 @@ struct Components {
     toggle_states: [bool; 3],
     icon_states: [bool; 4],
     icon_flat_states: [bool; 2],
+    checkbox_states: [bool; 4],
     dropdown_open: bool,
     dropdown_choice: &'static str,
     source_open: bool,
@@ -117,6 +118,7 @@ impl Default for Components {
             toggle_states: [true, false, false],
             icon_states: [false, true, false, true],
             icon_flat_states: [false, true],
+            checkbox_states: [true, false, true, false],
             dropdown_open: true,
             dropdown_choice: DROPDOWN_CHOICES[0],
             source_open: false,
@@ -175,6 +177,7 @@ enum Message {
     ToggleToolbar(usize),
     ToggleIcon(usize),
     ToggleIconFlat(usize),
+    ToggleCheckbox(usize),
     DropdownToggle,
     DropdownDismiss,
     DropdownPick(&'static str),
@@ -231,6 +234,7 @@ impl Components {
             Message::ToggleToolbar(i) => toggle_at(&mut self.toggle_states, i),
             Message::ToggleIcon(i) => toggle_at(&mut self.icon_states, i),
             Message::ToggleIconFlat(i) => toggle_at(&mut self.icon_flat_states, i),
+            Message::ToggleCheckbox(i) => toggle_at(&mut self.checkbox_states, i),
             Message::DropdownToggle => {
                 self.dropdown_open = !self.dropdown_open;
                 println!("dropdown toggle -> {}", self.dropdown_open);
@@ -290,6 +294,7 @@ impl Components {
                 media_accent_buttons(),
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
+                checkboxes(self.checkbox_states),
                 hero_buttons(),
             ]),
             category("Navigation", || vec![
@@ -810,6 +815,44 @@ fn toggle_pills(states: [bool; 3]) -> Element<'static, Message> {
     let demo = column![toolbar, labels_only].spacing(8);
 
     section("Toggle Pills", demo)
+}
+
+fn checkboxes(states: [bool; 4]) -> Element<'static, Message> {
+    use bluebottle_ui::button::CheckboxSizeVariant;
+
+    let main = row![
+        bluebottle_ui::button::checkbox(
+            states[0],
+            CheckboxSizeVariant::Main,
+            Some(Message::ToggleCheckbox(0)),
+        ),
+        bluebottle_ui::button::checkbox(
+            states[1],
+            CheckboxSizeVariant::Main,
+            Some(Message::ToggleCheckbox(1)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let alt = row![
+        bluebottle_ui::button::checkbox(
+            states[2],
+            CheckboxSizeVariant::Alt,
+            Some(Message::ToggleCheckbox(2)),
+        ),
+        bluebottle_ui::button::checkbox(
+            states[3],
+            CheckboxSizeVariant::Alt,
+            Some(Message::ToggleCheckbox(3)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let demo = column![main, alt].spacing(8);
+
+    section("Checkboxes", demo)
 }
 
 /// The glass gradient surface. Top stop down to the bottom stop, matching

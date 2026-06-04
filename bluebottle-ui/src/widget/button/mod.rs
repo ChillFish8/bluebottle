@@ -13,11 +13,14 @@
 //! denser rows. `icon_carousel` is the 26px paging chevron. `icon_overlay` is
 //! the 32px glass pill for controls floating over media. `dismiss` and
 //! `dismiss_icon` are the two close affordances, a labelled pill for the
-//! player bar and a 28px circle for the ambient header.
+//! player bar and a 28px circle for the ambient header. `checkbox` is the
+//! bordered glass box that swaps to the accent recipe and strokes in the
+//! animated check when on.
 
 pub use iced::widget::button::{Status, Style};
 
 mod chassis;
+mod checkbox;
 mod disabled;
 mod hero;
 mod icon;
@@ -27,6 +30,7 @@ mod pill;
 mod standard;
 mod utility;
 
+pub use checkbox::{CheckboxSizeVariant, checkbox};
 pub use disabled::disabled;
 pub use hero::hero;
 pub use icon::{IconSizeVariant, icon, icon_carousel, icon_flat, icon_overlay};

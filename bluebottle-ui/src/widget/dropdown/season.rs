@@ -121,7 +121,7 @@ const ROWS_CAP: f32 =
 /// colour while selected and to transparent while not, so the tick column
 /// reserves a stable width across rows and the transition is not a snap.
 pub(super) fn tick_glyph<'a, Message: 'a>(selected: bool) -> Element<'a, Message> {
-    super::tick::animated_tick(selected, TICK_GLYPH_SIZE).into()
+    crate::widget::animated_tick::animated_tick(selected, TICK_GLYPH_SIZE).into()
 }
 
 /// One season's worth of menu data. Build with [`season_info`].

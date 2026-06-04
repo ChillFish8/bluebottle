@@ -1,3 +1,4 @@
+pub mod animated_tick;
 pub mod bar;
 pub mod breadcrumb;
 pub mod button;
