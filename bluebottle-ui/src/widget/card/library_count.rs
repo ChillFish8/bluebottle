@@ -46,7 +46,7 @@ where
         .align_y(Center);
 
     card(body)
-        .padding(padding::all(16))
+        .padding(padding::all(16.0))
         .width(Length::Fill)
         .into()
 }

@@ -323,6 +323,7 @@ impl Components {
             category("Surfaces", || vec![
                 cards(),
                 library_counts(),
+                film_facts_demo(),
                 splash_backgrounds(),
                 separators(),
             ]),
@@ -1494,6 +1495,19 @@ fn library_counts() -> Element<'static, Message> {
     .spacing(12);
 
     section("Library Counts", demo)
+}
+
+fn film_facts_demo() -> Element<'static, Message> {
+    let facts = bluebottle_ui::card::FilmFacts {
+        director: "Christopher Nolan".into(),
+        studio: "Warner Bros.".into(),
+        released: "Jul 16, 2010".into(),
+        runtime: "2h 28m".into(),
+        language: "English".into(),
+        rating: "PG-13".into(),
+    };
+
+    section("Film Facts", bluebottle_ui::card::film_facts(facts))
 }
 
 fn cards() -> Element<'static, Message> {
