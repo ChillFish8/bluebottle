@@ -320,7 +320,11 @@ impl Components {
                 spinners(),
                 skeletons(),
             ]),
-            category("Surfaces", || vec![splash_backgrounds(), separators()]),
+            category("Surfaces", || vec![
+                cards(),
+                splash_backgrounds(),
+                separators(),
+            ]),
         ]
         .width(Length::Fill)
         .padding(padding::all(32))
@@ -1473,4 +1477,29 @@ fn separators() -> Element<'static, Message> {
         "Separators",
         bluebottle_ui::separator::seperator(Length::Fixed(400.0)),
     )
+}
+
+fn cards() -> Element<'static, Message> {
+    let body = |label: &'static str| {
+        container(bluebottle_ui::text::label(
+            label,
+            bluebottle_ui::text::Variant::Main,
+        ))
+        .padding(20)
+    };
+
+    let neutral = bluebottle_ui::card::card(body("Bordered glass"));
+
+    let accent = bluebottle_ui::card::card(body("Accent highlight"))
+        .background(color::primary_glass())
+        .border(color::primary());
+
+    let custom_padding =
+        bluebottle_ui::card::card(body("Roomy padding")).padding(padding::all(24));
+
+    let demo = row![neutral, accent, custom_padding]
+        .spacing(12)
+        .align_y(Center);
+
+    section("Cards", demo)
 }
