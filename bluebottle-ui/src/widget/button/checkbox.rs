@@ -34,7 +34,7 @@ where
         CheckboxSizeVariant::Alt => (20.0, 12.0),
     };
 
-    let glyph = animated_tick(on, tick_size).color(color::TEXT_PRIMARY);
+    let glyph = animated_tick(on, tick_size);
 
     let checkbox_container = container(glyph)
         .width(Length::Fixed(diameter))

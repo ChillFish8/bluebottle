@@ -53,8 +53,9 @@ const P_JOINT: (f32, f32) = (0.38, 0.73);
 const P_RIGHT: (f32, f32) = (0.82, 0.29);
 
 /// Builds an animated tick at the given glyph size. The check strokes in
-/// while `selected` is true and fades out while it is false. Defaults to the
-/// accent stroke colour. Override with [`AnimatedTick::color`].
+/// while `selected` is true and fades out while it is false. Picks up the
+/// cascaded `text_color` from the renderer style by default. Override with
+/// [`AnimatedTick::color`].
 pub fn animated_tick<'a, Message: 'a>(
     selected: bool,
     size: f32,
@@ -76,7 +77,8 @@ pub struct AnimatedTick<'a, Message> {
 }
 
 impl<Message> AnimatedTick<'_, Message> {
-    /// Overrides the stroke colour. Defaults to [`color::primary`].
+    /// Overrides the stroke colour. Defaults to the cascaded `text_color`
+    /// from the renderer style so the tick eases with its parent clickable.
     pub fn color(mut self, color: Color) -> Self {
         self.color = Some(color);
         self
@@ -127,7 +129,7 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
         tree: &Tree,
         renderer: &mut iced::Renderer,
         _theme: &iced::Theme,
-        _style: &renderer::Style,
+        style: &renderer::Style,
         layout: Layout<'_>,
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
@@ -141,7 +143,10 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
             return;
         }
 
-        let stroke = self.color.unwrap_or_else(color::primary);
+        // Default to the cascaded text colour so the tick rides whatever
+        // colour a parent clickable is easing through. `color()` overrides
+        // pin a specific tint for callers that need to ignore the cascade.
+        let stroke = self.color.unwrap_or(style.text_color);
         let stale = match (
             state.last_factor.get(),
             state.last_alpha.get(),

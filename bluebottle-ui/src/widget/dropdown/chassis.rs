@@ -727,33 +727,55 @@ impl<Message> DropdownOverlay<'_, '_, Message> {
         Size::new(self.viewport.width, self.viewport.height)
     }
 
+    /// Vertical clearance available below and above the trigger, taking the
+    /// menu offset into account. Both values are clamped to zero.
+    fn vertical_space(&self) -> (f32, f32) {
+        let viewport = self.viewport_size();
+        let below = (viewport.height
+            - (self.position.y + self.trigger_bounds.height + self.offset))
+            .max(0.0);
+        let above = (self.position.y - self.offset).max(0.0);
+        (below, above)
+    }
+
     /// Top-left the menu should land at given its size. Same algorithm as
     /// [`Self::layout`] so the rendering path can re-derive the anchor against
     /// the trigger's just-captured position. iced reuses the overlay layout
     /// from the previous update pass, so without this the menu renders one
     /// scroll-step behind the trigger.
+    ///
+    /// Prefers below when the menu fits there. Falls back to above when below
+    /// does not fit so the menu never overlaps the trigger. The layout pass
+    /// caps the menu's height to the larger of the two clearances, so one of
+    /// the two sides is guaranteed to fit.
     fn menu_anchor(&self, menu_size: Size) -> Point {
         let viewport = self.viewport_size();
+        let (space_below, space_above) = self.vertical_space();
 
-        let mut pos = Point::new(
-            self.position.x,
-            self.position.y + self.trigger_bounds.height + self.offset,
-        );
+        let below_y = self.position.y + self.trigger_bounds.height + self.offset;
+        let above_y = self.position.y - menu_size.height - self.offset;
+
+        // Prefer the side that fits. When neither fits, anchor against the
+        // side with more clearance so the menu grows away from the trigger
+        // rather than across it. The menu may overflow the viewport edge but
+        // never overlaps the trigger.
+        let y = if menu_size.height <= space_below {
+            below_y
+        } else if menu_size.height <= space_above {
+            above_y
+        } else if space_below >= space_above {
+            below_y
+        } else {
+            above_y
+        };
+
+        let mut pos = Point::new(self.position.x, y);
 
         if pos.x + menu_size.width > viewport.width {
             pos.x = (viewport.width - menu_size.width).max(0.0);
         }
         if pos.x < 0.0 {
             pos.x = 0.0;
-        }
-
-        if pos.y + menu_size.height > viewport.height {
-            let above = self.position.y - menu_size.height - self.offset;
-            if above >= 0.0 {
-                pos.y = above;
-            } else {
-                pos.y = (viewport.height - menu_size.height).max(0.0);
-            }
         }
 
         pos
@@ -811,7 +833,25 @@ where
     Message: Clone,
 {
     fn layout(&mut self, renderer: &iced::Renderer, bounds: Size) -> layout::Node {
-        let limits = layout::Limits::new(Size::ZERO, bounds)
+        // Cap the menu's max height to whichever side of the trigger has more
+        // clearance. Without this the menu can size itself taller than either
+        // side of the trigger and the anchor step has nowhere to put it, so it
+        // ends up overlapping the trigger.
+        //
+        // When both clearances collapse to zero (trigger fully off-screen, or
+        // overlay alive while the trigger has scrolled away) fall back to the
+        // full viewport so the menu still lays out at its natural size. The
+        // anchor step lets it render against whichever viewport edge fits.
+        let (space_below, space_above) = self.vertical_space();
+        let preferred = space_below.max(space_above);
+        let max_height = if preferred > 0.0 {
+            preferred.min(bounds.height)
+        } else {
+            bounds.height
+        };
+
+        let menu_bounds = Size::new(bounds.width, max_height);
+        let limits = layout::Limits::new(Size::ZERO, menu_bounds)
             .width(self.width)
             .height(Length::Shrink);
 

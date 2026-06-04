@@ -63,7 +63,9 @@ const HEADER_PADDING: Padding = Padding {
 const MENU_INNER_SPACING: f32 = 4.0;
 
 const MAX_ROWS: usize = 6;
-const ROW_FULL_HEIGHT: f32 = 36.0;
+// Each row is the 20 px checkbox plus ROW_PADDING (6 + 6). The 4 px slack
+// covers descender depth on the row title across font fallbacks.
+const ROW_FULL_HEIGHT: f32 = 40.0;
 const ROWS_CAP: f32 =
     (MAX_ROWS as f32) * ROW_FULL_HEIGHT + ((MAX_ROWS - 1) as f32) * MENU_ROW_SPACING;
 

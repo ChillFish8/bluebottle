@@ -72,7 +72,9 @@ const CHIP_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-const ROW_STATUS_GAP: f32 = 4.0;
+// Greater than the 6 px STATUS_DOT_GLOW_BLUR so the dot's halo does not
+// crowd the status caption.
+const ROW_STATUS_GAP: f32 = 8.0;
 const NAME_ROW_GAP: f32 = 8.0;
 
 const TRIGGER_MIN_WIDTH: f32 = 120.0;
@@ -98,12 +100,13 @@ const FOOTER_PADDING: Padding = Padding {
 };
 
 /// Connection state of a source. Drives the colour of the trigger dot and
-/// the status line inside each menu row.
+/// the status line inside each menu row. Offline is not represented since a
+/// source we cannot reach cannot answer whether it holds the show, so it has
+/// no place in the picker.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SourceStatus {
     Online,
     Downloaded,
-    Offline,
 }
 
 impl SourceStatus {
@@ -111,7 +114,6 @@ impl SourceStatus {
         match self {
             SourceStatus::Online => color::success(),
             SourceStatus::Downloaded => color::primary(),
-            SourceStatus::Offline => color::TEXT_SECONDARY,
         }
     }
 
@@ -119,7 +121,6 @@ impl SourceStatus {
         match self {
             SourceStatus::Online => "Online",
             SourceStatus::Downloaded => "Downloaded",
-            SourceStatus::Offline => "Offline",
         }
     }
 }
@@ -161,14 +162,14 @@ pub enum Resolution {
 }
 
 impl Resolution {
-    fn label(&self) -> Cow<'_, str> {
+    fn label(&self) -> Cow<'static, str> {
         match self {
             Resolution::UHD4K => Cow::Borrowed("4K"),
             Resolution::UHD4KHDR => Cow::Borrowed("4K HDR"),
             Resolution::FullHD => Cow::Borrowed("1080P"),
             Resolution::HD => Cow::Borrowed("720P"),
             Resolution::SD => Cow::Borrowed("480P"),
-            Resolution::Other(value) => Cow::Borrowed(value.as_ref()),
+            Resolution::Other(value) => value.clone(),
         }
     }
 
@@ -233,6 +234,7 @@ where
         selected,
         on_select: Box::new(on_select),
         footer: None,
+        on_toggle: None,
     }
 }
 
@@ -241,12 +243,13 @@ pub struct Source<'a, Message> {
     entries: Vec<SourceEntry>,
     selected: usize,
     on_select: Box<dyn Fn(usize) -> Message + 'a>,
-    footer: Option<FooterAction<'a, Message>>,
+    footer: Option<FooterAction<Message>>,
+    on_toggle: Option<Box<dyn Fn(bool) -> Message + 'a>>,
 }
 
-struct FooterAction<'a, Message> {
+struct FooterAction<Message> {
     label: Cow<'static, str>,
-    on_press: Box<dyn Fn() -> Message + 'a>,
+    on_press: Message,
 }
 
 impl<'a, Message> Source<'a, Message>
@@ -258,12 +261,20 @@ where
     pub fn footer_action(
         mut self,
         label: impl Into<Cow<'static, str>>,
-        on_press: impl Fn() -> Message + 'a,
+        on_press: Message,
     ) -> Self {
         self.footer = Some(FooterAction {
             label: label.into(),
-            on_press: Box::new(on_press),
+            on_press,
         });
+        self
+    }
+
+    /// Forwards open and close events from the underlying chassis. Wiring
+    /// this also puts the chassis into controlled mode so the caller owns
+    /// the expanded state.
+    pub fn on_toggle(mut self, f: impl Fn(bool) -> Message + 'a) -> Self {
+        self.on_toggle = Some(Box::new(f));
         self
     }
 }
@@ -300,7 +311,12 @@ where
             menu = menu.push(footer_row(footer));
         }
 
-        panel(trigger, menu, false).menu_width(Length::Fixed(MENU_WIDTH))
+        let mut panel =
+            panel(trigger, menu, false).menu_width(Length::Fixed(MENU_WIDTH));
+        if let Some(handler) = src.on_toggle {
+            panel = panel.on_toggle(handler);
+        }
+        panel
     }
 }
 
@@ -368,7 +384,6 @@ where
     Message: Clone + 'a,
 {
     let entry = entries.get(selected);
-    let status = entry.map_or(SourceStatus::Offline, |e| e.status);
     let name: Cow<'static, str> = entry
         .map(|e| e.name.clone())
         .unwrap_or(Cow::Borrowed("No source"));
@@ -379,8 +394,19 @@ where
 
     let name_text = trigger_name_text(name);
 
+    // Always reserve the dot slot so the trigger keeps the same width whether
+    // or not a source is selected. When no entry is selected the slot stays
+    // empty rather than rendering a meaningless dot.
+    let dot: Element<'a, Message> = match entry {
+        Some(entry) => status_dot(entry.status.color()),
+        None => Space::new()
+            .width(STATUS_DOT_SIZE)
+            .height(STATUS_DOT_SIZE)
+            .into(),
+    };
+
     Row::new()
-        .push(status_dot(status.color()))
+        .push(dot)
         .push(cast_icon)
         .push(name_text)
         .push(Space::new().width(Length::Fill))
@@ -422,7 +448,7 @@ where
         .inherit_color();
 
     let resolution_chip = bordered_chip(
-        text::micro_label(entry.resolution.label().into_owned())
+        text::micro_label(entry.resolution.label())
             .font(font::mono_medium())
             .color(entry.resolution.tint()),
         entry.resolution.tint(),
@@ -553,12 +579,12 @@ where
         .into()
 }
 
-fn footer_row<'a, Message>(footer: FooterAction<'a, Message>) -> Element<'a, Message>
+fn footer_row<'a, Message>(footer: FooterAction<Message>) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
     let FooterAction { label, on_press } = footer;
-    let action = button::ghost_small(label, Some("storage"), on_press());
+    let action = button::ghost_small(label, Some("storage"), on_press);
 
     Row::new()
         .push(action)

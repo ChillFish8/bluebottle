@@ -1027,7 +1027,7 @@ fn source_demo(selected: usize) -> Element<'static, Message> {
         ),
         source_entry(
             "Studio NAS",
-            SourceStatus::Offline,
+            SourceStatus::Downloaded,
             "nas.studio",
             1024,
             [SourceTag::Local],
@@ -1035,7 +1035,7 @@ fn source_demo(selected: usize) -> Element<'static, Message> {
         ),
         source_entry(
             "Cabin Backup",
-            SourceStatus::Offline,
+            SourceStatus::Downloaded,
             "cabin.tail-9b7.ts.net",
             60,
             [],
@@ -1044,7 +1044,7 @@ fn source_demo(selected: usize) -> Element<'static, Message> {
     ];
 
     let widget = source(entries, selected, Message::SourcePick)
-        .footer_action("Manage Library", || Message::SourceManage);
+        .footer_action("Manage Library", Message::SourceManage);
 
     section("Source", container(widget).height(360).width(Length::Fill))
 }
