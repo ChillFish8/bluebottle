@@ -322,6 +322,7 @@ impl Components {
             ]),
             category("Surfaces", || vec![
                 cards(),
+                library_counts(),
                 splash_backgrounds(),
                 separators(),
             ]),
@@ -1477,6 +1478,22 @@ fn separators() -> Element<'static, Message> {
         "Separators",
         bluebottle_ui::separator::seperator(Length::Fixed(400.0)),
     )
+}
+
+fn library_counts() -> Element<'static, Message> {
+    let demo = row![
+        bluebottle_ui::card::library_count("Movies", color::primary(), "movie", 1_284,),
+        bluebottle_ui::card::library_count("TV Shows", color::success(), "tv", 327,),
+        bluebottle_ui::card::library_count(
+            "Music",
+            color::warning(),
+            "library_music",
+            12_503,
+        ),
+    ]
+    .spacing(12);
+
+    section("Library Counts", demo)
 }
 
 fn cards() -> Element<'static, Message> {
