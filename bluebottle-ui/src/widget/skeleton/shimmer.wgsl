@@ -4,33 +4,41 @@
 // and corner radius. This shader is self contained and does not share
 // `shader_common.wgsl`.
 //
-// The resting colour arrives as sRGB. The band lifts it toward white by a fixed
-// fraction, so the shimmer reads as a brightening on any surface colour rather
-// than a mix toward one fixed tint. The result converts to linear for output,
-// since the surface format encodes sRGB in hardware.
+// The fill is the design system's bordered glass identity. A faint white-glass
+// fill sits behind a hairline ring just inside the rounded edge, so the
+// skeleton brightens whatever surface it lands on rather than stamping a fixed
+// colour on top. The shimmer lifts the fill's alpha at the band peak, so the
+// sweep reads as the same glass surface brightening rather than a tint swap.
+// Both fill and ring author their opacities in sRGB on the Rust side, the
+// blend happens in linear, and the output converts to linear here since the
+// surface format encodes sRGB in hardware.
 
 struct Shimmer {
     // Physical window size, the extent the band sweeps across.
     viewport: vec2<f32>,
     // Logical box size, for the rounded-corner coverage.
     box_size: vec2<f32>,
-    // sRGB resting colour the box fills with.
+    // sRGB resting fill. White rgb with a linear-space alpha.
     base_color: vec4<f32>,
+    // sRGB hairline ring. White rgb with a linear-space alpha.
+    border_color: vec4<f32>,
     // Corner radius in logical pixels, clamped to half the short side.
     radius: f32,
     // Seconds since the shared clock anchor, already reduced modulo the cycle.
     time: f32,
     // Seconds for the band to cross the window once.
     cycle: f32,
-    _pad0: f32,
+    // Additional fill alpha at the shimmer peak. Resting alpha plus this is the
+    // peak alpha. Both are in the same linear-space units as `base_color.a`.
+    peak_lift: f32,
 }
 
 @group(0) @binding(0) var<uniform> shimmer: Shimmer;
 
 // Gaussian half-width of the band, in sweep-coordinate pixels.
 const BAND: f32 = 240.0;
-// How far the band lifts the resting colour toward white at its peak.
-const LIFT: f32 = 0.13;
+// Hairline thickness in logical pixels.
+const BORDER_WIDTH: f32 = 1.0;
 
 fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
     let lo = c / 12.92;
@@ -70,10 +78,6 @@ fn fs_shimmer(in: VsOut) -> @location(0) vec4<f32> {
     let offset = coord - head;
     let highlight = exp(-(offset * offset) / (2.0 * BAND * BAND));
 
-    let base = shimmer.base_color.rgb;
-    let peak = mix(base, vec3<f32>(1.0), LIFT);
-    let color = mix(base, peak, highlight);
-
     // Rounded-box signed distance in the box's own pixels.
     let p = (in.uv - vec2<f32>(0.5)) * shimmer.box_size;
     let half_size = shimmer.box_size * 0.5;
@@ -81,8 +85,21 @@ fn fs_shimmer(in: VsOut) -> @location(0) vec4<f32> {
     let q = abs(p) - (half_size - vec2<f32>(r));
     let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
 
-    // One-pixel antialiased edge.
-    let alpha = 1.0 - smoothstep(0.0, fwidth(dist), dist);
+    // Outer edge antialiases over one pixel. The interior excludes a one-pixel
+    // ring just inside that edge, and ring is the difference, so the two masks
+    // together exactly cover the rounded box.
+    let aa = fwidth(dist);
+    let outer = 1.0 - smoothstep(0.0, aa, dist);
+    let inner = 1.0 - smoothstep(0.0, aa, dist + BORDER_WIDTH);
+    let ring = max(outer - inner, 0.0);
 
-    return vec4<f32>(srgb_to_linear(color), alpha);
+    // The fill alpha lifts at the band peak, the ring alpha stays constant so
+    // the hairline does not flare.
+    let fill_alpha = shimmer.base_color.a + shimmer.peak_lift * highlight;
+
+    // Fill and ring share white rgb, so their separate contributions sum into
+    // one straight-alpha output without proper alpha-over compositing.
+    let combined_alpha = fill_alpha * inner + shimmer.border_color.a * ring;
+
+    return vec4<f32>(srgb_to_linear(shimmer.base_color.rgb), combined_alpha);
 }

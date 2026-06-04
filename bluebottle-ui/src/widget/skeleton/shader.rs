@@ -98,6 +98,11 @@ impl shader::Primitive for SkeletonPrimitive {
     }
 }
 
+/// Additional fill opacity at the shimmer peak, authored in sRGB and run
+/// through [`color::srgb_alpha`] so the band lifts to roughly the weight of a
+/// hover-veiled glass surface above the resting fill.
+const PEAK_LIFT_SRGB: f32 = 0.13;
+
 /// The packed `Shimmer` uniform; see `shimmer.wgsl`.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -105,10 +110,11 @@ struct ShimmerUniform {
     viewport: [f32; 2],
     box_size: [f32; 2],
     base_color: [f32; 4],
+    border_color: [f32; 4],
     radius: f32,
     time: f32,
     cycle: f32,
-    _pad0: f32,
+    peak_lift: f32,
 }
 
 impl ShimmerUniform {
@@ -117,9 +123,13 @@ impl ShimmerUniform {
         bounds: &Rectangle,
         viewport: &Viewport,
     ) -> Self {
-        // The shader lifts this resting colour toward white for the highlight,
-        // so it is passed as sRGB to brighten perceptually.
-        let base = color::SECONDARY;
+        // Bordered glass identity. The fill is the faint white wash and the
+        // ring is the hairline that sits just inside the rounded edge, so the
+        // skeleton brightens whatever surface it lands on rather than stamping
+        // a fixed colour on top.
+        let base = color::border();
+        let ring = color::border_strong();
+        let peak_lift = color::srgb_alpha(PEAK_LIFT_SRGB);
 
         Self {
             viewport: [
@@ -128,10 +138,11 @@ impl ShimmerUniform {
             ],
             box_size: [bounds.width, bounds.height],
             base_color: [base.r, base.g, base.b, base.a],
+            border_color: [ring.r, ring.g, ring.b, ring.a],
             radius: primitive.radius,
             time: primitive.time,
             cycle: CYCLE,
-            _pad0: 0.0,
+            peak_lift,
         }
     }
 }
