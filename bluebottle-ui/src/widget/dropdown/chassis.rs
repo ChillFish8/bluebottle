@@ -935,6 +935,21 @@ where
         });
     }
 
+    fn operate(
+        &mut self,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        let content_layout = layout.children().next().expect("dropdown menu child");
+        self.menu.as_widget_mut().operate(
+            self.menu_tree,
+            content_layout,
+            renderer,
+            operation,
+        );
+    }
+
     fn update(
         &mut self,
         event: &Event,
@@ -1058,20 +1073,5 @@ where
             &self.viewport,
             renderer,
         )
-    }
-
-    fn operate(
-        &mut self,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        let content_layout = layout.children().next().expect("dropdown menu child");
-        self.menu.as_widget_mut().operate(
-            self.menu_tree,
-            content_layout,
-            renderer,
-            operation,
-        );
     }
 }
