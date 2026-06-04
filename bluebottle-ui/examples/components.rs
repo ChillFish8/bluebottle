@@ -1498,16 +1498,16 @@ fn library_counts() -> Element<'static, Message> {
 }
 
 fn film_facts_demo() -> Element<'static, Message> {
-    let facts = bluebottle_ui::card::FilmFacts {
-        director: "Christopher Nolan".into(),
-        studio: "Warner Bros.".into(),
-        released: "Jul 16, 2010".into(),
-        runtime: "2h 28m".into(),
-        language: "English".into(),
-        rating: "PG-13".into(),
-    };
+    let entries = [
+        bluebottle_ui::card::fact("Director", "Christopher Nolan"),
+        bluebottle_ui::card::fact("Studio", "Warner Bros."),
+        bluebottle_ui::card::fact("Released", "Jul 16, 2010"),
+        bluebottle_ui::card::fact("Runtime", "2h 28m"),
+        bluebottle_ui::card::fact("Language", "English"),
+        bluebottle_ui::card::fact("Rating", "PG-13"),
+    ];
 
-    section("Film Facts", bluebottle_ui::card::film_facts(facts))
+    section("Fact Grid", bluebottle_ui::card::fact_grid(3, entries))
 }
 
 fn cards() -> Element<'static, Message> {

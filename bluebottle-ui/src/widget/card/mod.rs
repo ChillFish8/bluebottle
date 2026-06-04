@@ -2,10 +2,10 @@
 //! built on top of it.
 
 mod core;
-mod film_facts;
+mod fact_grid;
 mod library_count;
 
 pub use core::{Card, card};
 
-pub use film_facts::{FilmFacts, film_facts};
+pub use fact_grid::{FactEntry, fact, fact_grid};
 pub use library_count::library_count;
