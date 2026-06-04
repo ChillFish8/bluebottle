@@ -5,21 +5,14 @@
 use std::borrow::Cow;
 
 use iced::widget::{Row, column, container};
-use iced::{Background, Border, Center, Color, Element, Length, Padding, Theme};
+use iced::{Background, Border, Center, Color, Element, Length, Theme, padding};
 
 use super::core::card;
 use crate::widget::text;
 use crate::{border, color, icon};
 
-const CARD_PADDING: Padding = Padding {
-    top: 12.0,
-    right: 16.0,
-    bottom: 12.0,
-    left: 12.0,
-};
-
-const ICON_BOX_SIZE: f32 = 48.0;
-const ICON_SIZE: f32 = 22.0;
+const ICON_BOX_SIZE: f32 = 38.0;
+const ICON_SIZE: f32 = 18.0;
 const ROW_GAP: f32 = 12.0;
 const STACK_SPACING: f32 = 2.0;
 
@@ -52,7 +45,10 @@ where
         .spacing(ROW_GAP)
         .align_y(Center);
 
-    card(body).padding(CARD_PADDING).width(Length::Fill).into()
+    card(body)
+        .padding(padding::all(16))
+        .width(Length::Fill)
+        .into()
 }
 
 /// A fully rounded glass chip painted in `tone` housing the Material Icons
