@@ -27,36 +27,64 @@ const MENU_ROW_SPACING: f32 = 4.0;
 const TRIGGER_ICON_SIZE: f32 = 13.0;
 const ICON_LABEL_GAP: f32 = 4.0;
 
+/// One menu choice. Carries the display name and an optional count
+/// rendered flush-right inside the menu row. Build with [`item_row`] or
+/// `ItemRow::new` and chain [`ItemRow::count`] for the right column.
+#[derive(Clone)]
+pub struct ItemRow {
+    name: Cow<'static, str>,
+    count: Option<Cow<'static, str>>,
+}
+
+impl ItemRow {
+    /// A new row with the given display name and no count.
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            name: name.into(),
+            count: None,
+        }
+    }
+
+    /// Attaches a count string rendered flush-right inside the menu row.
+    pub fn count(mut self, count: impl Into<Cow<'static, str>>) -> Self {
+        self.count = Some(count.into());
+        self
+    }
+}
+
+/// Free-function form of [`ItemRow::new`] for call-site brevity.
+pub fn item_row(name: impl Into<Cow<'static, str>>) -> ItemRow {
+    ItemRow::new(name)
+}
+
 /// A self-managing labelled-prefix dropdown.
 ///
 /// The trigger reads as `[icon] label value` to the left of the chevron.
 /// `icon` is an optional Material Icon name shown flush-left in the
 /// trigger through the design system's icon widget. `items` supplies the
-/// menu choices in order. `counts` runs parallel to `items` and renders
-/// flush-right inside each menu row; an empty count string skips the
-/// right column. The selected index drives both the trigger value and the
-/// menu's checked row. Each row presses with `on_select(i)`. The chrome
-/// inherits [`super::season::panel`].
+/// menu choices as [`ItemRow`] values. The optional [`ItemRow::count`]
+/// renders flush-right inside the menu row. The selected index drives
+/// both the trigger value and the menu's checked row. Each row presses
+/// with `on_select(i)`. The chrome inherits [`super::season::panel`].
 pub fn labelled<'a, Message>(
     label: impl Into<Cow<'static, str>>,
     icon: Option<&'static str>,
-    items: impl IntoIterator<Item = impl Into<Cow<'static, str>>>,
+    items: impl IntoIterator<Item = ItemRow>,
     selected: usize,
-    counts: impl IntoIterator<Item = impl Into<Cow<'static, str>>>,
     on_select: impl Fn(usize) -> Message + 'a,
 ) -> Dropdown<'a, Message>
 where
     Message: Clone + 'a,
 {
     let label: Cow<'static, str> = label.into();
-    let items: Vec<Cow<'static, str>> =
-        items.into_iter().map(|item| item.into()).collect();
-    let counts: Vec<Cow<'static, str>> = counts.into_iter().map(|c| c.into()).collect();
+    let items: Vec<ItemRow> = items.into_iter().collect();
 
     let trigger_width = trigger_width(&label, &items, icon);
 
-    let value: Cow<'static, str> =
-        items.get(selected).cloned().unwrap_or(Cow::Borrowed(""));
+    let value: Cow<'static, str> = items
+        .get(selected)
+        .map(|item| item.name.clone())
+        .unwrap_or(Cow::Borrowed(""));
 
     // Cluster the icon next to the label at a tighter gap than the
     // label-to-value separation so the icon decorates the axis label
@@ -85,8 +113,8 @@ where
     let mut menu = column![].spacing(MENU_ROW_SPACING).width(Length::Fill);
 
     for (index, item) in items.iter().enumerate() {
-        let count = counts.get(index).cloned().unwrap_or(Cow::Borrowed(""));
-        let content = menu_row_content(item.clone(), index == selected, count);
+        let count = item.count.clone().unwrap_or(Cow::Borrowed(""));
+        let content = menu_row_content(item.name.clone(), index == selected, count);
         menu = menu.push(season::row(content, index == selected, on_select(index)));
     }
 
@@ -121,15 +149,11 @@ where
 /// label-plus-value pairing up to the nearest 10 px so the trigger stays
 /// stable across selections. The icon's own width and gap are added when
 /// one is present so the column accommodates it.
-fn trigger_width(
-    label: &str,
-    items: &[Cow<'static, str>],
-    icon: Option<&'static str>,
-) -> f32 {
+fn trigger_width(label: &str, items: &[ItemRow], icon: Option<&'static str>) -> f32 {
     let label_width = prefix_text(Cow::Owned(label.to_owned())).shape_width();
     let max_value_width = items
         .iter()
-        .map(|item| trigger_value_text(item.clone()).shape_width())
+        .map(|item| trigger_value_text(item.name.clone()).shape_width())
         .fold(0.0_f32, f32::max);
 
     let icon_width = if icon.is_some() {

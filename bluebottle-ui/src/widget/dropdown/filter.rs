@@ -41,7 +41,11 @@ const ROW_PADDING: Padding = Padding {
 const MENU_ROW_SPACING: f32 = 4.0;
 
 const CHECKBOX_SIZE: f32 = 16.0;
-const SUFFIX_GAP_HINT: &str = " \u{00b7} ";
+
+// Matches season's `"· N eps"` prefix so the count text reads the same on
+// both triggers. The label-to-count gap is provided by the fill spacer in
+// the trigger row, not by leading whitespace here.
+const SUFFIX_GAP_HINT: &str = "\u{00b7} ";
 
 const HEADER_PADDING: Padding = Padding {
     top: 4.0,
@@ -151,8 +155,12 @@ fn trigger_label<'a, Message>(
 where
     Message: Clone + 'a,
 {
+    // Same layout as `season::trigger_label`: title flush left, fill spacer,
+    // count flush right. Width is fixed so the chevron stays put across
+    // selection counts.
     let mut row = Row::new()
         .push(base_text(label))
+        .push(Space::new().width(Length::Fill))
         .align_y(alignment::Vertical::Center);
 
     if active > 0 {
