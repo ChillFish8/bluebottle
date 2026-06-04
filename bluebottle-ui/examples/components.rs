@@ -323,6 +323,7 @@ impl Components {
             category("Surfaces", || vec![
                 cards(),
                 library_counts(),
+                library_sources(),
                 film_facts_demo(),
                 splash_backgrounds(),
                 separators(),
@@ -1495,6 +1496,49 @@ fn library_counts() -> Element<'static, Message> {
     .spacing(12);
 
     section("Library Counts", demo)
+}
+
+fn library_sources() -> Element<'static, Message> {
+    use bluebottle_ui::card::{
+        LibrarySourceKind,
+        LibrarySourceStatus,
+        library_source,
+        library_source_count,
+    };
+
+    let online_remote = library_source(
+        "Living Room NAS",
+        "192.168.1.42:/media",
+        LibrarySourceKind::Remote,
+        LibrarySourceStatus::Online,
+        [
+            library_source_count("Movies", 1_284),
+            library_source_count("TV Shows", 327),
+        ],
+        Message::Click,
+    );
+
+    let offline_remote = library_source(
+        "Studio Archive",
+        "nas.studio.lan:/vault",
+        LibrarySourceKind::Remote,
+        LibrarySourceStatus::Offline,
+        [library_source_count("Movies", 482)],
+        Message::Click,
+    );
+
+    let local = library_source(
+        "Backup Drive",
+        "/mnt/backup",
+        LibrarySourceKind::Local,
+        LibrarySourceStatus::Online,
+        [library_source_count("Music", 12_503)],
+        Message::Click,
+    );
+
+    let demo = column![online_remote, offline_remote, local].spacing(12);
+
+    section("Library Sources", demo)
 }
 
 fn film_facts_demo() -> Element<'static, Message> {

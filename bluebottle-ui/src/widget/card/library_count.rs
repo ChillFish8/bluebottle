@@ -52,8 +52,12 @@ where
 }
 
 /// A fully rounded glass chip painted in `tone` housing the Material Icons
-/// glyph at `name`.
-fn icon_chip<'a, Message>(name: &'static str, tone: Color) -> Element<'a, Message>
+/// glyph at `name`. Sized to match the library count tile and reused by
+/// sibling cards.
+pub(super) fn icon_chip<'a, Message>(
+    name: &'static str,
+    tone: Color,
+) -> Element<'a, Message>
 where
     Message: 'a,
 {
@@ -76,13 +80,13 @@ where
 
 /// Inserts a comma between every three digits from the right. `1000` becomes
 /// `1,000` and so on.
-fn format_thousands(count: u64) -> String {
+pub(super) fn format_thousands(count: u64) -> String {
     let raw = count.to_string();
     let bytes = raw.as_bytes();
     let mut out = String::with_capacity(raw.len() + raw.len() / 3);
 
     for (i, byte) in bytes.iter().enumerate() {
-        if i > 0 && (bytes.len() - i) % 3 == 0 {
+        if i > 0 && (bytes.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(*byte as char);
