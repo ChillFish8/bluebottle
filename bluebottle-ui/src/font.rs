@@ -71,3 +71,19 @@ pub const fn bold() -> Font {
     font.weight = Weight::Bold;
     font
 }
+
+/// Use the platform monospace fallback with regular weighting. No mono font
+/// is bundled. The renderer resolves the family to the system default mono.
+pub const fn mono_regular() -> Font {
+    let mut font = Font::DEFAULT;
+    font.family = Family::Monospace;
+    font.weight = Weight::Normal;
+    font
+}
+
+/// Use the platform monospace fallback with medium weighting.
+pub const fn mono_medium() -> Font {
+    let mut font = mono_regular();
+    font.weight = Weight::Medium;
+    font
+}

@@ -1,3 +1,4 @@
+use iced::widget::text::IntoFragment;
 use iced::widget::{container, row};
 use iced::{Center, Color, Element, padding};
 
@@ -10,7 +11,7 @@ use crate::{color, font, icon, text};
 /// transparent at rest, borrowing the neutral glass look on hover. Accent is
 /// kept out on purpose, the ghost is never a selected state.
 pub fn ghost<'a, Message>(
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     icon_name: Option<&'a str>,
     message: Message,
 ) -> Element<'a, Message>
@@ -32,7 +33,7 @@ where
 /// The same one-shot action at the Caption role with a dimmer tone and a
 /// tighter pad.
 pub fn ghost_small<'a, Message>(
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     icon_name: Option<&'a str>,
     message: Message,
 ) -> Element<'a, Message>
@@ -55,7 +56,7 @@ where
 /// same neutral glass on hover, and an accent recipe when `on`. An accent 28%
 /// fill behind a full accent ring with the label and icon tinted accent.
 pub fn toggle_pill<'a, Message>(
-    label: &'a str,
+    label: impl IntoFragment<'a>,
     icon_name: Option<&'a str>,
     on: bool,
     message: Message,

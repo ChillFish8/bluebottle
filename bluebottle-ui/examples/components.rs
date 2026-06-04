@@ -97,8 +97,7 @@ struct Components {
     checkbox_states: [bool; 4],
     dropdown_open: bool,
     dropdown_choice: &'static str,
-    source_open: bool,
-    source_choice: &'static str,
+    source_choice: usize,
     season_choice: usize,
     labelled_choice: usize,
     filter_choices: Vec<bool>,
@@ -121,8 +120,7 @@ impl Default for Components {
             checkbox_states: [true, false, true, false],
             dropdown_open: true,
             dropdown_choice: DROPDOWN_CHOICES[0],
-            source_open: false,
-            source_choice: SOURCE_LIBRARIES[0],
+            source_choice: 0,
             season_choice: 0,
             labelled_choice: 0,
             filter_choices: {
@@ -140,14 +138,6 @@ impl Default for Components {
 }
 
 const DROPDOWN_CHOICES: &[&str] = &["Recent", "A to Z", "Year", "Rating"];
-const SOURCE_LIBRARIES: &[&str] = &[
-    "Local Library",
-    "Bedroom Plex",
-    "Office Cast",
-    "Living Room Jellyfin",
-    "Studio NAS",
-    "Cabin Backup",
-];
 const FILTER_TAGS: &[&str] = &[
     "Action",
     "Comedy",
@@ -181,8 +171,8 @@ enum Message {
     DropdownToggle,
     DropdownDismiss,
     DropdownPick(&'static str),
-    SourceToggle(bool),
-    SourcePick(&'static str),
+    SourcePick(usize),
+    SourceManage,
     SeasonPick(usize),
     LabelledPick(usize),
     FilterChoice(usize),
@@ -248,10 +238,11 @@ impl Components {
                 self.dropdown_open = false;
                 println!("dropdown pick {choice}");
             },
-            Message::SourceToggle(open) => self.source_open = open,
             Message::SourcePick(choice) => {
                 self.source_choice = choice;
-                self.source_open = false;
+            },
+            Message::SourceManage => {
+                println!("manage sources");
             },
             Message::SeasonPick(choice) => {
                 self.season_choice = choice;
@@ -306,7 +297,7 @@ impl Components {
             category("Inputs", || {
                 vec![
                     dropdown_demo(self.dropdown_open, self.dropdown_choice),
-                    source_demo(self.source_open, self.source_choice),
+                    source_demo(self.source_choice),
                     season_demo(self.season_choice),
                     labelled_demo(self.labelled_choice),
                     filter_demo(&self.filter_choices),
@@ -992,24 +983,70 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
     )
 }
 
-fn source_demo(open: bool, chosen: &'static str) -> Element<'static, Message> {
-    let label = text(chosen).size(13);
+fn source_demo(selected: usize) -> Element<'static, Message> {
+    use bluebottle_ui::dropdown::source::{
+        Resolution,
+        SourceStatus,
+        SourceTag,
+        source,
+        source_entry,
+    };
 
-    let menu = SOURCE_LIBRARIES.iter().fold(
-        column![].spacing(4).width(Length::Fill),
-        |col, library| {
-            col.push(bluebottle_ui::dropdown::source::row(
-                text(*library).size(13),
-                *library == chosen,
-                Message::SourcePick(library),
-            ))
-        },
-    );
+    let entries = vec![
+        source_entry(
+            "Local Library",
+            SourceStatus::Online,
+            "192.168.1.10",
+            142,
+            [SourceTag::Local, SourceTag::Recommended],
+            Resolution::UHD4KHDR,
+        ),
+        source_entry(
+            "Bedroom Plex",
+            SourceStatus::Online,
+            "plex.lan",
+            812,
+            [SourceTag::Recommended],
+            Resolution::FullHD,
+        ),
+        source_entry(
+            "Office Cast",
+            SourceStatus::Online,
+            "office.local",
+            38,
+            [SourceTag::Cast],
+            Resolution::HD,
+        ),
+        source_entry(
+            "Living Room Jellyfin",
+            SourceStatus::Downloaded,
+            "10.0.0.42",
+            204,
+            [SourceTag::Recommended, SourceTag::Cast],
+            Resolution::UHD4K,
+        ),
+        source_entry(
+            "Studio NAS",
+            SourceStatus::Offline,
+            "nas.studio",
+            1024,
+            [SourceTag::Local],
+            Resolution::Other("ProRes".into()),
+        ),
+        source_entry(
+            "Cabin Backup",
+            SourceStatus::Offline,
+            "cabin.tail-9b7.ts.net",
+            60,
+            [],
+            Resolution::SD,
+        ),
+    ];
 
-    let widget = bluebottle_ui::dropdown::source::source(label, menu, open)
-        .on_toggle(Message::SourceToggle);
+    let widget = source(entries, selected, Message::SourcePick)
+        .footer_action("Manage Library", || Message::SourceManage);
 
-    section("Source", container(widget).height(240).width(Length::Fill))
+    section("Source", container(widget).height(360).width(Length::Fill))
 }
 
 fn seasons() -> Vec<bluebottle_ui::dropdown::season::SeasonInfo> {
