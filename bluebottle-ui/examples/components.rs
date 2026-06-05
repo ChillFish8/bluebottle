@@ -98,6 +98,7 @@ struct Components {
     dropdown_open: bool,
     dropdown_choice: &'static str,
     source_choice: usize,
+    reorder_order: Vec<usize>,
     season_choice: usize,
     labelled_choice: usize,
     filter_choices: Vec<bool>,
@@ -121,6 +122,7 @@ impl Default for Components {
             dropdown_open: true,
             dropdown_choice: DROPDOWN_CHOICES[0],
             source_choice: 0,
+            reorder_order: (0..REORDER_ITEMS.len()).collect(),
             season_choice: 0,
             labelled_choice: 0,
             filter_choices: {
@@ -138,6 +140,14 @@ impl Default for Components {
 }
 
 const DROPDOWN_CHOICES: &[&str] = &["Recent", "A to Z", "Year", "Rating"];
+const REORDER_ITEMS: &[(&str, &str)] = &[
+    ("Continue Watching", "play_arrow"),
+    ("Recently Added", "fiber_new"),
+    ("Top Picks", "auto_awesome"),
+    ("Trending", "trending_up"),
+    ("My Watchlist", "bookmark"),
+];
+
 const FILTER_TAGS: &[&str] = &[
     "Action",
     "Comedy",
@@ -173,6 +183,7 @@ enum Message {
     DropdownPick(&'static str),
     SourcePick(usize),
     SourceManage,
+    Reorder(usize, usize),
     SeasonPick(usize),
     LabelledPick(usize),
     FilterChoice(usize),
@@ -243,6 +254,10 @@ impl Components {
             },
             Message::SourceManage => {
                 println!("manage sources");
+            },
+            Message::Reorder(from, to) => {
+                let entry = self.reorder_order.remove(from);
+                self.reorder_order.insert(to, entry);
             },
             Message::SeasonPick(choice) => {
                 self.season_choice = choice;
@@ -317,6 +332,7 @@ impl Components {
                     self.smart_list_shown,
                     self.smart_list_hydrated,
                 ),
+                reorderable_demo(&self.reorder_order),
                 spinners(),
                 skeletons(),
             ]),
@@ -1439,6 +1455,50 @@ fn smart_list_demo(
     .spacing(8);
 
     section("Smart List", demo)
+}
+
+fn reorderable_demo(order: &[usize]) -> Element<'static, Message> {
+    use bluebottle_ui::reorderable::{grab_handle, reorderable};
+
+    let row =
+        |label: &'static str, icon_name: &'static str| -> Element<'static, Message> {
+            let glyph = icon::filled(icon_name)
+                .size(18)
+                .color(color::TEXT_SECONDARY);
+            let title =
+                bluebottle_ui::text::label(label, bluebottle_ui::text::Variant::Main)
+                    .font(font::semibold());
+
+            let handle = grab_handle(
+                icon::filled("drag_indicator")
+                    .size(20)
+                    .color(color::TEXT_SECONDARY),
+            );
+
+            let body = row![glyph, title].spacing(10).align_y(Center);
+
+            let inner = row![body, container(handle).width(Length::Fill).align_x(Right)]
+                .spacing(12)
+                .align_y(Center);
+
+            bluebottle_ui::card::card(inner)
+                .padding(padding::all(12))
+                .width(Length::Fill)
+                .into()
+        };
+
+    let children: Vec<Element<'static, Message>> = order
+        .iter()
+        .copied()
+        .map(|i| {
+            let (label, icon_name) = REORDER_ITEMS[i];
+            row(label, icon_name)
+        })
+        .collect();
+
+    let demo = reorderable(children, Message::Reorder).spacing(8.0);
+
+    section("Reorderable List", demo)
 }
 
 fn spinners() -> Element<'static, Message> {
