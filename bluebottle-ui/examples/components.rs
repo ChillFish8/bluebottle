@@ -1502,13 +1502,43 @@ fn reorderable_demo(order: &[usize]) -> Element<'static, Message> {
 }
 
 fn spinners() -> Element<'static, Message> {
-    let demo = column![
-        bluebottle_ui::spinner::linear(),
-        bluebottle_ui::spinner::circle().size(40),
-    ]
-    .spacing(8);
+    use bluebottle_ui::spinner::{
+        DotPulseSize,
+        DotRingSize,
+        Tone,
+        dot_pulse,
+        dot_ring,
+        progress_bar,
+    };
 
-    section("Spinners", demo)
+    let rings = row![
+        dot_ring().diameter(DotRingSize::Small),
+        dot_ring().diameter(DotRingSize::Medium),
+        dot_ring().diameter(DotRingSize::Large),
+        dot_ring().diameter(DotRingSize::Large).tone(Tone::White),
+    ]
+    .spacing(16)
+    .align_y(Center);
+
+    let pulses = row![
+        dot_pulse(),
+        dot_pulse().diameter(DotPulseSize::Small),
+        dot_pulse().tone(Tone::White),
+    ]
+    .spacing(20)
+    .align_y(Center);
+
+    let bars = column![
+        progress_bar().width(320),
+        progress_bar().value(0.62).width(320),
+        progress_bar().value(0.18).width(320),
+        progress_bar().value(0.45).tone(Tone::White).width(320),
+    ]
+    .spacing(12);
+
+    let demo = column![rings, pulses, bars].spacing(20);
+
+    section("Loaders", demo)
 }
 
 fn skeletons() -> Element<'static, Message> {
