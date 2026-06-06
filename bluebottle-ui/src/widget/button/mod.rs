@@ -28,6 +28,7 @@ mod media;
 mod nav;
 mod pill;
 mod standard;
+mod switch;
 mod utility;
 
 pub use checkbox::{CheckboxSizeVariant, checkbox};
@@ -55,4 +56,5 @@ pub use media::{
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;
+pub use switch::{Switch, SwitchSizeVariant, switch};
 pub use utility::{dismiss, dismiss_icon};

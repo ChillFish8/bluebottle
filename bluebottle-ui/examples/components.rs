@@ -95,6 +95,7 @@ struct Components {
     icon_states: [bool; 4],
     icon_flat_states: [bool; 2],
     checkbox_states: [bool; 4],
+    switch_states: [bool; 4],
     dropdown_open: bool,
     dropdown_choice: &'static str,
     source_choice: usize,
@@ -131,6 +132,7 @@ impl Default for Components {
             icon_states: [false, true, false, true],
             icon_flat_states: [false, true],
             checkbox_states: [true, false, true, false],
+            switch_states: [true, false, true, false],
             dropdown_open: true,
             dropdown_choice: DROPDOWN_CHOICES[0],
             source_choice: 0,
@@ -202,6 +204,7 @@ enum Message {
     ToggleIcon(usize),
     ToggleIconFlat(usize),
     ToggleCheckbox(usize),
+    ToggleSwitch(usize),
     DropdownToggle,
     DropdownDismiss,
     DropdownPick(&'static str),
@@ -276,6 +279,7 @@ impl Components {
             Message::ToggleIcon(i) => toggle_at(&mut self.icon_states, i),
             Message::ToggleIconFlat(i) => toggle_at(&mut self.icon_flat_states, i),
             Message::ToggleCheckbox(i) => toggle_at(&mut self.checkbox_states, i),
+            Message::ToggleSwitch(i) => toggle_at(&mut self.switch_states, i),
             Message::DropdownToggle => {
                 self.dropdown_open = !self.dropdown_open;
                 println!("dropdown toggle -> {}", self.dropdown_open);
@@ -385,6 +389,7 @@ impl Components {
                 ghost_pills(),
                 toggle_pills(self.toggle_states),
                 checkboxes(self.checkbox_states),
+                switches(self.switch_states),
                 hero_buttons(),
             ]),
             category("Navigation", || vec![
@@ -965,6 +970,53 @@ fn checkboxes(states: [bool; 4]) -> Element<'static, Message> {
     let demo = column![main, alt].spacing(8);
 
     section("Checkboxes", demo)
+}
+
+fn switches(states: [bool; 4]) -> Element<'static, Message> {
+    use bluebottle_ui::button::SwitchSizeVariant;
+
+    let main = row![
+        bluebottle_ui::button::switch(
+            states[0],
+            SwitchSizeVariant::Main,
+            Some(Message::ToggleSwitch(0)),
+        ),
+        bluebottle_ui::button::switch(
+            states[1],
+            SwitchSizeVariant::Main,
+            Some(Message::ToggleSwitch(1)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let alt = row![
+        bluebottle_ui::button::switch(
+            states[2],
+            SwitchSizeVariant::Alt,
+            Some(Message::ToggleSwitch(2)),
+        ),
+        bluebottle_ui::button::switch(
+            states[3],
+            SwitchSizeVariant::Alt,
+            Some(Message::ToggleSwitch(3)),
+        ),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let disabled = row![
+        bluebottle_ui::button::switch(false, SwitchSizeVariant::Main, None),
+        bluebottle_ui::button::switch(true, SwitchSizeVariant::Main, None),
+        bluebottle_ui::button::switch(false, SwitchSizeVariant::Alt, None),
+        bluebottle_ui::button::switch(true, SwitchSizeVariant::Alt, None),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let demo = column![main, alt, disabled].spacing(8);
+
+    section("Switches", demo)
 }
 
 /// The glass gradient surface. Top stop down to the bottom stop, matching
