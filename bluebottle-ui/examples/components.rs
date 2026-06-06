@@ -444,6 +444,7 @@ impl Components {
             ]),
             category("Surfaces", || vec![
                 cards(),
+                continue_watching_cards(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -1978,6 +1979,30 @@ fn meta_chips() -> Element<'static, Message> {
         .padding(padding::left(16));
 
     section("Meta Chips", demo)
+}
+
+fn continue_watching_cards() -> Element<'static, Message> {
+    use std::time::Duration;
+
+    use bluebottle_ui::card::{continue_film, continue_show};
+
+    let film = continue_film(
+        Duration::from_secs(36 * 60),
+        Duration::from_secs(2 * 60 * 60 + 28 * 60),
+        Some(Message::Click),
+    );
+
+    let show = continue_show(
+        THUMBNAIL.clone(),
+        1,
+        5,
+        "The One With the Late Night Diner",
+        Duration::from_secs(20 * 60),
+        Duration::from_secs(24 * 60),
+        Some(Message::Click),
+    );
+
+    section("Continue Watching", column![film, show].spacing(12))
 }
 
 fn library_counts() -> Element<'static, Message> {

@@ -9,4 +9,4 @@ mod progress_bar;
 pub use self::bead::Tone;
 pub use self::dot_pulse::{Diameter as DotPulseSize, DotPulse, dot_pulse};
 pub use self::dot_ring::{Diameter as DotRingSize, DotRing, dot_ring};
-pub use self::progress_bar::{ProgressBar, progress_bar};
+pub use self::progress_bar::{ProgressBar, ProgressRail, progress_bar, progress_rail};

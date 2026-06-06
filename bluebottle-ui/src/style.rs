@@ -62,6 +62,16 @@ pub const ELEVATION_LIFTED: Shadow = Shadow {
     blur_radius: 50.0,
 };
 
+/// Drop shadow under inline art. The poster on a continue-watching tile, the
+/// thumbnail on a search row, any artwork that sits inside another surface
+/// rather than floating above it. Subtler than [`ELEVATION_RESTING`] because
+/// the art is nested, not the elevated element itself.
+pub const ELEVATION_INLINE: Shadow = Shadow {
+    color: color::with_alpha(Color::BLACK, 0.35),
+    offset: Vector { x: 0.0, y: 4.0 },
+    blur_radius: 10.0,
+};
+
 /// Accent glow at `alpha`. Use 0.40 for primary buttons, 0.53 for hovered
 /// posters, 0.67 for play FABs. The opacity is authored in sRGB and converted
 /// to the renderer's linear alpha. Reads the active accent at call time.

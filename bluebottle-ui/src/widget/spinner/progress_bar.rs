@@ -18,32 +18,33 @@ const INDETERMINATE_CYCLE: Duration = Duration::from_millis(1400);
 const FILL_ALPHA: f32 = 0.62;
 const LABEL_SPACING: f32 = 12.0;
 
-/// A glass-rail progress indicator. Indeterminate by default.
-pub struct ProgressBar {
+/// A glass-rail progress indicator. Indeterminate by default. The bare rail
+/// primitive without the trailing percentage read-out. Reach for
+/// [`progress_bar`] when the read-out is wanted; reach for `progress_rail`
+/// when a caller draws its own label or simply needs the rail standalone.
+pub struct ProgressRail {
     width: Length,
     value: Option<f32>,
     tone: Tone,
 }
 
-/// Build a [`ProgressBar`].
-pub fn progress_bar() -> ProgressBar {
-    ProgressBar {
+/// Build a [`ProgressRail`].
+pub fn progress_rail() -> ProgressRail {
+    ProgressRail {
         width: Length::Fill,
         value: None,
         tone: Tone::default(),
     }
 }
 
-impl ProgressBar {
-    /// Sets the total component width. In the determinate variant the read-out
-    /// label takes its natural width from this budget and the rail fills the
-    /// rest.
+impl ProgressRail {
+    /// Sets the rail width.
     pub fn width(mut self, width: impl Into<Length>) -> Self {
         self.width = width.into();
         self
     }
 
-    /// Sets the bar to determinate at `value` in `[0, 1]`.
+    /// Sets the rail to determinate at `value` in `[0, 1]`.
     pub fn value(mut self, value: f32) -> Self {
         self.value = Some(value.clamp(0.0, 1.0));
         self
@@ -54,21 +55,7 @@ impl ProgressBar {
         self.tone = tone;
         self
     }
-}
 
-#[derive(Default)]
-struct State {
-    start: Option<Instant>,
-    phase: f32,
-}
-
-struct Rail {
-    width: Length,
-    value: Option<f32>,
-    tone: Tone,
-}
-
-impl Rail {
     fn fill_color(&self) -> iced::Color {
         let base = match self.tone {
             Tone::Accent => color::primary(),
@@ -78,7 +65,47 @@ impl Rail {
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Rail {
+/// A [`ProgressRail`] paired with a trailing percentage read-out when
+/// determinate. Indeterminate bars render as a bare rail.
+pub struct ProgressBar {
+    rail: ProgressRail,
+}
+
+/// Build a [`ProgressBar`].
+pub fn progress_bar() -> ProgressBar {
+    ProgressBar {
+        rail: progress_rail(),
+    }
+}
+
+impl ProgressBar {
+    /// Sets the total component width. The trailing read-out takes its
+    /// natural width from this budget and the rail fills the rest.
+    pub fn width(mut self, width: impl Into<Length>) -> Self {
+        self.rail = self.rail.width(width);
+        self
+    }
+
+    /// Sets the bar to determinate at `value` in `[0, 1]`.
+    pub fn value(mut self, value: f32) -> Self {
+        self.rail = self.rail.value(value);
+        self
+    }
+
+    /// Sets the fill tone.
+    pub fn tone(mut self, tone: Tone) -> Self {
+        self.rail = self.rail.tone(tone);
+        self
+    }
+}
+
+#[derive(Default)]
+struct State {
+    start: Option<Instant>,
+    phase: f32,
+}
+
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ProgressRail {
     fn size(&self) -> Size<Length> {
         Size {
             width: self.width,
@@ -205,27 +232,29 @@ fn read_out(value: f32) -> text::Text<'static> {
         .color(color::TEXT_MUTED)
 }
 
+impl<'a, Message> From<ProgressRail> for Element<'a, Message>
+where
+    Message: 'a,
+{
+    fn from(rail: ProgressRail) -> Self {
+        Element::new(rail)
+    }
+}
+
 impl<'a, Message> From<ProgressBar> for Element<'a, Message>
 where
     Message: 'a,
 {
     fn from(bar: ProgressBar) -> Self {
-        match bar.value {
-            None => Element::new(Rail {
-                width: bar.width,
-                value: None,
-                tone: bar.tone,
-            }),
+        match bar.rail.value {
+            None => bar.rail.into(),
             Some(value) => {
-                let rail: Element<'a, Message> = Element::new(Rail {
-                    width: Length::Fill,
-                    value: Some(value),
-                    tone: bar.tone,
-                });
+                let outer_width = bar.rail.width;
                 let label: Element<'a, Message> = read_out(value).into();
+                let rail: Element<'a, Message> = bar.rail.width(Length::Fill).into();
 
                 Row::with_children([rail, label])
-                    .width(bar.width)
+                    .width(outer_width)
                     .align_y(iced::Center)
                     .spacing(LABEL_SPACING)
                     .into()
