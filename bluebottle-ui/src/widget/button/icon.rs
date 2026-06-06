@@ -45,6 +45,11 @@ where
         .into()
 }
 
+/// Standard diameter for [`icon_flat`].
+pub const ICON_FLAT_DIAMETER: f32 = 38.0;
+/// Standard glyph size for [`icon_flat`].
+pub const ICON_FLAT_GLYPH: f32 = 16.0;
+
 /// Icon · Flat Round
 ///
 /// A border-free icon circle for denser rows. Transparent at rest with a white
@@ -55,26 +60,58 @@ pub fn icon_flat<'a, Message>(
     icon_name: &'a str,
     on: bool,
     message: Option<Message>,
-) -> Element<'a, Message>
+) -> IconFlatButton<'a, Message> {
+    IconFlatButton {
+        icon_name,
+        on,
+        message,
+        diameter: ICON_FLAT_DIAMETER,
+        glyph: ICON_FLAT_GLYPH,
+    }
+}
+
+/// A flat icon button. Built by [`icon_flat`]. Defaults to the standard 38px
+/// chassis with a 16px glyph. Use [`IconFlatButton::size`] to override for
+/// denser rows or tighter pill cradles.
+pub struct IconFlatButton<'a, Message> {
+    icon_name: &'a str,
+    on: bool,
+    message: Option<Message>,
+    diameter: f32,
+    glyph: f32,
+}
+
+impl<Message> IconFlatButton<'_, Message> {
+    /// Overrides the chassis diameter and glyph size. The default is 38 by 16.
+    pub fn size(mut self, diameter: f32, glyph: f32) -> Self {
+        self.diameter = diameter;
+        self.glyph = glyph;
+        self
+    }
+}
+
+impl<'a, Message> From<IconFlatButton<'a, Message>> for Element<'a, Message>
 where
     Message: Clone + 'a,
 {
-    // Disabled drops the resting glyph to text-dark. The on state still rides on
-    // top through the selected_color cascade so a disabled-but-on icon reads as
-    // accent-tinted rather than collapsing back to off.
-    let resting = if message.is_some() {
-        color::TEXT_PRIMARY
-    } else {
-        color::TEXT_DARK
-    };
+    fn from(button: IconFlatButton<'a, Message>) -> Self {
+        // Disabled drops the resting glyph to text-dark. The on state still
+        // rides on top through the selected_color cascade so a disabled-but-on
+        // icon reads as accent-tinted rather than collapsing back to off.
+        let resting = if button.message.is_some() {
+            color::TEXT_PRIMARY
+        } else {
+            color::TEXT_DARK
+        };
 
-    clickable(icon_circle(icon_name, 38.0, 16.0))
-        .tint(color::border_strong())
-        .resting_color(resting)
-        .selected(on)
-        .selected_color(color::primary())
-        .on_press_maybe(message)
-        .into()
+        clickable(icon_circle(button.icon_name, button.diameter, button.glyph))
+            .tint(color::border_strong())
+            .resting_color(resting)
+            .selected(button.on)
+            .selected_color(color::primary())
+            .on_press_maybe(button.message)
+            .into()
+    }
 }
 
 /// Icon · Carousel Nav

@@ -33,7 +33,16 @@ mod utility;
 pub use checkbox::{CheckboxSizeVariant, checkbox};
 pub use disabled::disabled;
 pub use hero::hero;
-pub use icon::{IconSizeVariant, icon, icon_carousel, icon_flat, icon_overlay};
+pub use icon::{
+    ICON_FLAT_DIAMETER,
+    ICON_FLAT_GLYPH,
+    IconFlatButton,
+    IconSizeVariant,
+    icon,
+    icon_carousel,
+    icon_flat,
+    icon_overlay,
+};
 pub use media::{
     AccentSizeVariant,
     PrimarySizeVariant,

@@ -102,6 +102,18 @@ struct Components {
     season_choice: usize,
     labelled_choice: usize,
     filter_choices: Vec<bool>,
+    slider_value: f32,
+    stepped_slider_value: f32,
+    volume_value: f32,
+    search_dense: String,
+    display_name: String,
+    nickname: String,
+    valid_handle: String,
+    error_handle: String,
+    password_value: String,
+    password_revealed: bool,
+    stepper_value: i32,
+    stepper_compact_value: i32,
 }
 
 impl Default for Components {
@@ -135,6 +147,18 @@ impl Default for Components {
                 }
                 v
             },
+            slider_value: 0.62,
+            stepped_slider_value: 0.5,
+            volume_value: 0.42,
+            search_dense: String::new(),
+            display_name: "Avery".into(),
+            nickname: "Birdie".into(),
+            valid_handle: "@avery".into(),
+            error_handle: "@taken".into(),
+            password_value: String::new(),
+            password_revealed: false,
+            stepper_value: 50,
+            stepper_compact_value: 5,
         }
     }
 }
@@ -188,6 +212,22 @@ enum Message {
     LabelledPick(usize),
     FilterChoice(usize),
     FilterBulk(bool),
+    SliderChanged(f32),
+    SteppedSliderChanged(f32),
+    VolumeChanged(f32),
+    SliderReleased,
+    SearchClear,
+    SearchSubmit,
+    SearchDenseInput(String),
+    SearchDenseClear,
+    DisplayNameInput(String),
+    NicknameInput(String),
+    ValidHandleInput(String),
+    ErrorHandleInput(String),
+    PasswordInput(String),
+    PasswordToggle,
+    StepperChanged(i32),
+    StepperCompactChanged(i32),
 }
 
 fn toggle_at(slice: &mut [bool], i: usize) {
@@ -271,6 +311,50 @@ impl Components {
                     *choice = all;
                 }
             },
+            Message::SliderChanged(value) => {
+                self.slider_value = value;
+            },
+            Message::SteppedSliderChanged(value) => {
+                self.stepped_slider_value = value;
+            },
+            Message::VolumeChanged(value) => {
+                self.volume_value = value;
+            },
+            Message::SliderReleased => {},
+            Message::SearchClear => {
+                self.search_content.clear();
+            },
+            Message::SearchSubmit => {},
+            Message::SearchDenseInput(content) => {
+                self.search_dense = content;
+            },
+            Message::SearchDenseClear => {
+                self.search_dense.clear();
+            },
+            Message::DisplayNameInput(content) => {
+                self.display_name = content;
+            },
+            Message::NicknameInput(content) => {
+                self.nickname = content;
+            },
+            Message::ValidHandleInput(content) => {
+                self.valid_handle = content;
+            },
+            Message::ErrorHandleInput(content) => {
+                self.error_handle = content;
+            },
+            Message::PasswordInput(content) => {
+                self.password_value = content;
+            },
+            Message::PasswordToggle => {
+                self.password_revealed = !self.password_revealed;
+            },
+            Message::StepperChanged(value) => {
+                self.stepper_value = value;
+            },
+            Message::StepperCompactChanged(value) => {
+                self.stepper_compact_value = value;
+            },
             _ => {},
         }
     }
@@ -311,11 +395,25 @@ impl Components {
             ]),
             category("Inputs", || {
                 vec![
+                    search_fields(&self.search_content, &self.search_dense),
+                    text_fields(
+                        &self.display_name,
+                        &self.nickname,
+                        &self.valid_handle,
+                        &self.error_handle,
+                    ),
+                    password_fields(&self.password_value, self.password_revealed),
+                    steppers(self.stepper_value, self.stepper_compact_value),
                     dropdown_demo(self.dropdown_open, self.dropdown_choice),
                     source_demo(self.source_choice),
                     season_demo(self.season_choice),
                     labelled_demo(self.labelled_choice),
                     filter_demo(&self.filter_choices),
+                    sliders(
+                        self.slider_value,
+                        self.stepped_slider_value,
+                        self.volume_value,
+                    ),
                 ]
             }),
             category("Images & Media", || vec![
@@ -1539,6 +1637,125 @@ fn spinners() -> Element<'static, Message> {
     let demo = column![rings, pulses, bars].spacing(20);
 
     section("Loaders", demo)
+}
+
+fn search_fields<'a>(value: &'a str, dense: &'a str) -> Element<'a, Message> {
+    use bluebottle_ui::input::{SearchFieldSize, search_field};
+
+    let standard = search_field(value)
+        .placeholder("Search films, episodes, people")
+        .on_input(Message::SearchInput)
+        .on_clear(Message::SearchClear)
+        .on_submit(Message::SearchSubmit)
+        .width(360);
+
+    let dense_field = search_field(dense)
+        .size(SearchFieldSize::Dense)
+        .placeholder("Find in library")
+        .on_input(Message::SearchDenseInput)
+        .on_clear(Message::SearchDenseClear)
+        .width(280);
+
+    section("Search", column![standard, dense_field].spacing(12))
+}
+
+fn text_fields<'a>(
+    display_name: &'a str,
+    nickname: &'a str,
+    valid_handle: &'a str,
+    error_handle: &'a str,
+) -> Element<'a, Message> {
+    use bluebottle_ui::input::text_field;
+
+    let neutral = text_field("Display name", display_name)
+        .placeholder("Type a name")
+        .help("Shown next to your activity.")
+        .on_input(Message::DisplayNameInput)
+        .width(360);
+
+    let optional = text_field("Nickname", nickname)
+        .optional(true)
+        .placeholder("A friendly short name")
+        .help("Will appear under your handle.")
+        .on_input(Message::NicknameInput)
+        .width(360);
+
+    let valid = text_field("Handle", valid_handle)
+        .valid(true)
+        .placeholder("@yourname")
+        .help("Looks good.")
+        .on_input(Message::ValidHandleInput)
+        .width(360);
+
+    let error = text_field("Handle", error_handle)
+        .error("That name is taken.")
+        .placeholder("@yourname")
+        .on_input(Message::ErrorHandleInput)
+        .width(360);
+
+    let disabled = text_field("Handle", "fixed")
+        .disabled(true)
+        .help("Locked while syncing.")
+        .width(360);
+
+    section(
+        "Text Fields",
+        column![neutral, optional, valid, error, disabled].spacing(16),
+    )
+}
+
+fn password_fields(value: &str, revealed: bool) -> Element<'_, Message> {
+    use bluebottle_ui::input::password_field;
+
+    let field = password_field("Password", value, revealed)
+        .placeholder("Choose one")
+        .help("At least eight characters.")
+        .on_input(Message::PasswordInput)
+        .on_toggle_reveal(Message::PasswordToggle)
+        .width(360);
+
+    section("Password", field)
+}
+
+fn steppers(value: i32, compact: i32) -> Element<'static, Message> {
+    use bluebottle_ui::input::{StepperSize, stepper};
+
+    let standard = stepper(value, Message::StepperChanged)
+        .min(0)
+        .max(100)
+        .step(5)
+        .suffix("%");
+
+    let compact_stepper = stepper(compact, Message::StepperCompactChanged)
+        .size(StepperSize::Compact)
+        .min(0)
+        .max(10)
+        .step(1);
+
+    section(
+        "Steppers",
+        row![standard, compact_stepper].spacing(16).align_y(Center),
+    )
+}
+
+fn sliders(continuous: f32, stepped: f32, volume: f32) -> Element<'static, Message> {
+    use bluebottle_ui::input::slider;
+
+    let bare = slider(continuous, Message::SliderChanged)
+        .on_release(Message::SliderReleased)
+        .width(320);
+
+    let stepped_slider = slider(stepped, Message::SteppedSliderChanged)
+        .step(0.1)
+        .width(320);
+
+    let labelled = slider(volume, Message::VolumeChanged)
+        .lead_icon("volume_up", |v| format!("{:.0}%", v * 100.0))
+        .width(360);
+
+    let demo = column![bare, stepped_slider, labelled].spacing(20);
+
+    section("Sliders", demo)
 }
 
 fn skeletons() -> Element<'static, Message> {

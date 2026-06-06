@@ -9,6 +9,7 @@ pub mod debug;
 pub mod dropdown;
 pub mod ellipsis_text;
 pub mod image;
+pub mod input;
 pub mod link;
 pub mod media_card;
 pub mod media_image;
