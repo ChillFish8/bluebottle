@@ -390,6 +390,7 @@ impl Components {
                 toggle_pills(self.toggle_states),
                 checkboxes(self.checkbox_states),
                 switches(self.switch_states),
+                switch_rows(self.switch_states),
                 hero_buttons(),
             ]),
             category("Navigation", || vec![
@@ -1017,6 +1018,41 @@ fn switches(states: [bool; 4]) -> Element<'static, Message> {
     let demo = column![main, alt, disabled].spacing(8);
 
     section("Switches", demo)
+}
+
+fn switch_rows(states: [bool; 4]) -> Element<'static, Message> {
+    let live = column![
+        bluebottle_ui::button::switch_row(
+            "Autoplay next episode",
+            Some("Start the next episode automatically when one ends."),
+            states[0],
+            Some(Message::ToggleSwitch(0)),
+        ),
+        bluebottle_ui::button::switch_row(
+            "Use system theme",
+            None,
+            states[1],
+            Some(Message::ToggleSwitch(1)),
+        ),
+        bluebottle_ui::button::switch_row(
+            "Subtitles by default",
+            Some("Turn on captions whenever a track is available."),
+            states[2],
+            Some(Message::ToggleSwitch(2)),
+        ),
+    ]
+    .spacing(2);
+
+    let disabled = bluebottle_ui::button::switch_row(
+        "Background downloads",
+        Some("Sign in to unlock this setting."),
+        states[3],
+        None,
+    );
+
+    let demo = column![live, disabled].spacing(8);
+
+    section("Toggle Rows", demo)
 }
 
 /// The glass gradient surface. Top stop down to the bottom stop, matching
