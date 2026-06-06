@@ -423,6 +423,7 @@ impl Components {
                 ]
             }),
             category("Separators", || vec![separators()]),
+            category("Meta", || vec![meta_chips()]),
             category("Images & Media", || vec![
                 posters(),
                 episodes(),
@@ -1943,6 +1944,40 @@ fn separators() -> Element<'static, Message> {
         .padding(padding::left(16));
 
     section("Separators", demo)
+}
+
+fn meta_chips() -> Element<'static, Message> {
+    use bluebottle_ui::meta;
+
+    let informational = row![
+        meta::informational("4K HDR", None),
+        meta::informational("DOLBY VISION", None),
+        meta::informational("ATMOS", Some(Message::Click)),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let categories = row![
+        meta::category("Sci-Fi", None),
+        meta::category("Drama", None),
+        meta::category("Adventure", Some(Message::Click)),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let tags = row![
+        meta::tag("Recommended", None),
+        meta::tag("New", None),
+        meta::tag("Watched", Some(Message::Click)),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let demo = column![informational, categories, tags]
+        .spacing(12)
+        .padding(padding::left(16));
+
+    section("Meta Chips", demo)
 }
 
 fn library_counts() -> Element<'static, Message> {
