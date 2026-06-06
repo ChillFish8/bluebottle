@@ -186,6 +186,23 @@ pub fn primary_glass() -> Color {
     with_alpha(primary(), srgb_alpha(0.28))
 }
 
+/// Frosted-glass knob fill when off. sRGB 20%.
+pub fn knob_fill_off() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.20))
+}
+
+/// Frosted-glass knob fill when on. sRGB 32%. The knob catches a little more
+/// light as the switch lands so the on state reads as lit rather than just
+/// shifted.
+pub fn knob_fill_on() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.32))
+}
+
+/// Frosted-glass knob hairline. sRGB 40%.
+pub fn knob_hairline() -> Color {
+    with_alpha(WHITE, srgb_alpha(0.40))
+}
+
 /// Watched, completed, positive confirmation.
 pub fn success() -> Color {
     active().success

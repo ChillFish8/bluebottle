@@ -13,7 +13,7 @@
 //! [`crate::widget::path_trace`] with the animated nav puck border.
 
 use std::cell::Cell;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use iced::advanced::graphics::geometry::{Cache, Renderer as GeometryRenderer};
 use iced::advanced::widget::{Tree, tree};
@@ -33,13 +33,8 @@ use iced::{
 };
 
 use crate::animate::hover::{EPSILON, Hover};
-use crate::color;
 use crate::widget::path_trace::trace_partial;
-
-/// How long the check takes to fully stroke in from the joint to the two tips.
-/// Chosen longer than the standard hover budget so the draw reads as a
-/// deliberate trace rather than a flash.
-const STROKE_DURATION: Duration = Duration::from_millis(220);
+use crate::{color, style};
 
 /// Stroke width per pixel of glyph size. At the default 14 px tick this lands
 /// around 1.75 px, close to the Material `check` glyph weight.
@@ -200,7 +195,7 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
 
     fn state(&self) -> tree::State {
         tree::State::new(State {
-            stroke: Hover::settled(self.selected).with_fade(STROKE_DURATION),
+            stroke: Hover::settled(self.selected).with_fade(style::EMPHASIS),
             alpha: Hover::settled(self.selected),
             last_selected: self.selected,
             cache: Cache::new(),
@@ -222,7 +217,7 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer>
         if self.selected {
             // Rising edge. Reset the stroke to zero so a quick reselect always
             // re-traces, then start both the draw-in and the alpha ramp.
-            state.stroke = Hover::settled(false).with_fade(STROKE_DURATION);
+            state.stroke = Hover::settled(false).with_fade(style::EMPHASIS);
             state.stroke.flip(true, now);
             state.alpha.flip(true, now);
         } else {

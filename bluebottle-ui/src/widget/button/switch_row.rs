@@ -45,11 +45,25 @@ where
 {
     let trail = switch(on, SwitchSizeVariant::Alt, message.clone());
 
+    // Mirrors icon_flat's disabled cue: the row carries no hover/press
+    // feedback when inert, so the label has to be the visual signal.
+    let label_variant = if message.is_some() {
+        text::Variant::Main
+    } else {
+        text::Variant::Alt
+    };
+
+    let sub_color = if message.is_some() {
+        color::TEXT_SECONDARY
+    } else {
+        color::TEXT_DARK
+    };
+
     let mut text_column = Column::new().spacing(TEXT_SPACING);
     text_column =
-        text_column.push(text::label(label, text::Variant::Main).font(font::medium()));
+        text_column.push(text::label(label, label_variant).font(font::medium()));
     if let Some(sub) = sub {
-        text_column = text_column.push(text::caption(sub));
+        text_column = text_column.push(text::caption(sub).color(sub_color));
     }
 
     let content = Row::new()

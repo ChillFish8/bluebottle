@@ -1043,12 +1043,24 @@ fn switch_rows(states: [bool; 4]) -> Element<'static, Message> {
     ]
     .spacing(2);
 
-    let disabled = bluebottle_ui::button::switch_row(
-        "Background downloads",
-        Some("Sign in to unlock this setting."),
-        states[3],
-        None,
-    );
+    // Disabled rows render fixed on/off states so the demo's "Sign in to
+    // unlock" copy is not contradicted by the live Switches section toggling
+    // the same state slot.
+    let disabled = column![
+        bluebottle_ui::button::switch_row(
+            "Background downloads",
+            Some("Sign in to unlock this setting."),
+            false,
+            None,
+        ),
+        bluebottle_ui::button::switch_row(
+            "Crash reports",
+            Some("Your org has locked this setting on."),
+            true,
+            None,
+        ),
+    ]
+    .spacing(2);
 
     let demo = column![live, disabled].spacing(8);
 

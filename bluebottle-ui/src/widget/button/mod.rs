@@ -57,6 +57,6 @@ pub use media::{
 pub use nav::nav;
 pub use pill::{ghost, ghost_small, toggle_pill};
 pub use standard::standard;
-pub use switch::{Switch, SwitchSizeVariant, switch};
+pub use switch::{SwitchSizeVariant, switch};
 pub use switch_row::switch_row;
 pub use utility::{dismiss, dismiss_icon};

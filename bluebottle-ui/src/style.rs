@@ -12,6 +12,12 @@ pub const IMAGE_BLUR: f32 = 35.0;
 /// How long the background takes to fade in or crossfade between images.
 pub const CROSSFADE: Duration = Duration::from_millis(300);
 
+/// Bordered-glass emphasis animation. The switch knob slide, the animated
+/// tick stroke, and the clickable's selected fade for the switch chassis
+/// all share this so settings rows that pair a checkbox and a switch read
+/// as one family.
+pub const EMPHASIS: Duration = Duration::from_millis(220);
+
 /// Peak coverage of the image-less background glow over its base color.
 pub const GLOW_STRENGTH: f32 = 0.6;
 

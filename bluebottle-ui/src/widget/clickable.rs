@@ -16,7 +16,7 @@
 //! on release composes the two messages on a single click. Wrap the
 //! interactive widget directly instead of layering it inside `clickable`.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use iced::advanced::renderer::{Quad, Style};
 use iced::advanced::widget::{Operation, Tree, tree};
@@ -34,7 +34,7 @@ use iced::{
     window,
 };
 
-use crate::animate::hover::{EPSILON, Hover, PressState};
+use crate::animate::hover::{EPSILON, FADE, Hover, PressState};
 use crate::color;
 
 const DEFAULT_RADIUS: f32 = 999.0;
@@ -58,6 +58,7 @@ where
         selected_background: None,
         selected_border: None,
         selected_color: None,
+        selected_fade: FADE,
         border: None,
         hover_border: None,
         radius: DEFAULT_RADIUS,
@@ -79,6 +80,7 @@ pub struct Clickable<'a, Message> {
     selected_background: Option<Color>,
     selected_border: Option<Color>,
     selected_color: Option<Color>,
+    selected_fade: Duration,
     border: Option<Color>,
     hover_border: Option<Color>,
     radius: f32,
@@ -157,6 +159,15 @@ where
     /// to take effect.
     pub fn selected_color(mut self, color: Color) -> Self {
         self.selected_color = Some(color);
+        self
+    }
+
+    /// Overrides the selected-state fade duration. Defaults to the design
+    /// system's [`FADE`]. Use [`style::EMPHASIS`](crate::style::EMPHASIS) when
+    /// the chassis is paired with an inner animation that runs on the longer
+    /// emphasis budget, so chassis and content stay in step.
+    pub fn selected_fade(mut self, fade: Duration) -> Self {
+        self.selected_fade = fade;
         self
     }
 
@@ -429,7 +440,7 @@ where
 
     fn state(&self) -> tree::State {
         tree::State::new(ClickState {
-            selected: Hover::settled(self.selected),
+            selected: Hover::settled(self.selected).with_fade(self.selected_fade),
             ..ClickState::default()
         })
     }
@@ -487,14 +498,33 @@ where
             viewport,
         );
 
+        let now = Instant::now();
+        let bounds = layout.bounds();
+        let state = tree.state.downcast_mut::<ClickState>();
+
         if !self.interactive() {
+            // Settle interactive bookkeeping so a future enable starts clean.
+            // Without this, a press latched before disable would leak into the
+            // next enabled release, and a stale hover factor would paint for
+            // one frame before reconcile catches up.
+            state.press.pressed = false;
+            if state.press.hover.current(now) > EPSILON {
+                state.press.hover = Hover::default();
+            }
+            
+            // The selected track is driven by the parent's prop, not by input,
+            // so it must keep pumping redraws while it has movement left even
+            // when no message can dispatch.
+            if let Event::Window(window::Event::RedrawRequested(_)) = event
+                && state.selected.animating(now)
+            {
+                shell.request_redraw();
+            }
+            
             return;
         }
 
-        let now = Instant::now();
-        let bounds = layout.bounds();
         let over = cursor.is_over(bounds);
-        let state = tree.state.downcast_mut::<ClickState>();
 
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
