@@ -511,7 +511,7 @@ where
             if state.press.hover.current(now) > EPSILON {
                 state.press.hover = Hover::default();
             }
-            
+
             // The selected track is driven by the parent's prop, not by input,
             // so it must keep pumping redraws while it has movement left even
             // when no message can dispatch.
@@ -520,7 +520,7 @@ where
             {
                 shell.request_redraw();
             }
-            
+
             return;
         }
 

@@ -422,6 +422,7 @@ impl Components {
                     ),
                 ]
             }),
+            category("Separators", || vec![separators()]),
             category("Images & Media", || vec![
                 posters(),
                 episodes(),
@@ -446,7 +447,6 @@ impl Components {
                 library_sources(),
                 film_facts_demo(),
                 splash_backgrounds(),
-                separators(),
             ]),
         ]
         .width(Length::Fill)
@@ -474,7 +474,7 @@ fn category<'a>(
 ) -> Element<'a, Message> {
     let header = column![
         bluebottle_ui::text::heading_large(title),
-        bluebottle_ui::separator::seperator(Length::Fill),
+        bluebottle_ui::separator::structural_border(1.0),
     ]
     .spacing(6);
 
@@ -1883,10 +1883,66 @@ fn splash_backgrounds() -> Element<'static, Message> {
 }
 
 fn separators() -> Element<'static, Message> {
-    section(
-        "Separators",
-        bluebottle_ui::separator::seperator(Length::Fixed(400.0)),
-    )
+    use bluebottle_ui::separator::{
+        inline_dot,
+        section_label,
+        section_rule,
+        solid_rule,
+        structural_border,
+        terminal_marker,
+    };
+
+    let section_rules = column![
+        section_rule(section_label("Chapters")),
+        section_rule(
+            row![
+                section_label("In this episode"),
+                text("12").size(10).color(color::TEXT_DARK),
+            ]
+            .spacing(6)
+            .align_y(Center)
+        ),
+    ]
+    .spacing(12)
+    .width(Length::Fixed(400.0));
+
+    let terminals = column![
+        terminal_marker("End of series"),
+        terminal_marker("All caught up"),
+    ]
+    .spacing(12)
+    .width(Length::Fixed(400.0));
+
+    let solid = column![
+        text("Item one").size(13),
+        solid_rule(),
+        text("Item two").size(13),
+    ]
+    .width(Length::Fixed(400.0));
+
+    let structural = column![
+        text("Scrolled chrome").size(13),
+        structural_border(1.0),
+        text("Fading in").size(13),
+        structural_border(0.5),
+    ]
+    .spacing(6)
+    .width(Length::Fixed(400.0));
+
+    let inline = row![
+        text("4K HDR").size(12).color(color::TEXT_SECONDARY),
+        inline_dot(),
+        text("Dolby Atmos").size(12).color(color::TEXT_SECONDARY),
+        inline_dot(),
+        text("2h 28m").size(12).color(color::TEXT_SECONDARY),
+    ]
+    .align_y(Center);
+
+    let demo = column![section_rules, terminals, solid, structural, inline]
+        .spacing(24)
+        .padding(padding::left(16));
+
+    section("Separators", demo)
 }
 
 fn library_counts() -> Element<'static, Message> {
