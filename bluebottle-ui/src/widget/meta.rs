@@ -7,12 +7,13 @@
 //! without the ring. Each becomes interactive the moment an `on_press` is
 //! supplied.
 
+use iced::widget::row;
 use iced::widget::text::IntoFragment;
-use iced::{Element, padding};
+use iced::{Center, Element, padding};
 
-use crate::color;
 use crate::widget::clickable::clickable;
 use crate::widget::text;
+use crate::{color, font, icon};
 
 /// Corner radius of every meta chip. Rounded rectangle, not pill.
 const META_RADIUS: f32 = 6.0;
@@ -71,6 +72,60 @@ where
         .padding(meta_padding())
         .radius(META_RADIUS)
         .background(color::border())
+        .tint(color::hover_veil())
+        .on_press_maybe(on_press)
+        .into()
+}
+
+/// A full-pill frosted chip for use over imagery. White at 14% behind a
+/// hairline at 16%, with a medium-weight micro label. Static. The backdrop
+/// blur comes from the host [`media_image`](crate::widget::media_image),
+/// so the chip itself only paints the fill, border, and label.
+pub fn frosted<'a, Message>(label: impl IntoFragment<'a>) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    let fill = color::with_alpha(color::WHITE, color::srgb_alpha(0.14));
+    let border = color::with_alpha(color::WHITE, color::srgb_alpha(0.16));
+
+    clickable(
+        text::micro_label(label)
+            .font(font::medium())
+            .letter_spacing(0.0)
+            .color(color::TEXT_PRIMARY),
+    )
+    .padding(padding::Padding::default().vertical(5).horizontal(9))
+    .background(fill)
+    .border(border)
+    .into()
+}
+
+/// A small accent-tint pill that labels a carousel section. An accent 10%
+/// fill behind an accent 20% hairline, with a bold caption-sized accent
+/// label and an optional 11px leading glyph. The flat tint sets it apart
+/// from [`frosted`], which lives over imagery.
+pub fn section_badge<'a, Message>(
+    label: impl IntoFragment<'a>,
+    icon_name: Option<&'a str>,
+    on_press: Option<Message>,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    let accent = color::primary();
+    let fill = color::with_alpha(accent, color::srgb_alpha(0.10));
+    let border = color::with_alpha(accent, color::srgb_alpha(0.20));
+
+    let mut items = row![].spacing(4).align_y(Center);
+    if let Some(name) = icon_name {
+        items = items.push(icon::filled(name).size(11).color(accent));
+    }
+    items = items.push(text::caption(label).font(font::bold()).color(accent));
+
+    clickable(items)
+        .padding(padding::Padding::default().vertical(3).horizontal(8))
+        .background(fill)
+        .border(border)
         .tint(color::hover_veil())
         .on_press_maybe(on_press)
         .into()

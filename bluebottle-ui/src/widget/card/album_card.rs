@@ -82,6 +82,14 @@ where
     }
 }
 
+/// Shimmer placeholder with the album card's image and caption layout.
+pub fn album_card_skeleton<'a, Message>() -> Element<'a, Message>
+where
+    Message: 'a,
+{
+    frame::skeleton(DEFAULT_IMAGE_SIZE, DEFAULT_RADIUS)
+}
+
 impl<'a, Message> From<AlbumCard<'a, Message>> for Element<'a, Message>
 where
     Message: Clone + 'a,

@@ -1037,3 +1037,55 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
+
+/// Skeleton placeholder matching the chassis layout (image area + two
+/// caption rows). Each per-card builder calls this with its own image dims
+/// and corner radius so a loading page holds its shape.
+pub(crate) fn skeleton<'a, Message>(
+    image_size: Size,
+    corner_radius: f32,
+) -> Element<'a, Message>
+where
+    Message: 'a,
+{
+    use crate::widget::skeleton::skeleton as shimmer;
+
+    let inner = (image_size.width - SKELETON_LINE_INSET * 2.0).max(0.0);
+
+    let image: Element<'a, Message> = shimmer()
+        .width(Length::Fixed(image_size.width))
+        .height(Length::Fixed(image_size.height))
+        .radius(corner_radius)
+        .into();
+
+    let label: Element<'a, Message> = shimmer()
+        .width(Length::Fixed(inner * SKELETON_LABEL_FRAC))
+        .height(Length::Fixed(SKELETON_LABEL_H))
+        .radius(SKELETON_LINE_RADIUS)
+        .into();
+
+    let subtext: Element<'a, Message> = shimmer()
+        .width(Length::Fixed(inner * SKELETON_SUBTEXT_FRAC))
+        .height(Length::Fixed(SKELETON_SUBTEXT_H))
+        .radius(SKELETON_LINE_RADIUS)
+        .into();
+
+    let captions = container(column![label, subtext].spacing(SKELETON_ROW_GAP))
+        .padding(Padding::default().horizontal(SKELETON_LINE_INSET));
+
+    let padded_image = container(image).padding(Padding::new(CARD_PADDING));
+
+    column![padded_image, captions]
+        .spacing(CAPTION_GAP - CARD_PADDING)
+        .into()
+}
+
+const SKELETON_LABEL_H: f32 = 13.0;
+const SKELETON_SUBTEXT_H: f32 = 11.0;
+const SKELETON_LINE_RADIUS: f32 = 4.0;
+const SKELETON_LINE_INSET: f32 = 6.0;
+const SKELETON_LABEL_FRAC: f32 = 0.75;
+const SKELETON_SUBTEXT_FRAC: f32 = 0.55;
+/// Skeleton bars have no typographic leading, so the row gap stands in for
+/// the line-height the real captions get from their text.
+const SKELETON_ROW_GAP: f32 = 8.0;

@@ -34,8 +34,10 @@ static SQUARE: LazyLock<image::Handle> = LazyLock::new(|| {
 });
 static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> =
     LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/poster1.jpg"));
-static THUMBNAIL_BACKDROP: LazyLock<Option<Backdrop>> =
+static THUMBNAIL1_BACKDROP: LazyLock<Option<Backdrop>> =
     LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/thumbnail1.jpg"));
+static THUMBNAIL2_BACKDROP: LazyLock<Option<Backdrop>> =
+    LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/thumbnail2.jpg"));
 
 fn load_backdrop(path: &str) -> Option<Backdrop> {
     let reader = ::image::ImageReader::open(path)
@@ -1480,49 +1482,47 @@ fn persons() -> Element<'static, Message> {
 }
 
 fn media_images() -> Element<'static, Message> {
-    let play_overlay = || {
-        container(
-            icon::filled("play_arrow")
-                .color(color::TEXT_PRIMARY)
-                .size(48),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(Center)
-        .align_y(Center)
+    let Some(thumbnail1) = THUMBNAIL1_BACKDROP.clone() else {
+        return section("Media Images", text("Backdrops unavailable.").size(13));
+    };
+    let Some(thumbnail2) = THUMBNAIL2_BACKDROP.clone() else {
+        return section("Media Images", text("Backdrops unavailable.").size(13));
     };
 
-    // Inert. No press, no hover affordances, no pointer cursor.
-    let inert = bluebottle_ui::media_image(bluebottle_ui::image::poster(
-        POSTER.clone(),
-        PosterSize::Small,
-    ));
+    let thumb_w = 270.0;
+    let thumb_h = 152.0;
 
-    // Clickable with the default primary border on hover.
-    let clickable = bluebottle_ui::media_image(bluebottle_ui::image::poster(
-        POSTER.clone(),
-        PosterSize::Small,
-    ))
-    .on_press(Message::LinkPressed("media-image-default"));
+    // Three frosted chips at the same corner. Each call adds its own pill
+    // with an independent blur region so the gaps between the chips stay
+    // transparent and the artwork reads through.
+    let pills = || {
+        [
+            bluebottle_ui::meta::frosted("Drama"),
+            bluebottle_ui::meta::frosted("Sci-Fi"),
+            bluebottle_ui::meta::frosted("Adventure"),
+        ]
+    };
 
-    // Clickable, border disabled. Shadow, tint, and overlay scale-in still
-    // animate.
-    let no_border =
-        bluebottle_ui::media_image(bluebottle_ui::image::thumbnail(THUMBNAIL.clone()))
-            .on_press(Message::LinkPressed("media-image-no-border"))
-            .border(false);
+    let mut clickable = bluebottle_ui::media_image(thumbnail1)
+        .width(thumb_w)
+        .height(thumb_h);
+    for chip in pills() {
+        clickable = clickable.pill(bluebottle_ui::PillCorner::BottomLeft, chip);
+    }
+    let clickable = clickable.on_press(Message::LinkPressed("media-image-pills"));
 
-    // Clickable with an overlay that scales in from the centre on hover.
-    let with_overlay =
-        bluebottle_ui::media_image(bluebottle_ui::image::square(SQUARE.clone()))
-            .overlay(play_overlay())
-            .on_press(Message::LinkPressed("media-image-overlay"));
+    // No on_press, so the widget is inert. The hover shadow, tint, and
+    // border stay dormant even with the cursor over the image.
+    let mut inert = bluebottle_ui::media_image(thumbnail2)
+        .width(thumb_w)
+        .height(thumb_h);
+    for chip in pills() {
+        inert = inert.pill(bluebottle_ui::PillCorner::BottomLeft, chip);
+    }
 
-    let demo = row![inert, clickable, no_border, with_overlay,]
-        .padding(8)
-        .spacing(8);
+    let demo = row![clickable, inert].spacing(16);
 
-    section("Media Images", demo)
+    section("Media Images", container(demo).padding(8))
 }
 
 fn smart_list_demo(
@@ -1925,7 +1925,7 @@ fn media_cards(
     let Some(backdrop) = SPLASH_BACKDROP.clone() else {
         return section("Media Cards", text("Backdrop unavailable.").size(13));
     };
-    let episode_backdrop = THUMBNAIL_BACKDROP
+    let episode_backdrop = THUMBNAIL1_BACKDROP
         .clone()
         .unwrap_or_else(|| backdrop.clone());
 
@@ -2044,8 +2044,15 @@ fn media_cards(
     let row_albums = row![album_rest, album_favourite]
         .spacing(16)
         .padding(padding::all(8));
+    let row_skeletons = row![
+        bluebottle_ui::episode_still_skeleton::<Message>(),
+        bluebottle_ui::poster_card_skeleton::<Message>(),
+        bluebottle_ui::album_card_skeleton::<Message>(),
+    ]
+    .spacing(16)
+    .padding(padding::all(8));
 
-    let demo = column![row_episodes, row_posters, row_albums].spacing(20);
+    let demo = column![row_episodes, row_posters, row_albums, row_skeletons].spacing(20);
 
     section("Media Cards", demo)
 }
@@ -2140,7 +2147,16 @@ fn meta_chips() -> Element<'static, Message> {
     .spacing(8)
     .align_y(Center);
 
-    let demo = column![informational, categories, tags]
+    let section_badges = row![
+        meta::section_badge("Music", Some("music_note"), None),
+        meta::section_badge("Anime", Some("animation"), None),
+        meta::section_badge("Film", Some("movie"), Some(Message::Click)),
+        meta::section_badge("Recently Added", None, None),
+    ]
+    .spacing(8)
+    .align_y(Center);
+
+    let demo = column![informational, categories, tags, section_badges]
         .spacing(12)
         .padding(padding::left(16));
 
@@ -2158,8 +2174,12 @@ fn continue_watching_cards() -> Element<'static, Message> {
         Some(Message::Click),
     );
 
+    let Some(thumbnail_backdrop) = THUMBNAIL1_BACKDROP.clone() else {
+        return section("Continue Watching", column![film].spacing(12));
+    };
+
     let show = continue_show(
-        THUMBNAIL.clone(),
+        thumbnail_backdrop,
         1,
         5,
         "The One With the Late Night Diner",

@@ -118,6 +118,15 @@ where
     }
 }
 
+/// Shimmer placeholder with the episode still's image and caption layout.
+/// Drop in while the backdrop is still loading so the page holds its shape.
+pub fn episode_still_skeleton<'a, Message>() -> Element<'a, Message>
+where
+    Message: 'a,
+{
+    frame::skeleton(DEFAULT_IMAGE_SIZE, DEFAULT_RADIUS)
+}
+
 impl<'a, Message> From<EpisodeStill<'a, Message>> for Element<'a, Message>
 where
     Message: Clone + 'a,

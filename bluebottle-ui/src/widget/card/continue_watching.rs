@@ -10,21 +10,11 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use iced::widget::{Space, column, container, row, stack};
-use iced::{
-    Background,
-    Border,
-    Center,
-    Color,
-    ContentFit,
-    Element,
-    Length,
-    Theme,
-    padding,
-};
+use iced::{Background, Border, Center, Color, Element, Length, Theme, padding};
 
 use super::core::clickable_card;
+use crate::widget::blur::Backdrop;
 use crate::widget::ellipsis_text::ellipsis_text;
-use crate::widget::image::Handle;
 use crate::widget::media_image::media_image;
 use crate::widget::skeleton::DEFAULT_RADIUS as IMAGE_RADIUS;
 use crate::widget::spinner::{Tone, progress_rail};
@@ -85,7 +75,7 @@ where
 /// with the season and episode ident, the episode title, and the remaining-time
 /// read-out. A trailing accent chevron points to the next episode.
 pub fn continue_show<'a, Message>(
-    poster: Handle,
+    poster: Backdrop,
     season: u32,
     episode: u32,
     episode_name: impl Into<Cow<'a, str>>,
@@ -164,16 +154,10 @@ where
         .into()
 }
 
-fn show_poster<'a, Message>(handle: Handle) -> Element<'a, Message>
+fn show_poster<'a, Message>(backdrop: Backdrop) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
-    let poster_image = iced::widget::image(handle)
-        .width(POSTER_WIDTH)
-        .height(POSTER_HEIGHT)
-        .content_fit(ContentFit::Cover)
-        .border_radius(IMAGE_RADIUS);
-
     let scrim = container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -194,11 +178,11 @@ where
 
     let overlay = stack![scrim, centered_play];
 
-    // media_image draws the overlay at rest when no on_press is set, sizes it
-    // to the image, and shares the IMAGE_RADIUS rounding so the scrim, play
-    // icon, and any future hover affordances trace the same shape. The
-    // wrapping container exists only to cast the drop shadow underneath.
-    let poster = media_image(poster_image).overlay(overlay);
+    let poster = media_image(backdrop)
+        .width(POSTER_WIDTH)
+        .height(POSTER_HEIGHT)
+        .corner_radius(IMAGE_RADIUS)
+        .overlay(overlay);
 
     container(poster)
         .style(|_theme: &Theme| container::Style {

@@ -109,6 +109,14 @@ where
     }
 }
 
+/// Shimmer placeholder with the poster card's image and caption layout.
+pub fn poster_card_skeleton<'a, Message>() -> Element<'a, Message>
+where
+    Message: 'a,
+{
+    frame::skeleton(DEFAULT_IMAGE_SIZE, DEFAULT_RADIUS)
+}
+
 impl<'a, Message> From<PosterCard<'a, Message>> for Element<'a, Message>
 where
     Message: Clone + 'a,
