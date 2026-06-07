@@ -1,8 +1,8 @@
-// Shared scaffolding for the splash background shader, concatenated ahead of the
-// composite stage: the full-screen triangle, the separable Gaussian blur
-// pre-pass, and the sRGB / dither helpers. The composite stage redeclares its
-// own uniform and textures at the same binding slots, which is fine since each
-// entry point only uses one set.
+// Shared scaffolding for shader widgets that lean on a separable Gaussian
+// blur. The fullscreen triangle, the blur pre-pass, and the sRGB / dither
+// helpers all live here. Consumers that share one shader module with their
+// own composite stage concatenate this file ahead of theirs and redeclare
+// their own uniform and textures at the same binding slots.
 
 struct VsOut {
     @builtin(position) position: vec4<f32>,
@@ -10,7 +10,6 @@ struct VsOut {
     @location(0) uv: vec2<f32>,
 }
 
-// A full-screen triangle; the viewport clips it to the widget rect.
 @vertex
 fn vs_fullscreen(@builtin(vertex_index) index: u32) -> VsOut {
     var corners = array<vec2<f32>, 3>(
@@ -52,7 +51,7 @@ fn fs_blur(in: VsOut) -> @location(0) vec4<f32> {
     let radius = max(blur.radius, 0.001);
     let sigma = radius / 3.0;
     // Sample out to ~4.5σ so the Gaussian tail isn't clipped, at ~one tap per
-    // source texel; coarser spacing reads as stepping once up-scaled.
+    // source texel. Coarser spacing reads as stepping once up-scaled.
     let extent = radius * 1.5;
     let taps = min(i32(ceil(extent)), MAX_TAPS);
     let step = extent / f32(max(taps, 1));

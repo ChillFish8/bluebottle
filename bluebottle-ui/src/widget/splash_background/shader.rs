@@ -4,9 +4,17 @@ use iced::time::Instant;
 use iced::widget::shader::{self, Action, Viewport};
 use iced::{Event, Rectangle, mouse, wgpu, window};
 
-use super::gpu::{BLUR_FORMAT, SOURCE_FORMAT, blur_pass};
 use super::{Backdrop, CompositeKind, Look};
 use crate::style;
+use crate::widget::blur::gpu::{
+    BLUR_FORMAT,
+    SOURCE_FORMAT,
+    blur_pass,
+    blur_uniform_buffer,
+    pack_blur_uniform,
+    sampler as blur_sampler,
+};
+use crate::widget::blur::pipeline::bind_layout as blur_bind_layout;
 
 /// The program driving a frosted background; `K` selects the pipeline instance.
 pub struct CompositeProgram<K> {
@@ -200,49 +208,14 @@ impl<K: CompositeKind> shader::Pipeline for CompositePipeline<K> {
             label: Some(&label("shader")),
             source: wgpu::ShaderSource::Wgsl(
                 concat!(
-                    include_str!("shader_common.wgsl"),
+                    include_str!("../blur/shader.wgsl"),
                     include_str!("background.wgsl"),
                 )
                 .into(),
             ),
         });
 
-        let bind_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some(&label("bind layout")),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float {
-                                filterable: true,
-                            },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(
-                            wgpu::SamplerBindingType::Filtering,
-                        ),
-                        count: None,
-                    },
-                ],
-            });
+        let bind_layout = blur_bind_layout(device, &label("bind layout"));
 
         let pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -306,16 +279,7 @@ impl<K: CompositeKind> shader::Pipeline for CompositePipeline<K> {
             wgpu::BlendState::REPLACE,
         );
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some(&label("sampler")),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let sampler = blur_sampler(device, &label("sampler"));
 
         let composite_uniform = |label: &str| {
             device.create_buffer(&wgpu::BufferDescriptor {
@@ -325,14 +289,7 @@ impl<K: CompositeKind> shader::Pipeline for CompositePipeline<K> {
                 mapped_at_creation: false,
             })
         };
-        let blur_uniform = |label: &str| {
-            device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(label),
-                size: BLUR_UNIFORM_SIZE,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            })
-        };
+        let blur_uniform = |label: &str| blur_uniform_buffer(device, label);
 
         let dummy = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(&label("dummy image")),
@@ -484,12 +441,12 @@ impl Shared {
         gpu.queue.write_buffer(
             &self.blur_uniform_h,
             0,
-            bytemuck::cast_slice(&[texel[0], texel[1], 1.0, 0.0, blur, 0.0, 0.0, 0.0]),
+            bytemuck::cast_slice(&pack_blur_uniform(texel, [1.0, 0.0], blur)),
         );
         gpu.queue.write_buffer(
             &self.blur_uniform_v,
             0,
-            bytemuck::cast_slice(&[texel[0], texel[1], 0.0, 1.0, blur, 0.0, 0.0, 0.0]),
+            bytemuck::cast_slice(&pack_blur_uniform(texel, [0.0, 1.0], blur)),
         );
 
         let mut encoder =
@@ -728,5 +685,3 @@ fn composite_uniform(
 const COMPOSITE_UNIFORM_LEN: usize = 32;
 /// Byte size of the `Composite` uniform.
 const COMPOSITE_UNIFORM_SIZE: u64 = (COMPOSITE_UNIFORM_LEN * 4) as u64;
-/// 8 `f32`s; see the `Blur` struct in `shader_common.wgsl`.
-const BLUR_UNIFORM_SIZE: u64 = 8 * 4;

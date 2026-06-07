@@ -8,6 +8,7 @@ pub mod style;
 pub mod util;
 mod widget;
 
+pub use self::widget::blurred_image::blurred_image;
 pub use self::widget::breadcrumb::breadcrumb;
 pub use self::widget::clickable::clickable;
 pub use self::widget::link::link;

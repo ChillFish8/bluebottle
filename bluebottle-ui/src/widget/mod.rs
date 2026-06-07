@@ -1,5 +1,7 @@
 pub mod animated_tick;
 pub mod bar;
+pub mod blur;
+pub mod blurred_image;
 pub mod breadcrumb;
 pub mod button;
 pub mod card;

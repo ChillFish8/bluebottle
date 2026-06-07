@@ -92,47 +92,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FpsCounter {
         )
     }
 
-    fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State>()
-    }
-
-    fn state(&self) -> tree::State {
-        tree::State::new(State::default())
-    }
-
-    fn update(
-        &mut self,
-        tree: &mut Tree,
-        event: &Event,
-        _layout: Layout<'_>,
-        _cursor: mouse::Cursor,
-        _renderer: &iced::Renderer,
-        _clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
-        _viewport: &Rectangle,
-    ) {
-        let state = tree.state.downcast_mut::<State>();
-
-        if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            if let Some(last) = state.last {
-                let delta = now.duration_since(last).as_secs_f32();
-                if delta >= MIN_SAMPLE_SECS {
-                    let instant = 1.0 / delta;
-                    state.smoothed = if state.smoothed == 0.0 {
-                        instant
-                    } else {
-                        state.smoothed * (1.0 - SMOOTHING) + instant * SMOOTHING
-                    };
-                    state.displayed = state.smoothed.round() as u32;
-                }
-            }
-            state.last = Some(*now);
-
-            // Keep the frames coming so the reading stays live.
-            shell.request_redraw();
-        }
-    }
-
     fn draw(
         &self,
         tree: &Tree,
@@ -176,6 +135,47 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FpsCounter {
             color::TEXT_PRIMARY,
             bounds,
         );
+    }
+
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(State::default())
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        _layout: Layout<'_>,
+        _cursor: mouse::Cursor,
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_mut::<State>();
+
+        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+            if let Some(last) = state.last {
+                let delta = now.duration_since(last).as_secs_f32();
+                if delta >= MIN_SAMPLE_SECS {
+                    let instant = 1.0 / delta;
+                    state.smoothed = if state.smoothed == 0.0 {
+                        instant
+                    } else {
+                        state.smoothed * (1.0 - SMOOTHING) + instant * SMOOTHING
+                    };
+                    state.displayed = state.smoothed.round() as u32;
+                }
+            }
+            state.last = Some(*now);
+
+            // Keep the frames coming so the reading stays live.
+            shell.request_redraw();
+        }
     }
 }
 

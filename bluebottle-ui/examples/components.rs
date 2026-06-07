@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
 use bluebottle_ui::{clickable, color, font, icon, tab};
-use iced::widget::{column, container, image, row, stack, text};
+use iced::widget::{Space, column, container, image, row, stack, text};
 use iced::{
     Background,
     Border,
@@ -11,8 +11,11 @@ use iced::{
     Color,
     Element,
     Length,
+    Point,
+    Rectangle,
     Right,
     Settings,
+    Size,
     Top,
     padding,
 };
@@ -449,6 +452,7 @@ impl Components {
                 library_sources(),
                 film_facts_demo(),
                 splash_backgrounds(),
+                blurred_images(),
             ]),
         ]
         .width(Length::Fill)
@@ -1882,6 +1886,76 @@ fn splash_backgrounds() -> Element<'static, Message> {
     .padding(padding::left(16));
 
     section("Splash Backgrounds", demo)
+}
+
+fn blurred_images() -> Element<'static, Message> {
+    let Some(backdrop) = SPLASH_BACKDROP.clone() else {
+        return section("Blurred Image", text("Backdrop unavailable.").size(13));
+    };
+
+    let inset = 20.0_f32;
+    let panel_w = 232.0_f32;
+    let panel_h = 96.0_f32;
+
+    let panel = |label: &'static str, value: &'static str| {
+        container(
+            column![
+                text(label).size(11).color(color::TEXT_SECONDARY),
+                text(value).size(18).color(color::TEXT_PRIMARY),
+            ]
+            .spacing(6),
+        )
+        .padding(16)
+        .width(Length::Fixed(panel_w))
+        .height(Length::Fixed(panel_h))
+    };
+
+    // The overlay container itself is transparent. Its children, the two info
+    // panels, are the non-transparent pieces that want a frosted backdrop.
+    let overlay = container(
+        column![
+            container(panel("CURRENTLY WATCHING", "The Brutalist"))
+                .width(Length::Fill)
+                .align_x(iced::Left),
+            Space::new().width(Length::Fill).height(Length::Fill),
+            container(panel("UP NEXT", "Episode 4"))
+                .width(Length::Fill)
+                .align_x(iced::Right),
+        ]
+        .height(Length::Fill),
+    )
+    .padding(inset)
+    .width(Length::Fill)
+    .height(Length::Fill);
+
+    let demo = container(
+        bluebottle_ui::blurred_image(backdrop)
+            .corner_radius(14.0)
+            // Regions are derived from the laid-out widget size so they stay
+            // aligned with the overlay panels even when the parent reflows.
+            .regions_fn(move |size| {
+                // Clamp the bottom-right anchor so a widget narrower or shorter
+                // than `panel + inset` doesn't slide the region into negative
+                // coordinates.
+                let right = (size.width - panel_w - inset).max(inset);
+                let bottom = (size.height - panel_h - inset).max(inset);
+                vec![
+                    Rectangle::new(
+                        Point::new(inset, inset),
+                        Size::new(panel_w, panel_h),
+                    ),
+                    Rectangle::new(
+                        Point::new(right, bottom),
+                        Size::new(panel_w, panel_h),
+                    ),
+                ]
+            })
+            .overlay(overlay),
+    )
+    .width(Length::Fixed(600.0))
+    .height(Length::Fixed(340.0));
+
+    section("Blurred Image", demo)
 }
 
 fn separators() -> Element<'static, Message> {

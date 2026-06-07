@@ -9,6 +9,12 @@ members = [
     "placebo-sys",
 ]
 
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
 [workspace.dependencies]
 palette = "0.7"
 lyon_algorithms = "1"
