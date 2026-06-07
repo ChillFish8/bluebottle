@@ -13,7 +13,6 @@ pub mod ellipsis_text;
 pub mod image;
 pub mod input;
 pub mod link;
-pub mod media_card;
 pub mod media_image;
 pub mod meta;
 pub mod path_trace;

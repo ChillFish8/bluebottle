@@ -113,6 +113,25 @@ pub enum AccentSizeVariant {
     Alt,
 }
 
+impl AccentSizeVariant {
+    /// Outer diameter in logical pixels. Callers sizing a backdrop
+    /// concentric with the button should pull from here.
+    pub const fn diameter(self) -> f32 {
+        match self {
+            Self::Main => 48.0,
+            Self::Alt => 56.0,
+        }
+    }
+
+    /// Inner glyph size in logical pixels.
+    pub const fn glyph(self) -> f32 {
+        match self {
+            Self::Main => 18.0,
+            Self::Alt => 20.0,
+        }
+    }
+}
+
 /// Accent · Hover-Reveal Play
 ///
 /// The play affordance that lives on a content tile and fades in once the card
@@ -128,10 +147,8 @@ pub fn accent<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let (diameter, icon_size) = match size {
-        AccentSizeVariant::Main => (48.0, 18.0),
-        AccentSizeVariant::Alt => (56.0, 20.0),
-    };
+    let diameter = size.diameter();
+    let icon_size = size.glyph();
 
     // The hover tint stacks on the resting 28% accent fill. Linear-space
     // compositing means a thin tint barely lifts the perceived fill, so the

@@ -24,8 +24,8 @@ use std::sync::Arc;
 
 use iced::widget::shader::Shader;
 use iced::widget::stack;
-use iced::{Element, Length, Rectangle, Size};
-pub use shader::MAX_REGIONS;
+use iced::{Color, Element, Length, Size};
+pub use shader::{BlurRegion, MAX_REGIONS, ProgressStrip};
 
 use crate::style;
 use crate::widget::blur::Backdrop;
@@ -43,6 +43,7 @@ pub fn blurred_image<'a, Message>(backdrop: Backdrop) -> BlurredImage<'a, Messag
         regions_fn: None,
         blur_radius: style::IMAGE_BLUR,
         corner_radius: DEFAULT_RADIUS,
+        progress: None,
         width: Length::Fill,
         height: Length::Fill,
     }
@@ -52,10 +53,11 @@ pub fn blurred_image<'a, Message>(backdrop: Backdrop) -> BlurredImage<'a, Messag
 pub struct BlurredImage<'a, Message> {
     backdrop: Backdrop,
     overlay: Option<Element<'a, Message>>,
-    regions: Vec<Rectangle>,
-    regions_fn: Option<Arc<dyn Fn(Size) -> Vec<Rectangle> + Send + Sync>>,
+    regions: Vec<BlurRegion>,
+    regions_fn: Option<Arc<dyn Fn(Size) -> Vec<BlurRegion> + Send + Sync>>,
     blur_radius: f32,
     corner_radius: f32,
+    progress: Option<ProgressStrip>,
     width: Length,
     height: Length,
 }
@@ -67,19 +69,19 @@ impl<'a, Message> BlurredImage<'a, Message> {
         self
     }
 
-    /// Adds one frosted region, in widget-local logical pixels.
+    /// Adds one frosted region in widget-local logical pixels. Each
+    /// [`BlurRegion`] carries its own corner radius.
     ///
-    /// Has no effect once [`regions_fn`](Self::regions_fn) is set, since the
-    /// closure is the source of truth in that mode.
-    pub fn region(mut self, region: Rectangle) -> Self {
+    /// Has no effect once [`regions_fn`](Self::regions_fn) is set.
+    pub fn region(mut self, region: BlurRegion) -> Self {
         self.regions.push(region);
         self
     }
 
-    /// Extends the frosted regions from any iterator of rectangles.
+    /// Extends the frosted regions from any iterator.
     ///
     /// Has no effect once [`regions_fn`](Self::regions_fn) is set.
-    pub fn regions(mut self, regions: impl IntoIterator<Item = Rectangle>) -> Self {
+    pub fn regions(mut self, regions: impl IntoIterator<Item = BlurRegion>) -> Self {
         self.regions.extend(regions);
         self
     }
@@ -92,7 +94,7 @@ impl<'a, Message> BlurredImage<'a, Message> {
     /// [`regions`](Self::regions).
     pub fn regions_fn<F>(mut self, f: F) -> Self
     where
-        F: Fn(Size) -> Vec<Rectangle> + Send + Sync + 'static,
+        F: Fn(Size) -> Vec<BlurRegion> + Send + Sync + 'static,
     {
         self.regions_fn = Some(Arc::new(f));
         self
@@ -105,9 +107,29 @@ impl<'a, Message> BlurredImage<'a, Message> {
         self
     }
 
-    /// Overrides the corner radius applied to each region.
+    /// Overrides the corner radius applied to the image's outer mask.
+    /// Each region carries its own corner radius (see [`BlurRegion`]).
     pub fn corner_radius(mut self, radius: f32) -> Self {
         self.corner_radius = radius;
+        self
+    }
+
+    /// Paints a progress strip along the bottom edge inside the composite
+    /// shader, so its corners clip against the same rounded outer mask the
+    /// image uses. `fill` is in `[0, 1]`; `height` is in widget pixels.
+    pub fn progress_strip(
+        mut self,
+        fill: f32,
+        height: f32,
+        accent: Color,
+        track: Color,
+    ) -> Self {
+        self.progress = Some(ProgressStrip {
+            fill,
+            height,
+            accent,
+            track,
+        });
         self
     }
 
@@ -136,6 +158,7 @@ where
             image.blur_radius,
             image.corner_radius,
             region_source,
+            image.progress,
         ))
         .width(image.width)
         .height(image.height);

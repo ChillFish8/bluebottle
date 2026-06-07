@@ -8,11 +8,11 @@ pub mod style;
 pub mod util;
 mod widget;
 
-pub use self::widget::blurred_image::blurred_image;
+pub use self::widget::blurred_image::{BlurRegion, blurred_image};
 pub use self::widget::breadcrumb::breadcrumb;
+pub use self::widget::card::{album_card, episode_still, poster_card};
 pub use self::widget::clickable::clickable;
 pub use self::widget::link::link;
-pub use self::widget::media_card::media_card;
 pub use self::widget::media_image::media_image;
 pub use self::widget::scrollable::scrollable;
 pub use self::widget::sidebar::sidebar;

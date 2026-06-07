@@ -32,8 +32,12 @@ static PERSON_POSTER: LazyLock<image::Handle> = LazyLock::new(|| {
 static SQUARE: LazyLock<image::Handle> = LazyLock::new(|| {
     image::Handle::from_path("bluebottle-ui/assets/examples/music1.jpg")
 });
-static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> = LazyLock::new(|| {
-    let path = "bluebottle-ui/assets/examples/poster1.jpg";
+static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> =
+    LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/poster1.jpg"));
+static THUMBNAIL_BACKDROP: LazyLock<Option<Backdrop>> =
+    LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/thumbnail1.jpg"));
+
+fn load_backdrop(path: &str) -> Option<Backdrop> {
     let reader = ::image::ImageReader::open(path)
         .ok()?
         .with_guessed_format()
@@ -41,7 +45,7 @@ static SPLASH_BACKDROP: LazyLock<Option<Backdrop>> = LazyLock::new(|| {
     let rgba = reader.decode().ok()?.to_rgba8();
     let (width, height) = rgba.dimensions();
     Some(Backdrop::new(rgba.into_raw(), width, height))
-});
+}
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -118,6 +122,8 @@ struct Components {
     password_revealed: bool,
     stepper_value: i32,
     stepper_compact_value: i32,
+    card_watched: std::collections::HashMap<&'static str, bool>,
+    card_favourite: std::collections::HashMap<&'static str, bool>,
 }
 
 impl Default for Components {
@@ -164,6 +170,21 @@ impl Default for Components {
             password_revealed: false,
             stepper_value: 50,
             stepper_compact_value: 5,
+            card_watched: {
+                let mut m = std::collections::HashMap::new();
+                // The third row in each card type starts in the watched
+                // state so the demo shows what the checkbox + replay look
+                // like at rest.
+                m.insert("episode-watched", true);
+                m.insert("poster-seen", true);
+                m
+            },
+            card_favourite: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("episode-watched", true);
+                m.insert("album-loved", true);
+                m
+            },
         }
     }
 }
@@ -191,8 +212,8 @@ const FILTER_TAGS: &[&str] = &[
 #[derive(Debug, Clone)]
 enum Message {
     Click,
-    CardLabel,
-    CardSubtext,
+    CardWatchedToggled(&'static str, bool),
+    CardFavouriteToggled(&'static str, bool),
     LinkPressed(&'static str),
     SearchInput(String),
     TabSelected(usize),
@@ -250,6 +271,12 @@ impl Components {
             },
             Message::LinkPressed(name) => {
                 println!("link pressed: {name}");
+            },
+            Message::CardWatchedToggled(id, value) => {
+                self.card_watched.insert(id, value);
+            },
+            Message::CardFavouriteToggled(id, value) => {
+                self.card_favourite.insert(id, value);
             },
             Message::TabSelected(i) => {
                 self.selected_tab = i;
@@ -433,7 +460,6 @@ impl Components {
                 albums(),
                 persons(),
                 media_images(),
-                clickable_card(),
             ]),
             category("Lists & Feedback", || vec![
                 smart_list_demo(
@@ -453,6 +479,7 @@ impl Components {
                 film_facts_demo(),
                 splash_backgrounds(),
                 blurred_images(),
+                media_cards(self.card_watched.clone(), self.card_favourite.clone()),
             ]),
         ]
         .width(Length::Fill)
@@ -1498,80 +1525,6 @@ fn media_images() -> Element<'static, Message> {
     section("Media Images", demo)
 }
 
-fn clickable_card() -> Element<'static, Message> {
-    let label_text = |s: &'static str| text(s).size(14).color(color::TEXT_PRIMARY);
-    let subtext_text = |s: &'static str| text(s).size(12).color(color::TEXT_SECONDARY);
-
-    // Bare image, no click.
-    let non_interactive = bluebottle_ui::media_card(bluebottle_ui::image::poster(
-        POSTER.clone(),
-        PosterSize::Small,
-    ));
-
-    // Image + label only, single press.
-    let image_only = bluebottle_ui::media_card(bluebottle_ui::image::poster(
-        POSTER.clone(),
-        PosterSize::Small,
-    ))
-    .label(label_text("Poster Only"))
-    .on_press(Message::Click);
-
-    let play_overlay = || {
-        container(
-            icon::filled("play_arrow")
-                .color(color::TEXT_PRIMARY)
-                .size(48),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(Center)
-        .align_y(Center)
-    };
-
-    // Image + overlay + label + subtext, press fires only on the image.
-    let with_overlay =
-        bluebottle_ui::media_card(bluebottle_ui::image::thumbnail(THUMBNAIL.clone()))
-            .overlay(play_overlay())
-            .label(label_text("With Overlay"))
-            .subtext(subtext_text("Only the image fires Click"))
-            .on_press(Message::Click);
-
-    // Image + label + subtext where the label and subtext are clickable
-    // links. Each link has its own message, animates an underline on hover,
-    // and tints to primary while pressed.
-    let per_region =
-        bluebottle_ui::media_card(bluebottle_ui::image::square(SQUARE.clone()))
-            .overlay(play_overlay())
-            .label(bluebottle_ui::link(
-                bluebottle_ui::text::body("Per-region Press"),
-                Message::CardLabel,
-            ))
-            .subtext(bluebottle_ui::link(
-                bluebottle_ui::text::label(
-                    "Each row has its own message",
-                    bluebottle_ui::text::Variant::Alt,
-                ),
-                Message::CardSubtext,
-            ))
-            .on_press(Message::Click);
-
-    let demo = row![
-        non_interactive,
-        image_only,
-        with_overlay,
-        per_region,
-        bluebottle_ui::media_card::skeleton(bluebottle_ui::image::poster_skeleton(
-            PosterSize::Small
-        ))
-        .label()
-        .subtext(),
-    ]
-    .padding(8)
-    .spacing(8);
-
-    section("Clickable Card", demo)
-}
-
 fn smart_list_demo(
     show: (Option<usize>, Option<usize>),
     shown: Option<usize>,
@@ -1934,19 +1887,26 @@ fn blurred_images() -> Element<'static, Message> {
             // Regions are derived from the laid-out widget size so they stay
             // aligned with the overlay panels even when the parent reflows.
             .regions_fn(move |size| {
-                // Clamp the bottom-right anchor so a widget narrower or shorter
-                // than `panel + inset` doesn't slide the region into negative
-                // coordinates.
+                // Clamp the bottom-right anchor so a narrow widget cannot
+                // push the region into negative coordinates. Each region
+                // asks for the same 14 px rounding as the outer image.
                 let right = (size.width - panel_w - inset).max(inset);
                 let bottom = (size.height - panel_h - inset).max(inset);
+
                 vec![
-                    Rectangle::new(
-                        Point::new(inset, inset),
-                        Size::new(panel_w, panel_h),
+                    bluebottle_ui::BlurRegion::rounded(
+                        Rectangle::new(
+                            Point::new(inset, inset),
+                            Size::new(panel_w, panel_h),
+                        ),
+                        14.0,
                     ),
-                    Rectangle::new(
-                        Point::new(right, bottom),
-                        Size::new(panel_w, panel_h),
+                    bluebottle_ui::BlurRegion::rounded(
+                        Rectangle::new(
+                            Point::new(right, bottom),
+                            Size::new(panel_w, panel_h),
+                        ),
+                        14.0,
                     ),
                 ]
             })
@@ -1956,6 +1916,138 @@ fn blurred_images() -> Element<'static, Message> {
     .height(Length::Fixed(340.0));
 
     section("Blurred Image", demo)
+}
+
+fn media_cards(
+    watched: std::collections::HashMap<&'static str, bool>,
+    favourite: std::collections::HashMap<&'static str, bool>,
+) -> Element<'static, Message> {
+    let Some(backdrop) = SPLASH_BACKDROP.clone() else {
+        return section("Media Cards", text("Backdrop unavailable.").size(13));
+    };
+    let episode_backdrop = THUMBNAIL_BACKDROP
+        .clone()
+        .unwrap_or_else(|| backdrop.clone());
+
+    // Both label and subtext slots accept any Element. Wrapping the typography
+    // role in `link(...)` makes each row a clickable target with its own
+    // press message, matching how `media_card` exposed per-row interactivity.
+    // The label reads as primary text; the muted secondary tone lives on the
+    // subtext row only.
+    let label_link = |s: &'static str, msg: &'static str| {
+        bluebottle_ui::link(
+            bluebottle_ui::text::card_title(s)
+                .color(color::TEXT_PRIMARY)
+                .font(font::semibold()),
+            Message::LinkPressed(msg),
+        )
+    };
+    let subtext_link = |s: &'static str, msg: &'static str| {
+        bluebottle_ui::link(bluebottle_ui::text::caption(s), Message::LinkPressed(msg))
+    };
+
+    let is_watched = |id: &'static str| watched.get(id).copied().unwrap_or(false);
+    let is_favourite = |id: &'static str| favourite.get(id).copied().unwrap_or(false);
+
+    let id = "episode-pilot";
+    let episode_rest = bluebottle_ui::episode_still(episode_backdrop.clone())
+        .label(label_link("Pilot", id))
+        .subtext(subtext_link("S1 E1", "episode-pilot-meta"))
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "episode-brutalist";
+    let episode_progress = bluebottle_ui::episode_still(episode_backdrop.clone())
+        .label(label_link("The Brutalist", id))
+        .subtext(subtext_link("17m left", "episode-brutalist-meta"))
+        .progress(0.45, "17m left")
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "episode-watched";
+    let episode_watched = bluebottle_ui::episode_still(episode_backdrop)
+        .label(label_link("Watched Episode", id))
+        .subtext(subtext_link("S1 E2", "episode-watched-meta"))
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "poster-new";
+    let poster_rest = bluebottle_ui::poster_card(backdrop.clone())
+        .label(label_link("New Release", id))
+        .subtext(subtext_link("Film", "poster-new-meta"))
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "poster-progress";
+    let poster_progress = bluebottle_ui::poster_card(backdrop.clone())
+        .label(label_link("In Progress", id))
+        .subtext(subtext_link("Show", "poster-progress-meta"))
+        .progress(0.6, "4 eps left")
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "poster-seen";
+    let poster_watched = bluebottle_ui::poster_card(backdrop.clone())
+        .label(label_link("Seen", id))
+        .subtext(subtext_link("Show", "poster-seen-meta"))
+        .watched(is_watched(id))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_watched_toggled(move |v| Message::CardWatchedToggled(id, v))
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "album-sample";
+    let album_rest = bluebottle_ui::album_card(backdrop.clone())
+        .label(label_link("Sample Album", id))
+        .subtext(subtext_link("Artist Name", "album-sample-artist"))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let id = "album-loved";
+    let album_favourite = bluebottle_ui::album_card(backdrop)
+        .label(label_link("Loved Album", id))
+        .subtext(subtext_link("Artist Name", "album-loved-artist"))
+        .favourite(is_favourite(id))
+        .on_press(Message::Click)
+        .on_play(Message::Click)
+        .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
+
+    let row_episodes = row![episode_rest, episode_progress, episode_watched]
+        .spacing(16)
+        .padding(padding::all(8));
+    let row_posters = row![poster_rest, poster_progress, poster_watched]
+        .spacing(16)
+        .padding(padding::all(8));
+    let row_albums = row![album_rest, album_favourite]
+        .spacing(16)
+        .padding(padding::all(8));
+
+    let demo = column![row_episodes, row_posters, row_albums].spacing(20);
+
+    section("Media Cards", demo)
 }
 
 fn separators() -> Element<'static, Message> {

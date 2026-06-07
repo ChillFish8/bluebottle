@@ -3,10 +3,10 @@ use iced::{Center, Element, Length};
 
 use crate::icon;
 
-/// Centred glyph in a fixed-size circle. Shared chassis for the round icon
-/// button variants. Returns the inner content; the caller wraps it with
-/// [`clickable`](crate::widget::clickable::clickable) to add the glass, press
-/// behaviour, and pill border.
+/// Centred glyph in a fixed-size circle. Shared chassis for the round
+/// icon button variants. Returns the inner content. The caller wraps it
+/// with [`clickable`](crate::widget::clickable::clickable) to add the
+/// glass, press behaviour, and pill border.
 pub(super) fn icon_circle<'a, Message>(
     icon_name: &'a str,
     diameter: f32,

@@ -46,7 +46,13 @@ const MAX_INSTANCES: usize = 64;
 /// re-uploading on the next frame.
 const STALE_FRAMES: u64 = 60;
 
-/// The packed `Composite` uniform; see `composite.wgsl`.
+/// The packed `Composite` uniform. See `composite.wgsl`.
+///
+/// WGSL aligns vec4 to a 16-byte boundary, so the shader implicitly pads
+/// between `progress_height` (ends at offset 40) and `progress_color`
+/// (forced to offset 48). `_pad_progress` mirrors that padding so wgpu's
+/// min_binding_size matches the shader's view. `region_radii` packs four
+/// radii per vec4 to keep all of [`MAX_REGIONS`] in one uniform slot.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct CompositeUniform {
@@ -55,8 +61,19 @@ struct CompositeUniform {
     widget_size_px: [f32; 2],
     region_count: u32,
     corner_radius: f32,
+    progress_fill: f32,
+    progress_height: f32,
+    _pad_progress: [f32; 2],
+    progress_color: [f32; 4],
+    progress_track: [f32; 4],
     regions: [[f32; 4]; MAX_REGIONS],
+    region_radii: [[f32; 4]; MAX_REGIONS / 4],
 }
+
+const _: () = assert!(
+    MAX_REGIONS.is_multiple_of(4),
+    "MAX_REGIONS must be a multiple of 4 so region_radii packs evenly into vec4 slots",
+);
 
 const COMPOSITE_UNIFORM_SIZE: u64 = size_of::<CompositeUniform>() as u64;
 
@@ -84,6 +101,56 @@ pub struct BlurredImageProgram {
     blur_radius: f32,
     corner_radius: f32,
     regions: RegionSource,
+    progress: Option<ProgressStrip>,
+}
+
+/// Optional progress bar painted by the composite shader along the bottom
+/// of the widget. Living inside the shader means the strip rounds off with
+/// the same outer SDF that masks the image, instead of sitting flat on top
+/// of the rounded corners.
+#[derive(Clone, Copy, Debug)]
+pub struct ProgressStrip {
+    pub fill: f32,
+    pub height: f32,
+    pub accent: iced::Color,
+    pub track: iced::Color,
+}
+
+impl ProgressStrip {
+    pub(crate) const OFF: ProgressStrip = ProgressStrip {
+        fill: 0.0,
+        height: 0.0,
+        accent: iced::Color::TRANSPARENT,
+        track: iced::Color::TRANSPARENT,
+    };
+}
+
+/// One frosted region painted by the composite shader. Each region
+/// carries its own corner radius so a card pill and a panel can sit on
+/// the same surface with different rounding.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BlurRegion {
+    pub bounds: Rectangle,
+    pub corner_radius: f32,
+}
+
+impl BlurRegion {
+    /// A region rounded to its rect's smallest half-extent. Square
+    /// bounds become circles and rectangles become round-ended pills.
+    pub fn pill(bounds: Rectangle) -> Self {
+        Self {
+            bounds,
+            corner_radius: f32::INFINITY,
+        }
+    }
+
+    /// A region with a caller-chosen corner radius.
+    pub fn rounded(bounds: Rectangle, corner_radius: f32) -> Self {
+        Self {
+            bounds,
+            corner_radius,
+        }
+    }
 }
 
 /// How the program resolves blur regions for a given laid-out widget size.
@@ -92,14 +159,14 @@ pub struct BlurredImageProgram {
 /// for `Length::Fill` widgets too.
 #[derive(Clone)]
 pub enum RegionSource {
-    Static(Arc<[Rectangle]>),
-    Dynamic(Arc<dyn Fn(Size) -> Vec<Rectangle> + Send + Sync>),
+    Static(Arc<[BlurRegion]>),
+    Dynamic(Arc<dyn Fn(Size) -> Vec<BlurRegion> + Send + Sync>),
 }
 
 impl RegionSource {
-    fn resolve(&self, bounds: Size) -> Arc<[Rectangle]> {
+    fn resolve(&self, bounds: Size) -> Arc<[BlurRegion]> {
         match self {
-            RegionSource::Static(rects) => Arc::clone(rects),
+            RegionSource::Static(regions) => Arc::clone(regions),
             RegionSource::Dynamic(f) => Arc::from(f(bounds)),
         }
     }
@@ -111,12 +178,14 @@ impl BlurredImageProgram {
         blur_radius: f32,
         corner_radius: f32,
         regions: RegionSource,
+        progress: Option<ProgressStrip>,
     ) -> Self {
         Self {
             backdrop,
             blur_radius,
             corner_radius,
             regions,
+            progress,
         }
     }
 }
@@ -146,6 +215,7 @@ impl<Message> shader::Program<Message> for BlurredImageProgram {
             blur_radius: self.blur_radius,
             corner_radius: self.corner_radius,
             regions: self.regions.resolve(bounds.size()),
+            progress: self.progress,
         }
     }
 }
@@ -156,7 +226,8 @@ pub struct BlurredImagePrimitive {
     backdrop: Backdrop,
     blur_radius: f32,
     corner_radius: f32,
-    regions: Arc<[Rectangle]>,
+    regions: Arc<[BlurRegion]>,
+    progress: Option<ProgressStrip>,
 }
 
 impl shader::Primitive for BlurredImagePrimitive {
@@ -229,9 +300,11 @@ impl shader::Pipeline for BlurredImagePipeline {
             label: Some("blurred image blur shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../blur/shader.wgsl").into()),
         });
-        // Substitute MAX_REGIONS into the WGSL so the array size and loop bound
-        // can't drift from the Rust constant.
+        // Substitute MAX_REGIONS and its packed-radius companion so the
+        // WGSL array sizes track the Rust constant. The const assert
+        // above keeps `MAX_REGIONS` divisible by 4.
         let composite_source = include_str!("composite.wgsl")
+            .replace("@MAX_REGIONS_DIV_4@", &(MAX_REGIONS / 4).to_string())
             .replace("@MAX_REGIONS@", &MAX_REGIONS.to_string());
         let composite_module =
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -698,17 +771,33 @@ fn composite_uniform(
     scale_factor: f32,
 ) -> CompositeUniform {
     let mut regions = [[0.0_f32; 4]; MAX_REGIONS];
+    let mut region_radii = [[0.0_f32; 4]; MAX_REGIONS / 4];
     let count = primitive.regions.len().min(MAX_REGIONS);
-    for (slot, rect) in regions.iter_mut().zip(primitive.regions.iter()).take(count) {
-        *slot = [rect.x, rect.y, rect.width, rect.height];
+    for (i, region) in primitive.regions.iter().take(count).enumerate() {
+        let r = region.bounds;
+        regions[i] = [r.x, r.y, r.width, r.height];
+        region_radii[i / 4][i % 4] = region.corner_radius;
     }
 
+    let progress = primitive.progress.unwrap_or(ProgressStrip::OFF);
     CompositeUniform {
         target_size: [bounds.width, bounds.height],
         widget_origin_px: [bounds.x * scale_factor, bounds.y * scale_factor],
         widget_size_px: [bounds.width * scale_factor, bounds.height * scale_factor],
         region_count: count as u32,
         corner_radius: primitive.corner_radius,
+        progress_fill: progress.fill,
+        progress_height: progress.height,
+        _pad_progress: [0.0, 0.0],
+        progress_color: color_array(progress.accent),
+        progress_track: color_array(progress.track),
         regions,
+        region_radii,
     }
+}
+
+/// Linear-space colour for the composite shader. The shader samples and
+/// mixes in linear, so a raw sRGB triple would read washed-out.
+fn color_array(color: iced::Color) -> [f32; 4] {
+    color.into_linear()
 }
