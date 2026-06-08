@@ -48,7 +48,7 @@ url = { version = "2", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["net", "time", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "rustls-tls-native-roots", "json", "zstd"] }
-iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "wgpu", "advanced", "tokio", "image", "canvas"] }
+iced = { version = "0.14", default-features = false, features = ["crisp", "wayland", "wgpu", "advanced", "tokio", "image", "canvas", "svg"] }
 rusqlite = { version = "0.38", features = ["bundled", "serde_json", "uuid"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 

@@ -32,6 +32,10 @@ const RULE_THICKNESS: f32 = 1.0;
 /// Inline metadata dot diameter in logical pixels.
 const DOT_SIZE: f32 = 2.0;
 
+/// Larger inline metadata dot diameter. Sits between heavier runs where the
+/// default 2px dot would disappear.
+const DOT_SIZE_LG: f32 = 3.0;
+
 /// A caller-supplied label followed by a hairline that fades to nothing at the
 /// far edge. The default block introducer. Pair with [section_label] for the
 /// stock eyebrow styling, or pass any element to mix in a count, an icon, or a
@@ -123,11 +127,27 @@ pub fn inline_dot<'a, Message>() -> Container<'a, Message>
 where
     Message: 'a,
 {
+    inline_dot_with_size(DOT_SIZE)
+}
+
+/// A 3px round dot for use between heavier runs, where the default 2px dot
+/// would visually disappear. Same colour and gutter as [`inline_dot`].
+pub fn inline_dot_lg<'a, Message>() -> Container<'a, Message>
+where
+    Message: 'a,
+{
+    inline_dot_with_size(DOT_SIZE_LG)
+}
+
+fn inline_dot_with_size<'a, Message>(size: f32) -> Container<'a, Message>
+where
+    Message: 'a,
+{
     let dot =
-        container(space().width(DOT_SIZE).height(DOT_SIZE)).style(|_theme: &Theme| {
+        container(space().width(size).height(size)).style(move |_theme: &Theme| {
             container::Style {
                 background: Some(Background::Color(color::TEXT_DARK)),
-                border: Border::default().rounded(DOT_SIZE / 2.0),
+                border: Border::default().rounded(size / 2.0),
                 ..container::Style::default()
             }
         });

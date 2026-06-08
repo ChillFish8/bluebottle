@@ -17,6 +17,7 @@ use crate::widget::blur::Backdrop;
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::media_image::media_image;
 use crate::widget::spinner::{Tone, progress_rail};
+use crate::util::format_duration_short;
 use crate::widget::{separator, text};
 use crate::{border, color, font, icon, spacing, style};
 
@@ -49,7 +50,7 @@ where
     let meta = row![
         text::micro_label(format_percent(fraction)).color(color::TEXT_SECONDARY),
         separator::inline_dot(),
-        text::micro_label(format!("{} left", format_duration(remaining)))
+        text::micro_label(format!("{} left", format_duration_short(remaining)))
             .color(color::TEXT_SECONDARY),
     ]
     .align_y(Center);
@@ -101,8 +102,8 @@ where
 
     let time_left = text::caption(format!(
         "{} left of {}",
-        format_duration(remaining),
-        format_duration(total),
+        format_duration_short(remaining),
+        format_duration_short(total),
     ));
 
     let meta = column![label, title, time_left].spacing(0);
@@ -221,23 +222,3 @@ fn format_percent(fraction: f32) -> String {
     format!("{percent}%")
 }
 
-/// Short human duration. Rounds partial minutes up so the last 59 seconds of
-/// a film read as "1m" rather than collapsing to "0m" before the bar is full.
-fn format_duration(d: Duration) -> String {
-    let seconds = d.as_secs();
-    if seconds == 0 {
-        return "0m".into();
-    }
-
-    let total_minutes = seconds.div_ceil(60);
-    let hours = total_minutes / 60;
-    let minutes = total_minutes % 60;
-
-    if hours == 0 {
-        format!("{minutes}m")
-    } else if minutes == 0 {
-        format!("{hours}h")
-    } else {
-        format!("{hours}h {minutes}m")
-    }
-}

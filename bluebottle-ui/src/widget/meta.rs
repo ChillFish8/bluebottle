@@ -7,12 +7,20 @@
 //! without the ring. Each becomes interactive the moment an `on_press` is
 //! supplied.
 
-use iced::widget::row;
-use iced::widget::text::IntoFragment;
-use iced::{Center, Element, padding};
+use std::borrow::Cow;
+use std::marker::PhantomData;
+use std::sync::LazyLock;
+use std::time::Duration;
 
+use iced::widget::svg::Svg;
+use iced::widget::text::IntoFragment;
+use iced::widget::{row, svg};
+use iced::{Center, Element, Length, padding};
+
+use crate::util::format_duration_short;
 use crate::widget::clickable::clickable;
-use crate::widget::text;
+use crate::widget::text::Variant;
+use crate::widget::{separator, text};
 use crate::{border, color, font, icon, spacing};
 
 /// Shared chip padding. 4 vertical, 8 horizontal.
@@ -97,6 +105,167 @@ where
     .background(fill)
     .border(border)
     .into()
+}
+
+/// Composed facts row in a fixed order. Year, gold-star rating, red-tomato
+/// critic score, runtime, and the rating chip, strung together by the inline
+/// metadata dot. Icons carry the only colour. Text rides on
+/// [`color::TEXT_SECONDARY`] so the title above stays dominant. Builder
+/// fields are independently optional. Omitted fields drop out of the line
+/// with no separator.
+///
+/// `variant` selects the typography. [`Variant::Main`] uses the standard
+/// [`text::label`] run. [`Variant::Alt`] uses the heavier
+/// [`text::card_title`] run for hero placements.
+pub fn metadata_line<'a, Message>(variant: Variant) -> MetadataLine<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    MetadataLine {
+        variant,
+        year: None,
+        star: None,
+        tomato: None,
+        runtime: None,
+        rating: None,
+        _phantom: PhantomData,
+    }
+}
+
+/// A composed metadata line, built by [`metadata_line`].
+pub struct MetadataLine<'a, Message> {
+    variant: Variant,
+    year: Option<u16>,
+    star: Option<f32>,
+    tomato: Option<u32>,
+    runtime: Option<Duration>,
+    rating: Option<Cow<'a, str>>,
+    _phantom: PhantomData<Message>,
+}
+
+impl<'a, Message> MetadataLine<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    /// Sets the release year.
+    pub fn year(mut self, year: u16) -> Self {
+        self.year = Some(year);
+        self
+    }
+
+    /// Sets the gold-star score. Formatted with one decimal place.
+    pub fn star(mut self, value: f32) -> Self {
+        self.star = Some(value);
+        self
+    }
+
+    /// Sets the red-tomato critic score as a percentage.
+    pub fn tomato(mut self, percent: u32) -> Self {
+        self.tomato = Some(percent);
+        self
+    }
+
+    /// Sets the runtime. Formatted as `Xh Ym`.
+    pub fn runtime(mut self, duration: Duration) -> Self {
+        self.runtime = Some(duration);
+        self
+    }
+
+    /// Sets the age-rating chip label. Rendered as an [`informational`]
+    /// chip at the tail of the line.
+    pub fn rating(mut self, label: impl Into<Cow<'a, str>>) -> Self {
+        self.rating = Some(label.into());
+        self
+    }
+}
+
+impl<'a, Message> From<MetadataLine<'a, Message>> for Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    fn from(line: MetadataLine<'a, Message>) -> Self {
+        let variant = line.variant;
+        let mut items: Vec<Element<'a, Message>> = Vec::new();
+
+        let icon_size = fact_icon_size(variant);
+
+        fn push_dot<'a, M: 'a>(items: &mut Vec<Element<'a, M>>) {
+            if !items.is_empty() {
+                items.push(separator::inline_dot_lg().into());
+            }
+        }
+
+        if let Some(year) = line.year {
+            push_dot(&mut items);
+            items.push(fact_text(variant, year.to_string()).into());
+        }
+
+        if let Some(value) = line.star {
+            push_dot(&mut items);
+            items.push(
+                row![
+                    icon::filled("star").size(icon_size).color(color::GOLD),
+                    fact_text(variant, format!("{value:.1}")),
+                ]
+                .spacing(spacing::GAP_4)
+                .align_y(Center)
+                .into(),
+            );
+        }
+
+        if let Some(percent) = line.tomato {
+            push_dot(&mut items);
+            items.push(
+                row![
+                    tomato_icon(icon_size),
+                    fact_text(variant, format!("{percent}%"))
+                ]
+                .spacing(spacing::GAP_4)
+                .align_y(Center)
+                .into(),
+            );
+        }
+
+        if let Some(duration) = line.runtime {
+            push_dot(&mut items);
+            items
+                .push(fact_text(variant, format_duration_short(duration)).into());
+        }
+
+        if let Some(rating) = line.rating {
+            push_dot(&mut items);
+            items.push(informational(rating, None));
+        }
+
+        row(items).align_y(Center).into()
+    }
+}
+
+static TOMATO_HANDLE: LazyLock<svg::Handle> = LazyLock::new(|| {
+    svg::Handle::from_memory(include_bytes!("../../assets/misc/tomato.svg").as_slice())
+});
+
+fn fact_text<'a>(
+    variant: Variant,
+    content: impl IntoFragment<'a>,
+) -> text::Text<'a> {
+    match variant {
+        Variant::Main => text::label(content, Variant::Alt),
+        Variant::Alt => text::card_title(content),
+    }
+}
+
+fn fact_icon_size(variant: Variant) -> f32 {
+    match variant {
+        Variant::Main => 12.0,
+        Variant::Alt => 13.0,
+    }
+}
+
+fn tomato_icon<'a>(size: f32) -> Svg<'a> {
+    Svg::new(TOMATO_HANDLE.clone())
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
 }
 
 /// A small accent-tint pill that labels a carousel section. An accent 10%

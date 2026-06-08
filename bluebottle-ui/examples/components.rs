@@ -2180,9 +2180,35 @@ fn meta_chips() -> Element<'static, Message> {
     .spacing(spacing::GAP_8)
     .align_y(Center);
 
-    let demo = column![informational, categories, tags, section_badges]
-        .spacing(spacing::GAP_12)
-        .padding(padding::left(spacing::PAD_16));
+    use bluebottle_ui::text::Variant as TextVariant;
+
+    let metadata_lines = column![
+        meta::metadata_line(TextVariant::Main)
+            .year(1999)
+            .star(8.7)
+            .tomato(83)
+            .runtime(std::time::Duration::from_secs(2 * 3600 + 16 * 60))
+            .rating("R"),
+        meta::metadata_line(TextVariant::Alt)
+            .year(2024)
+            .star(7.2)
+            .runtime(std::time::Duration::from_secs(94 * 60))
+            .rating("PG-13"),
+        meta::metadata_line(TextVariant::Main)
+            .year(1972)
+            .runtime(std::time::Duration::from_secs(2 * 3600 + 55 * 60)),
+    ]
+    .spacing(spacing::GAP_4);
+
+    let demo = column![
+        informational,
+        categories,
+        tags,
+        section_badges,
+        metadata_lines
+    ]
+    .spacing(spacing::GAP_12)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Meta Chips", demo)
 }
