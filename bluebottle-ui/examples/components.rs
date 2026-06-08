@@ -126,6 +126,7 @@ struct Components {
     stepper_compact_value: i32,
     card_watched: std::collections::HashMap<&'static str, bool>,
     card_favourite: std::collections::HashMap<&'static str, bool>,
+    picks_active: usize,
 }
 
 impl Default for Components {
@@ -187,6 +188,7 @@ impl Default for Components {
                 m.insert("album-loved", true);
                 m
             },
+            picks_active: 0,
         }
     }
 }
@@ -257,6 +259,7 @@ enum Message {
     PasswordToggle,
     StepperChanged(i32),
     StepperCompactChanged(i32),
+    PicksActive(usize),
 }
 
 fn toggle_at(slice: &mut [bool], i: usize) {
@@ -391,6 +394,9 @@ impl Components {
             Message::StepperCompactChanged(value) => {
                 self.stepper_compact_value = value;
             },
+            Message::PicksActive(index) => {
+                self.picks_active = index;
+            },
             _ => {},
         }
     }
@@ -479,7 +485,7 @@ impl Components {
                 drawer_cast_rows(),
                 drawer_episode_rows(),
                 chapter_rows(),
-                poster_fans(),
+                poster_fans(self.picks_active),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2332,8 +2338,9 @@ fn chapter_rows() -> Element<'static, Message> {
     section("Chapter Rows", panel)
 }
 
-fn poster_fans() -> Element<'static, Message> {
+fn poster_fans(picks_active: usize) -> Element<'static, Message> {
     use bluebottle_ui::card::poster_fan;
+    use bluebottle_ui::picks_switcher;
 
     let Some(backdrop) = SPLASH_BACKDROP.clone() else {
         return section("Poster Fan", text("Backdrop unavailable.").size(13));
@@ -2349,7 +2356,12 @@ fn poster_fans() -> Element<'static, Message> {
         })
     });
 
-    section("Poster Fan", fan)
+    let switcher =
+        picks_switcher("Top Picks", 3, picks_active).on_click(Message::PicksActive);
+
+    let body = column![switcher, fan].spacing(spacing::GAP_20);
+
+    section("Poster Fan", body)
 }
 
 fn library_counts() -> Element<'static, Message> {

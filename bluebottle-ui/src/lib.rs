@@ -22,6 +22,7 @@ pub use self::widget::card::{
 pub use self::widget::clickable::clickable;
 pub use self::widget::link::link;
 pub use self::widget::media_image::{PillCorner, media_image, media_image_skeleton};
+pub use self::widget::picks_switcher::picks_switcher;
 pub use self::widget::scrollable::scrollable;
 pub use self::widget::sidebar::sidebar;
 pub use self::widget::skeleton::skeleton;
