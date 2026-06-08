@@ -478,6 +478,7 @@ impl Components {
                 continue_watching_cards(),
                 drawer_cast_rows(),
                 drawer_episode_rows(),
+                chapter_rows(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2284,6 +2285,50 @@ fn drawer_episode_rows() -> Element<'static, Message> {
         });
 
     section("Drawer Episode Rows", panel)
+}
+
+fn chapter_rows() -> Element<'static, Message> {
+    use bluebottle_ui::card::{chapter_row, chapter_row_skeleton};
+
+    let short = column![
+        chapter_row(0, "Cold open").on_click(Message::LinkPressed("chapter-cold-open")),
+        chapter_row(125, "Title card")
+            .on_click(Message::LinkPressed("chapter-title-card")),
+        chapter_row(742, "Heist"),
+        chapter_row_skeleton(),
+    ]
+    .spacing(spacing::GAP_2);
+
+    let long = column![
+        chapter_row(0, "Prologue")
+            .show_hours(true)
+            .on_click(Message::LinkPressed("chapter-prologue")),
+        chapter_row(2_730, "Mid-point reversal")
+            .show_hours(true)
+            .on_click(Message::LinkPressed("chapter-midpoint")),
+        chapter_row(7_215, "Resolution")
+            .show_hours(true)
+            .on_click(Message::LinkPressed("chapter-resolution")),
+        chapter_row_skeleton(),
+    ]
+    .spacing(spacing::GAP_2);
+
+    let rows = column![short, long].spacing(spacing::GAP_16);
+
+    let panel = container(rows)
+        .width(Length::Fill)
+        .padding(spacing::PAD_8)
+        .style(|_theme| container::Style {
+            background: Some(iced::Background::Color(color::SECONDARY)),
+            border: iced::Border {
+                radius: 12.0.into(),
+                width: 1.0,
+                color: color::border_strong(),
+            },
+            ..container::Style::default()
+        });
+
+    section("Chapter Rows", panel)
 }
 
 fn library_counts() -> Element<'static, Message> {

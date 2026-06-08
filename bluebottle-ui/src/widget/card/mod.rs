@@ -2,6 +2,7 @@
 //! built on top of it.
 
 mod album_card;
+mod chapter;
 mod continue_watching;
 mod core;
 mod drawer_cast;
@@ -17,6 +18,7 @@ mod util;
 pub use core::{Card, ClickableCard, card, clickable_card};
 
 pub use album_card::{AlbumCard, album_card, album_card_skeleton};
+pub use chapter::{ChapterRow, chapter_row, chapter_row_skeleton};
 pub use continue_watching::{continue_film, continue_show};
 pub use drawer_cast::{drawer_cast_row, drawer_cast_row_skeleton};
 pub use drawer_episode::{
