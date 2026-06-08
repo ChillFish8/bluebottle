@@ -476,6 +476,8 @@ impl Components {
             category("Surfaces", || vec![
                 cards(),
                 continue_watching_cards(),
+                drawer_cast_rows(),
+                drawer_episode_rows(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2189,6 +2191,83 @@ fn continue_watching_cards() -> Element<'static, Message> {
     );
 
     section("Continue Watching", column![film, show].spacing(12))
+}
+
+fn drawer_cast_rows() -> Element<'static, Message> {
+    use bluebottle_ui::card::{drawer_cast_row, drawer_cast_row_skeleton};
+
+    let person = PERSON_POSTER.clone();
+
+    let rows = column![
+        drawer_cast_row(person.clone(), "Tatiana Maslany", "She-Hulk"),
+        drawer_cast_row(person.clone(), "Mark Ruffalo", "Bruce Banner"),
+        drawer_cast_row(person, "Ginger Gonzaga", "Nikki Ramos"),
+        drawer_cast_row_skeleton(),
+        drawer_cast_row_skeleton(),
+    ]
+    .spacing(2);
+
+    let panel = container(rows)
+        .width(Length::Fill)
+        .padding(8)
+        .style(|_theme| container::Style {
+            background: Some(iced::Background::Color(color::SECONDARY)),
+            border: iced::Border {
+                radius: 12.0.into(),
+                width: 1.0,
+                color: color::border_strong(),
+            },
+            ..container::Style::default()
+        });
+
+    section("Drawer Cast Rows", panel)
+}
+
+fn drawer_episode_rows() -> Element<'static, Message> {
+    use bluebottle_ui::card::{drawer_episode_row, drawer_episode_row_skeleton};
+
+    let thumb = THUMBNAIL.clone();
+
+    let rest = drawer_episode_row(thumb.clone(), 1, "Pilot")
+        .meta(["48 min", "Mar 14, 2024"])
+        .on_click(Message::LinkPressed("drawer-episode-rest"))
+        .on_expand_click(Message::LinkPressed("drawer-episode-rest-more"));
+
+    let in_progress = drawer_episode_row(thumb.clone(), 2, "Brand New Day")
+        .meta(["52 min", "Mar 21, 2024", "27 min left"])
+        .progress(0.48)
+        .on_click(Message::LinkPressed("drawer-episode-progress"))
+        .on_expand_click(Message::LinkPressed("drawer-episode-progress-more"));
+
+    let watched = drawer_episode_row(thumb, 3, "The One With the Late Night Diner")
+        .meta(["44 min", "Mar 28, 2024"])
+        .watched(true)
+        .on_click(Message::LinkPressed("drawer-episode-watched"))
+        .on_expand_click(Message::LinkPressed("drawer-episode-watched-more"));
+
+    let rows = column![
+        rest,
+        in_progress,
+        watched,
+        drawer_episode_row_skeleton(),
+        drawer_episode_row_skeleton(),
+    ]
+    .spacing(2);
+
+    let panel = container(rows)
+        .width(Length::Fill)
+        .padding(8)
+        .style(|_theme| container::Style {
+            background: Some(iced::Background::Color(color::SECONDARY)),
+            border: iced::Border {
+                radius: 12.0.into(),
+                width: 1.0,
+                color: color::border_strong(),
+            },
+            ..container::Style::default()
+        });
+
+    section("Drawer Episode Rows", panel)
 }
 
 fn library_counts() -> Element<'static, Message> {

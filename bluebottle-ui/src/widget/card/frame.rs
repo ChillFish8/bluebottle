@@ -37,11 +37,12 @@ use iced::{
     window,
 };
 
+use super::util::paint_centered_icon;
 use crate::animate::hover::{EPSILON, Hover};
 use crate::widget::blur::Backdrop;
 use crate::widget::text::{media_overlay, shape_widest};
 use crate::widget::{blurred_image, button};
-use crate::{color, font, icon, style};
+use crate::{color, font, style};
 
 const CHROME_INSET: f32 = 12.0;
 const TIME_PILL_H: f32 = 24.0;
@@ -932,31 +933,6 @@ fn paint_pill_background(renderer: &mut IcedRenderer, bounds: Rectangle) {
         },
         color::knob_fill_off(),
     );
-}
-
-fn paint_centered_icon(
-    renderer: &mut IcedRenderer,
-    name: &str,
-    area: Rectangle,
-    glyph_size: f32,
-    color: Color,
-) {
-    if glyph_size < 1.0 || area.width < 1.0 || area.height < 1.0 {
-        return;
-    }
-    let text = AdvText {
-        content: icon::filled_codepoint(name).to_string(),
-        bounds: area.size(),
-        size: Pixels(glyph_size),
-        line_height: LineHeight::Relative(1.0),
-        font: icon::ICON_FILLED_FONT,
-        align_x: TextAlign::Center,
-        align_y: alignment::Vertical::Center,
-        shaping: Shaping::Advanced,
-        wrapping: Wrapping::None,
-    };
-    let anchor = Point::new(area.x + area.width * 0.5, area.y + area.height * 0.5);
-    TextRenderer::fill_text(renderer, text, anchor, color, area);
 }
 
 #[allow(clippy::too_many_arguments)]
