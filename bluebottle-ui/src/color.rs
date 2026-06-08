@@ -55,6 +55,11 @@ pub const GLASS_OPAQUE: Color = with_alpha(GLASS_TOP, 1.0);
 /// Dimming wash behind drawers and modals.
 pub const SCRIM: Color = Color::from_rgba(8.0 / 255.0, 10.0 / 255.0, 20.0 / 255.0, 0.55);
 
+/// Recession ink for stacked surfaces. Laid over the artwork at increasing
+/// alpha per depth so a fan or stack reads as deepening rather than
+/// translucent.
+pub const STACK_INK: Color = iced::color!(0x080B14);
+
 // Alpha hairlines. Fixed across every accent. The opacities are authored in
 // sRGB and run through `srgb_alpha` so they render at the weight the design
 // reads. See [`srgb_alpha`].

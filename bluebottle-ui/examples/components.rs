@@ -479,6 +479,7 @@ impl Components {
                 drawer_cast_rows(),
                 drawer_episode_rows(),
                 chapter_rows(),
+                poster_fans(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2295,7 +2296,7 @@ fn chapter_rows() -> Element<'static, Message> {
         chapter_row(125, "Title card")
             .on_click(Message::LinkPressed("chapter-title-card")),
         chapter_row(742, "Heist"),
-        chapter_row_skeleton(),
+        chapter_row_skeleton(false),
     ]
     .spacing(spacing::GAP_2);
 
@@ -2309,7 +2310,7 @@ fn chapter_rows() -> Element<'static, Message> {
         chapter_row(7_215, "Resolution")
             .show_hours(true)
             .on_click(Message::LinkPressed("chapter-resolution")),
-        chapter_row_skeleton(),
+        chapter_row_skeleton(true),
     ]
     .spacing(spacing::GAP_2);
 
@@ -2329,6 +2330,26 @@ fn chapter_rows() -> Element<'static, Message> {
         });
 
     section("Chapter Rows", panel)
+}
+
+fn poster_fans() -> Element<'static, Message> {
+    use bluebottle_ui::card::poster_fan;
+
+    let Some(backdrop) = SPLASH_BACKDROP.clone() else {
+        return section("Poster Fan", text("Backdrop unavailable.").size(13));
+    };
+
+    let posters = [backdrop.clone(), backdrop.clone(), backdrop];
+
+    let fan = poster_fan(posters).on_click(|index| {
+        Message::LinkPressed(match index {
+            0 => "poster-fan-0",
+            1 => "poster-fan-1",
+            _ => "poster-fan-2",
+        })
+    });
+
+    section("Poster Fan", fan)
 }
 
 fn library_counts() -> Element<'static, Message> {

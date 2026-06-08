@@ -14,7 +14,8 @@ use crate::{border, color, font, icon, spacing};
 
 const CHEVRON_SIZE: f32 = 20.0;
 
-const TIMESTAMP_BAR_WIDTH: f32 = 36.0;
+const TIMESTAMP_BAR_MM_SS_WIDTH: f32 = 36.0;
+const TIMESTAMP_BAR_HH_MM_SS_WIDTH: f32 = 56.0;
 const TIMESTAMP_BAR_HEIGHT: f32 = 11.0;
 const NAME_BAR_HEIGHT: f32 = 12.0;
 
@@ -100,13 +101,20 @@ where
 
 /// Shimmer placeholder matching the row layout. A short bar for the
 /// timestamp, a full-width bar for the name, a small square for the chevron
-/// slot.
-pub fn chapter_row_skeleton<'a, Message>() -> Element<'a, Message>
+/// slot. `show_hours` widens the timestamp bar to fit `HH:MM:SS` so the
+/// chevron and name do not shift when the real chapters arrive.
+pub fn chapter_row_skeleton<'a, Message>(show_hours: bool) -> Element<'a, Message>
 where
     Message: Clone + 'a,
 {
+    let timestamp_width = if show_hours {
+        TIMESTAMP_BAR_HH_MM_SS_WIDTH
+    } else {
+        TIMESTAMP_BAR_MM_SS_WIDTH
+    };
+
     let timestamp_bar: Element<'a, Message> = skeleton()
-        .width(Length::Fixed(TIMESTAMP_BAR_WIDTH))
+        .width(Length::Fixed(timestamp_width))
         .height(Length::Fixed(TIMESTAMP_BAR_HEIGHT))
         .radius(border::ROUNDED_XS)
         .into();
