@@ -24,6 +24,7 @@
 //! on top, derived lazily from the backdrop bytes and cached in tree
 //! state so a per-frame `view()` rebuild does not re-clone the pixels.
 
+use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 
 use iced::advanced::renderer::Quad;
@@ -48,7 +49,6 @@ use iced::{
     mouse,
     window,
 };
-use std::f32::consts::PI;
 
 use crate::widget::blur::Backdrop;
 use crate::widget::blurred_image::{BlurRegion, blurred_image};
@@ -99,9 +99,7 @@ const SHADOW: Shadow = style::ELEVATION_INLINE;
 const SHADOW_MARGIN: f32 = 24.0;
 
 /// Builds a Poster Fan from three poster backdrops laid front to back.
-pub fn poster_fan<'a, Message>(
-    posters: [Backdrop; DEPTHS],
-) -> PosterFan<'a, Message> {
+pub fn poster_fan<'a, Message>(posters: [Backdrop; DEPTHS]) -> PosterFan<'a, Message> {
     PosterFan {
         posters,
         on_click: None,
@@ -128,12 +126,8 @@ where
     Message: 'a,
 {
     fn from(fan: PosterFan<'a, Message>) -> Self {
-        let children: Vec<Element<'a, Message>> = fan
-            .posters
-            .iter()
-            .cloned()
-            .map(make_shader_child)
-            .collect();
+        let children: Vec<Element<'a, Message>> =
+            fan.posters.iter().cloned().map(make_shader_child).collect();
         Element::new(PosterFanWidget {
             posters: fan.posters,
             children,
@@ -303,11 +297,9 @@ fn shadow_layer_bounds(rect: Rectangle) -> Rectangle {
 /// passes can never land on different sides of [`Z_SWAP_FACTOR`].
 fn refresh_snapshot(state: &mut FanState, now: Instant) {
     let (from_order, to_order, t) = match state.transition {
-        Some(transition) if !transition.done(now) => (
-            transition.from,
-            transition.to,
-            transition.factor(now),
-        ),
+        Some(transition) if !transition.done(now) => {
+            (transition.from, transition.to, transition.factor(now))
+        },
         _ => (state.order, state.order, 1.0),
     };
     let render_order = if t < Z_SWAP_FACTOR {
@@ -328,8 +320,7 @@ fn refresh_snapshot(state: &mut FanState, now: Instant) {
 /// `view()` rebuild. The cache invalidates when any backdrop's
 /// `Arc`-identity changes.
 fn ensure_handles(state: &mut FanState, posters: &[Backdrop; DEPTHS]) {
-    let current_keys: [usize; DEPTHS] =
-        std::array::from_fn(|i| posters[i].key());
+    let current_keys: [usize; DEPTHS] = std::array::from_fn(|i| posters[i].key());
     if state.handles.is_none() || state.backdrop_keys != current_keys {
         state.handles = Some(std::array::from_fn(|i| backdrop_to_handle(&posters[i])));
         state.backdrop_keys = current_keys;
@@ -518,8 +509,7 @@ where
         operation: &mut dyn Operation,
     ) {
         let mut child_layouts = layout.children();
-        for (child, child_tree) in
-            self.children.iter_mut().zip(tree.children.iter_mut())
+        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut())
         {
             let child_layout = child_layouts.next().expect("child layout");
             child
@@ -542,8 +532,7 @@ where
         // Forward to shader children first so they keep their per-frame
         // bookkeeping in step with the redraw clock.
         let mut child_layouts = layout.children();
-        for (child, child_tree) in
-            self.children.iter_mut().zip(tree.children.iter_mut())
+        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut())
         {
             let child_layout = child_layouts.next().expect("child layout");
             child.as_widget_mut().update(
@@ -588,7 +577,7 @@ where
                     state.pressed = Some(depth);
                     shell.capture_event();
                 }
-            }
+            },
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 let pressed = state.pressed.take();
                 let Some(pressed_depth) = pressed else {
@@ -619,8 +608,8 @@ where
                 });
                 state.order = new_order;
                 shell.request_redraw();
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 

@@ -297,7 +297,7 @@ where
                     state.pressed = Some(i);
                     shell.capture_event();
                 }
-            }
+            },
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
                 let pressed = state.pressed.take();
                 let Some(i) = pressed else {
@@ -313,8 +313,8 @@ where
                     shell.publish(on_click(i));
                 }
                 shell.capture_event();
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
