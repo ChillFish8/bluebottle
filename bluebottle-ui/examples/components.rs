@@ -2339,8 +2339,7 @@ fn chapter_rows() -> Element<'static, Message> {
 }
 
 fn poster_fans(picks_active: usize) -> Element<'static, Message> {
-    use bluebottle_ui::card::poster_fan;
-    use bluebottle_ui::picks_switcher;
+    use bluebottle_ui::{picks_switcher, poster_fan};
 
     let Some(backdrop) = SPLASH_BACKDROP.clone() else {
         return section("Poster Fan", text("Backdrop unavailable.").size(13));

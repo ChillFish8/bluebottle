@@ -17,6 +17,7 @@ pub mod media_image;
 pub mod meta;
 pub mod path_trace;
 pub mod picks_switcher;
+pub mod poster_fan;
 pub mod reorderable;
 pub(crate) mod scroll;
 pub mod scrollable;

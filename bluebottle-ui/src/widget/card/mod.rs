@@ -13,7 +13,6 @@ mod frame;
 mod library_count;
 mod library_source;
 mod poster_card;
-mod poster_fan;
 mod util;
 
 pub use core::{Card, ClickableCard, card, clickable_card};
@@ -38,4 +37,3 @@ pub use library_source::{
     library_source_count,
 };
 pub use poster_card::{PosterCard, poster_card, poster_card_skeleton};
-pub use poster_fan::{PosterFan, poster_fan};
