@@ -27,5 +27,6 @@ pub mod skeleton;
 pub mod smart_list;
 pub mod spinner;
 pub mod splash_background;
+pub mod sticky;
 pub mod tabs;
 pub mod text;

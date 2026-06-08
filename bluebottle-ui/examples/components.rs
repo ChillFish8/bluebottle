@@ -486,6 +486,7 @@ impl Components {
                 drawer_episode_rows(),
                 chapter_rows(),
                 poster_fans(self.picks_active),
+                sticky_demo(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2361,6 +2362,86 @@ fn poster_fans(picks_active: usize) -> Element<'static, Message> {
     let body = column![switcher, fan].spacing(spacing::GAP_20);
 
     section("Poster Fan", body)
+}
+
+fn sticky_demo() -> Element<'static, Message> {
+    use bluebottle_ui::{scrollable, sticky, text as ui_text};
+
+    fn navbar(label: &'static str) -> Element<'static, Message> {
+        container(
+            row![
+                ui_text::title_small(label),
+                Space::new().width(Length::Fill),
+                ui_text::caption("S1 · 12 eps").color(color::TEXT_SECONDARY),
+            ]
+            .align_y(Center)
+            .spacing(spacing::GAP_8),
+        )
+        .padding(padding::all(spacing::PAD_12))
+        .width(Length::Fill)
+        .style(|_theme| container::Style {
+            background: Some(Background::Color(color::SECONDARY)),
+            ..container::Style::default()
+        })
+        .into()
+    }
+
+    fn body_rows() -> Element<'static, Message> {
+        let rows = (1..=18).map(|i| {
+            container(ui_text::body(format!("Item {i:02}")))
+                .padding(padding::all(spacing::PAD_12))
+                .width(Length::Fill)
+                .into()
+        });
+
+        column(rows).spacing(spacing::GAP_2).into()
+    }
+
+    fn frame(inner: Element<'static, Message>) -> Element<'static, Message> {
+        container(inner)
+            .padding(spacing::PAD_4)
+            .style(|_theme| container::Style {
+                background: Some(Background::Color(color::SECONDARY)),
+                border: Border {
+                    radius: 12.0.into(),
+                    width: 1.0,
+                    color: color::border_strong(),
+                },
+                ..container::Style::default()
+            })
+            .into()
+    }
+
+    fn lead_in(label: &'static str) -> Element<'static, Message> {
+        container(ui_text::caption(label).color(color::TEXT_SECONDARY))
+            .padding(padding::all(spacing::PAD_12))
+            .width(Length::Fill)
+            .into()
+    }
+
+    let with_divider = frame(
+        scrollable::scrollable(column![
+            lead_in("Scroll down. The navbar pins once it reaches the top."),
+            sticky(navbar("With divider"), body_rows()),
+        ])
+        .height(Length::Fixed(280.0))
+        .into(),
+    );
+
+    let no_divider = frame(
+        scrollable::scrollable(column![
+            lead_in("Same widget, with a 12px top inset."),
+            sticky(navbar("Inset 12px"), body_rows())
+                .top(spacing::PAD_12)
+                .divider(false),
+        ])
+        .height(Length::Fixed(280.0))
+        .into(),
+    );
+
+    let demo = row![with_divider, no_divider].spacing(spacing::GAP_16);
+
+    section("Sticky", demo)
 }
 
 fn library_counts() -> Element<'static, Message> {
