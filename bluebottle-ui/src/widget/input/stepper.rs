@@ -4,11 +4,8 @@ use iced::{Center, Element, Length, Padding};
 use super::focus_frame::{Shape, focus_frame, text_input_style};
 use crate::widget::button::icon_flat;
 use crate::widget::text;
-use crate::{color, font};
+use crate::{color, font, spacing};
 
-const SUFFIX_GAP: f32 = 2.0;
-const SUFFIX_BUTTON_GAP: f32 = 4.0;
-const SHELL_GAP: f32 = 10.0;
 const FRAME_PAD: u16 = 5;
 
 /// Component height.
@@ -165,7 +162,7 @@ where
 
         let value_block: Element<'a, Message> = match stepper.suffix {
             Some(suffix) => Row::new()
-                .spacing(SUFFIX_GAP)
+                .spacing(spacing::GAP_2)
                 .align_y(Center)
                 .push(input)
                 .push(
@@ -183,7 +180,7 @@ where
         // bleeding into the suffix glyph. Bare numeric variants are centred
         // in their own budget and do not need the gap.
         let row_gap = if stepper.suffix.is_some() {
-            SUFFIX_BUTTON_GAP
+            spacing::GAP_4
         } else {
             0.0
         };
@@ -196,13 +193,13 @@ where
             .push(plus);
 
         let row = container(row)
-            .height(Length::Fixed(metrics.button + SHELL_GAP))
+            .height(Length::Fixed(metrics.button + spacing::GAP_10))
             .align_y(Center);
 
         focus_frame(row)
             .shape(Shape::Pill)
             .padding(FRAME_PAD)
-            .height(Length::Fixed(metrics.button + SHELL_GAP))
+            .height(Length::Fixed(metrics.button + spacing::GAP_10))
             .into()
     }
 }

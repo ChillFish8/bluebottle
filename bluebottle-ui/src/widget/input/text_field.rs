@@ -4,12 +4,9 @@ use iced::{Center, Element, Length, Padding};
 use super::focus_frame::{Shape, focus_frame, text_input_style};
 use crate::widget::button::icon_flat;
 use crate::widget::text::{self, Variant};
-use crate::{color, icon};
+use crate::{color, icon, spacing};
 
 const FIELD_HEIGHT: f32 = 46.0;
-const FIELD_PAD_X: f32 = 16.0;
-const HELP_GAP: f32 = 6.0;
-const LABEL_GAP: f32 = 8.0;
 const EYE_DIAMETER: f32 = 34.0;
 const EYE_GLYPH: f32 = 18.0;
 /// Vertical padding inside the text_input so its hit bounds extend across the
@@ -192,7 +189,7 @@ where
 
     let header: Element<'a, Message> = if field.optional {
         Row::new()
-            .spacing(LABEL_GAP)
+            .spacing(spacing::GAP_8)
             .align_y(Center)
             .push(label)
             .push(text::caption("optional"))
@@ -205,14 +202,14 @@ where
     // across the field's visual inset. Padding on the focus_frame would leave
     // a dead zone where a click lights the ring without focusing the caret.
     let has_affix = matches!(affix, Affix::Reveal { .. });
-    let input_right_pad = if has_affix { 0.0 } else { FIELD_PAD_X };
+    let input_right_pad = if has_affix { 0.0 } else { spacing::PAD_16 };
 
     let mut input = text_input(field.placeholder, field.value)
         .padding(Padding {
             top: FIELD_PAD_Y,
             right: input_right_pad,
             bottom: FIELD_PAD_Y,
-            left: FIELD_PAD_X,
+            left: spacing::PAD_16,
         })
         .size(14)
         .width(Length::Fill)
@@ -248,7 +245,7 @@ where
             let eye =
                 icon_flat(glyph_name, false, message).size(EYE_DIAMETER, EYE_GLYPH);
             row = row.push(eye);
-            6.0
+            spacing::PAD_6
         },
     };
 
@@ -270,13 +267,16 @@ where
         .width(Length::Fill);
 
     let shell_el: Element<'a, Message> = shell.into();
-    let mut column = Column::new().spacing(HELP_GAP).push(header).push(shell_el);
+    let mut column = Column::new()
+        .spacing(spacing::GAP_6)
+        .push(header)
+        .push(shell_el);
 
     if let Some(error) = field.error {
         let glyph = icon::filled("error").size(14).color(color::error());
         let caption = text::caption(error).color(color::error());
         let row = Row::new()
-            .spacing(6)
+            .spacing(spacing::GAP_6)
             .align_y(Center)
             .push(glyph)
             .push(caption);
@@ -288,7 +288,7 @@ where
         let caption =
             text::caption(field.help.unwrap_or("Looks good")).color(color::success());
         let row = Row::new()
-            .spacing(6)
+            .spacing(spacing::GAP_6)
             .align_y(Center)
             .push(glyph)
             .push(caption);

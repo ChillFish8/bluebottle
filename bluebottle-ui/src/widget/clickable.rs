@@ -35,9 +35,7 @@ use iced::{
 };
 
 use crate::animate::hover::{EPSILON, FADE, Hover, PressState};
-use crate::color;
-
-const DEFAULT_RADIUS: f32 = 999.0;
+use crate::{border, color};
 
 /// Creates a clickable around `content`. Non-interactive by default. Set
 /// `.on_press(...)` to enable the press dispatch and the hover affordances.
@@ -61,7 +59,7 @@ where
         selected_fade: FADE,
         border: None,
         hover_border: None,
-        radius: DEFAULT_RADIUS,
+        radius: border::ROUNDED_FULL,
         padding: Padding::ZERO,
         width: Length::Shrink,
         height: Length::Shrink,

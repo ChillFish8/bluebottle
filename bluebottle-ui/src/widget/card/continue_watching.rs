@@ -16,15 +16,9 @@ use super::core::clickable_card;
 use crate::widget::blur::Backdrop;
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::media_image::media_image;
-use crate::widget::skeleton::DEFAULT_RADIUS as IMAGE_RADIUS;
 use crate::widget::spinner::{Tone, progress_rail};
 use crate::widget::{separator, text};
-use crate::{color, font, icon, style};
-
-const CARD_RADIUS: f32 = 14.0;
-const CARD_PADDING: f32 = 16.0;
-const ROW_GAP: f32 = 16.0;
-const STACK_GAP: f32 = 10.0;
+use crate::{border, color, font, icon, spacing, style};
 
 const PLAY_GLYPH_SIZE: f32 = 32.0;
 
@@ -63,10 +57,12 @@ where
     let label_row = row![label, Space::new().width(Length::Fill), meta].align_y(Center);
 
     let body = column![label_row, accent_rail(fraction)]
-        .spacing(STACK_GAP)
+        .spacing(spacing::GAP_10)
         .width(Length::Fill);
 
-    let content = row![play_arrow(), body].spacing(ROW_GAP).align_y(Center);
+    let content = row![play_arrow(), body]
+        .spacing(spacing::GAP_16)
+        .align_y(Center);
 
     accent_card(content, on_press)
 }
@@ -112,7 +108,7 @@ where
     let meta = column![label, title, time_left].spacing(0);
 
     let body = column![meta, accent_rail(fraction)]
-        .spacing(STACK_GAP)
+        .spacing(spacing::GAP_10)
         .width(Length::Fill);
 
     let chevron = icon::filled("chevron_right")
@@ -120,7 +116,7 @@ where
         .color(color::primary());
 
     let content = row![show_poster(poster), body, chevron]
-        .spacing(ROW_GAP)
+        .spacing(spacing::GAP_16)
         .align_y(Center);
 
     accent_card(content, on_press)
@@ -136,8 +132,8 @@ where
     clickable_card(content)
         .background(color::primary_glass())
         .border(color::primary())
-        .radius(CARD_RADIUS)
-        .padding(padding::all(CARD_PADDING))
+        .radius(border::ROUNDED_2XL)
+        .padding(padding::all(spacing::PAD_16))
         .tint(color::hover_veil())
         .width(Length::Fill)
         .on_press_maybe(on_press)
@@ -166,7 +162,7 @@ where
                 Color::BLACK,
                 POSTER_SCRIM_ALPHA,
             ))),
-            border: Border::default().rounded(IMAGE_RADIUS),
+            border: Border::default().rounded(border::ROUNDED_MD),
             ..container::Style::default()
         });
 
@@ -181,12 +177,12 @@ where
     let poster = media_image(backdrop)
         .width(POSTER_WIDTH)
         .height(POSTER_HEIGHT)
-        .corner_radius(IMAGE_RADIUS)
+        .corner_radius(border::ROUNDED_MD)
         .overlay(overlay);
 
     container(poster)
         .style(|_theme: &Theme| container::Style {
-            border: Border::default().rounded(IMAGE_RADIUS),
+            border: Border::default().rounded(border::ROUNDED_MD),
             shadow: style::ELEVATION_INLINE,
             ..container::Style::default()
         })

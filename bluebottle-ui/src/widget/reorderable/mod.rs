@@ -24,9 +24,8 @@ use iced::{
 };
 
 use crate::animate::hover::EPSILON;
-use crate::easing;
+use crate::{easing, spacing};
 
-const DEFAULT_SPACING: f32 = 12.0;
 const SLOT_FADE: Duration = Duration::from_millis(100);
 const DRAG_THRESHOLD: f32 = 4.0;
 
@@ -43,7 +42,7 @@ where
     Reorderable {
         children,
         on_reorder: Box::new(on_reorder),
-        spacing: DEFAULT_SPACING,
+        spacing: spacing::GAP_12,
         width: Length::Fill,
     }
 }

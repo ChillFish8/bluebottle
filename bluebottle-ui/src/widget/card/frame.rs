@@ -42,38 +42,25 @@ use crate::animate::hover::{EPSILON, Hover};
 use crate::widget::blur::Backdrop;
 use crate::widget::text::{media_overlay, shape_widest};
 use crate::widget::{blurred_image, button};
-use crate::{color, font, style};
+use crate::{border, color, font, spacing, style};
 
-const CHROME_INSET: f32 = 12.0;
 const TIME_PILL_H: f32 = 24.0;
 const WATCHED_PILL_H: f32 = 28.0;
 const PROGRESS_HEIGHT: f32 = 4.0;
-
-/// Outer padding so the hover elevation shadow has room outside the image.
-const CARD_PADDING: f32 = 2.0;
 
 /// Hover dim, blended in linear space. Skip `srgb_alpha` so the perceptual
 /// darken matches the authored value.
 const DIM_ALPHA: f32 = 0.55;
 
-const CAPTION_GAP: f32 = 8.0;
-const CAPTION_ROW_GAP: f32 = 2.0;
 const PILL_LABEL_SIZE: f32 = 10.0;
 
-const PILL_PAD_X: f32 = 10.0;
-const ICON_LABEL_GAP: f32 = 6.0;
 const TIME_ICON_SIZE: f32 = 14.0;
 const WATCHED_CHECK_SIZE: f32 = 20.0;
-const WATCHED_CHECK_GAP: f32 = 8.0;
 const HEART_DIAMETER: f32 = 36.0;
 
 /// Inset of the checkbox from the pill's left edge. Centres the checkbox
 /// inside the compact circle and stays put as the pill grows.
 const WATCHED_CHECK_INSET: f32 = (WATCHED_PILL_H - WATCHED_CHECK_SIZE) * 0.5;
-
-/// Right-padding after the "Watched" label. Matches the checkbox-to-label
-/// gap so the pill reads symmetric around the text.
-const WATCHED_LABEL_RIGHT_PAD: f32 = WATCHED_CHECK_GAP;
 
 /// Shaped once per process since the label is constant.
 static WATCHED_LABEL_WIDTH: LazyLock<f32> =
@@ -136,7 +123,7 @@ where
     let watched_label_width = *WATCHED_LABEL_WIDTH;
 
     let time_pill_width = if time_left.is_some() {
-        (PILL_PAD_X * 2.0) + TIME_ICON_SIZE + ICON_LABEL_GAP + time_label_width
+        (spacing::PAD_10 * 2.0) + TIME_ICON_SIZE + spacing::GAP_6 + time_label_width
     } else {
         0.0
     };
@@ -144,9 +131,9 @@ where
     let watched_pill_compact = WATCHED_PILL_H;
     let watched_pill_expanded = WATCHED_CHECK_INSET
         + WATCHED_CHECK_SIZE
-        + WATCHED_CHECK_GAP
+        + spacing::GAP_8
         + watched_label_width
-        + WATCHED_LABEL_RIGHT_PAD;
+        + spacing::GAP_8;
 
     // Packs hover and watched factors so the regions closure sees a
     // consistent pair across one atomic load.
@@ -256,11 +243,11 @@ where
 
     // The padded surface gives the hover shadow room to fall outside the
     // image without being clipped by neighbouring cards.
-    let padded_surface = container(image_layer).padding(Padding::new(CARD_PADDING));
-    let mut outer = column![padded_surface].spacing(CAPTION_GAP - CARD_PADDING);
+    let padded_surface = container(image_layer).padding(Padding::new(spacing::PAD_2));
+    let mut outer = column![padded_surface].spacing(spacing::GAP_8 - spacing::PAD_2);
 
     if label.is_some() || subtext.is_some() {
-        let mut captions = column![].spacing(CAPTION_ROW_GAP);
+        let mut captions = column![].spacing(spacing::GAP_2);
 
         if let Some(label) = label {
             captions = captions.push(label);
@@ -295,7 +282,7 @@ fn regions_for(
 
     if has_progress && time_pill_width > 0.0 {
         out.push(blurred_image::BlurRegion::pill(Rectangle::new(
-            Point::new(CHROME_INSET, size.height - CHROME_INSET - TIME_PILL_H),
+            Point::new(spacing::PAD_12, size.height - spacing::PAD_12 - TIME_PILL_H),
             Size::new(time_pill_width, TIME_PILL_H),
         )));
     }
@@ -311,8 +298,8 @@ fn regions_for(
 
         // Heart scales from its rest centre, not from the image corner,
         // so the frost stays under the button throughout the animation.
-        let heart_cx = size.width - CHROME_INSET - HEART_DIAMETER * 0.5;
-        let heart_cy = size.height - CHROME_INSET - HEART_DIAMETER * 0.5;
+        let heart_cx = size.width - spacing::PAD_12 - HEART_DIAMETER * 0.5;
+        let heart_cy = size.height - spacing::PAD_12 - HEART_DIAMETER * 0.5;
         let heart = HEART_DIAMETER * t_hover;
 
         out.push(blurred_image::BlurRegion::pill(Rectangle::new(
@@ -330,10 +317,10 @@ fn regions_for(
     if watched_visible {
         let compact = if watched { watched_pill_compact } else { 0.0 };
         let width = compact + (watched_pill_expanded - compact) * t_watched;
-        let pill_right = size.width - CHROME_INSET;
+        let pill_right = size.width - spacing::PAD_12;
 
         out.push(blurred_image::BlurRegion::pill(Rectangle::new(
-            Point::new(pill_right - width, CHROME_INSET),
+            Point::new(pill_right - width, spacing::PAD_12),
             Size::new(width, WATCHED_PILL_H),
         )));
     }
@@ -387,8 +374,8 @@ where
 
     fn heart_origin(&self, image: Rectangle) -> Point {
         Point::new(
-            image.x + image.width - CHROME_INSET - HEART_DIAMETER,
-            image.y + image.height - CHROME_INSET - HEART_DIAMETER,
+            image.x + image.width - spacing::PAD_12 - HEART_DIAMETER,
+            image.y + image.height - spacing::PAD_12 - HEART_DIAMETER,
         )
     }
 
@@ -404,22 +391,22 @@ where
     /// Top-left of the watched checkbox child. Slides left with the pill
     /// so the box stays at the same inset throughout the animation.
     fn watched_checkbox_origin(&self, image: Rectangle, factor: f32) -> Point {
-        let pill_right = image.x + image.width - CHROME_INSET;
+        let pill_right = image.x + image.width - spacing::PAD_12;
         let width = self.watched_pill_width(factor);
         let pill_left = pill_right - width;
 
         Point::new(
             pill_left + WATCHED_CHECK_INSET,
-            image.y + CHROME_INSET + WATCHED_CHECK_INSET,
+            image.y + spacing::PAD_12 + WATCHED_CHECK_INSET,
         )
     }
 
     fn watched_pill_bounds(&self, image: Rectangle, factor: f32) -> Rectangle {
-        let pill_right = image.x + image.width - CHROME_INSET;
+        let pill_right = image.x + image.width - spacing::PAD_12;
         let width = self.watched_pill_width(factor);
 
         Rectangle::new(
-            Point::new(pill_right - width, image.y + CHROME_INSET),
+            Point::new(pill_right - width, image.y + spacing::PAD_12),
             Size::new(width, WATCHED_PILL_H),
         )
     }
@@ -587,11 +574,9 @@ where
             let label_alpha = smoothstep(0.4, 1.0, watched_factor);
             if label_alpha > EPSILON {
                 let pill = self.watched_pill_bounds(image, watched_factor);
-                let label_left = pill.x
-                    + WATCHED_CHECK_INSET
-                    + WATCHED_CHECK_SIZE
-                    + WATCHED_CHECK_GAP;
-                let label_right = pill.x + pill.width - WATCHED_LABEL_RIGHT_PAD;
+                let label_left =
+                    pill.x + WATCHED_CHECK_INSET + WATCHED_CHECK_SIZE + spacing::GAP_8;
+                let label_right = pill.x + pill.width - spacing::GAP_8;
                 let label_area = Rectangle::new(
                     Point::new(label_left, pill.y),
                     Size::new((label_right - label_left).max(0.0), pill.height),
@@ -875,8 +860,8 @@ where
     fn paint_time_pill_at(&self, renderer: &mut IcedRenderer, image: Rectangle) {
         let pill = Rectangle::new(
             Point::new(
-                image.x + CHROME_INSET,
-                image.y + image.height - CHROME_INSET - TIME_PILL_H,
+                image.x + spacing::PAD_12,
+                image.y + image.height - spacing::PAD_12 - TIME_PILL_H,
             ),
             Size::new(self.time_pill_width, TIME_PILL_H),
         );
@@ -887,7 +872,7 @@ where
         };
 
         let icon_area = Rectangle::new(
-            Point::new(pill.x + PILL_PAD_X, pill.y),
+            Point::new(pill.x + spacing::PAD_10, pill.y),
             Size::new(TIME_ICON_SIZE, pill.height),
         );
         paint_centered_icon(
@@ -898,11 +883,11 @@ where
             color::TEXT_PRIMARY,
         );
 
-        let label_left = pill.x + PILL_PAD_X + TIME_ICON_SIZE + ICON_LABEL_GAP;
+        let label_left = pill.x + spacing::PAD_10 + TIME_ICON_SIZE + spacing::GAP_6;
         let label_area = Rectangle::new(
             Point::new(label_left, pill.y),
             Size::new(
-                (pill.x + pill.width - PILL_PAD_X - label_left).max(0.0),
+                (pill.x + pill.width - spacing::PAD_10 - label_left).max(0.0),
                 pill.height,
             ),
         );
@@ -1026,7 +1011,7 @@ where
 {
     use crate::widget::skeleton::skeleton as shimmer;
 
-    let inner = (image_size.width - SKELETON_LINE_INSET * 2.0).max(0.0);
+    let inner = (image_size.width - spacing::PAD_6 * 2.0).max(0.0);
 
     let image: Element<'a, Message> = shimmer()
         .width(Length::Fixed(image_size.width))
@@ -1037,31 +1022,26 @@ where
     let label: Element<'a, Message> = shimmer()
         .width(Length::Fixed(inner * SKELETON_LABEL_FRAC))
         .height(Length::Fixed(SKELETON_LABEL_H))
-        .radius(SKELETON_LINE_RADIUS)
+        .radius(border::ROUNDED_XS)
         .into();
 
     let subtext: Element<'a, Message> = shimmer()
         .width(Length::Fixed(inner * SKELETON_SUBTEXT_FRAC))
         .height(Length::Fixed(SKELETON_SUBTEXT_H))
-        .radius(SKELETON_LINE_RADIUS)
+        .radius(border::ROUNDED_XS)
         .into();
 
-    let captions = container(column![label, subtext].spacing(SKELETON_ROW_GAP))
-        .padding(Padding::default().horizontal(SKELETON_LINE_INSET));
+    let captions = container(column![label, subtext].spacing(spacing::GAP_8))
+        .padding(Padding::default().horizontal(spacing::PAD_6));
 
-    let padded_image = container(image).padding(Padding::new(CARD_PADDING));
+    let padded_image = container(image).padding(Padding::new(spacing::PAD_2));
 
     column![padded_image, captions]
-        .spacing(CAPTION_GAP - CARD_PADDING)
+        .spacing(spacing::GAP_8 - spacing::PAD_2)
         .into()
 }
 
 const SKELETON_LABEL_H: f32 = 13.0;
 const SKELETON_SUBTEXT_H: f32 = 11.0;
-const SKELETON_LINE_RADIUS: f32 = 4.0;
-const SKELETON_LINE_INSET: f32 = 6.0;
 const SKELETON_LABEL_FRAC: f32 = 0.75;
 const SKELETON_SUBTEXT_FRAC: f32 = 0.55;
-/// Skeleton bars have no typographic leading, so the row gap stands in for
-/// the line-height the real captions get from their text.
-const SKELETON_ROW_GAP: f32 = 8.0;

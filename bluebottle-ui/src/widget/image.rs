@@ -2,7 +2,7 @@ use iced::widget::image;
 use iced::{ContentFit, Element};
 pub use image::{Handle, Image};
 
-use super::skeleton::DEFAULT_RADIUS as IMAGE_RADIUS;
+use crate::border;
 
 /// The sizing options of the poster.
 pub enum PosterSize {
@@ -23,7 +23,7 @@ pub fn poster(handle: Handle, size: PosterSize) -> Image {
         .width(width)
         .height(height)
         .content_fit(ContentFit::Cover)
-        .border_radius(IMAGE_RADIUS)
+        .border_radius(border::ROUNDED_MD)
 }
 
 /// Creates a loading skeleton for the poster form factor.
@@ -49,7 +49,7 @@ pub fn thumbnail(handle: Handle) -> Image {
         .width(270)
         .height(152)
         .content_fit(ContentFit::Cover)
-        .border_radius(IMAGE_RADIUS)
+        .border_radius(border::ROUNDED_MD)
 }
 
 /// Creates a loading skeleton for the thumbnail form factor.
@@ -66,7 +66,7 @@ pub fn square(handle: Handle) -> Image {
         .width(152)
         .height(152)
         .content_fit(ContentFit::Cover)
-        .border_radius(IMAGE_RADIUS)
+        .border_radius(border::ROUNDED_MD)
 }
 
 /// Creates a loading skeleton for the square form factor.

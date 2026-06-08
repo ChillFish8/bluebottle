@@ -32,24 +32,20 @@ use iced::{
 
 use super::chevron;
 use crate::animate::hover::{EPSILON, Hover, PressState};
-use crate::{color, style};
+use crate::{border, color, spacing, style};
 
-const TRIGGER_GAP: f32 = 8.0;
 const CHEVRON_SIZE: f32 = 14.0;
-const DEFAULT_RADIUS: f32 = 10.0;
-const DEFAULT_MENU_RADIUS: f32 = 10.0;
-const MENU_OFFSET: f32 = 4.0;
 const DEFAULT_TRIGGER_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 10.0,
-    bottom: 6.0,
-    left: 12.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_10,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_12,
 };
 const DEFAULT_MENU_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 6.0,
-    bottom: 6.0,
-    left: 6.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_6,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_6,
 };
 
 /// Creates a dropdown. The trigger renders `label` next to a chevron and the
@@ -66,7 +62,7 @@ where
     let trigger: Element<'a, Message> = iced::widget::Row::new()
         .push(label.into())
         .push(chevron::chevron(expanded).size(CHEVRON_SIZE))
-        .spacing(TRIGGER_GAP)
+        .spacing(spacing::GAP_8)
         .align_y(alignment::Vertical::Center)
         .into();
 
@@ -80,13 +76,13 @@ where
         selected_background: None,
         selected_border: None,
         border: None,
-        radius: DEFAULT_RADIUS,
+        radius: border::ROUNDED_LG,
         padding: DEFAULT_TRIGGER_PADDING,
         width: Length::Shrink,
         height: Length::Shrink,
         menu_background: color::SECONDARY,
         menu_border: color::border(),
-        menu_radius: DEFAULT_MENU_RADIUS,
+        menu_radius: border::ROUNDED_LG,
         menu_padding: DEFAULT_MENU_PADDING,
         menu_width: Length::Shrink,
     }
@@ -638,7 +634,7 @@ where
                 border: self.menu_border,
                 radius: self.menu_radius,
                 padding: self.menu_padding,
-                offset: MENU_OFFSET,
+                offset: spacing::PAD_4,
                 width: self.menu_width,
             })))
         } else {

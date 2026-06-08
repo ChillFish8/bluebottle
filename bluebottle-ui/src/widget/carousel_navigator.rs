@@ -1,7 +1,7 @@
 use iced::widget::row;
 use iced::{Center, Element};
 
-use crate::{button, font, text};
+use crate::{button, font, spacing, text};
 
 /// The carousel navigator for switching pages.
 pub fn navigator<'a, Message>(
@@ -27,7 +27,7 @@ where
         button::icon_carousel("chevron_right", on_forward),
     ]
     .align_y(Center)
-    .spacing(4)
-    .padding(4)
+    .spacing(spacing::GAP_4)
+    .padding(spacing::PAD_4)
     .into()
 }

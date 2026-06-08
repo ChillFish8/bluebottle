@@ -8,13 +8,8 @@ use iced::widget::{Row, Space, column};
 use iced::{Element, Length, padding};
 
 use super::core::card;
-use crate::color;
 use crate::widget::text::{self, Variant};
-
-const ROW_SPACING: f32 = 14.0;
-const COL_SPACING: f32 = 16.0;
-const CELL_SPACING: f32 = 4.0;
-const CARD_PADDING: f32 = 16.0;
+use crate::{color, spacing};
 
 /// A single labelled value rendered as one cell in the grid.
 pub struct FactEntry {
@@ -46,10 +41,10 @@ where
     let columns = columns.max(1);
     let entries: Vec<FactEntry> = entries.into_iter().collect();
 
-    let mut rows = column![].spacing(ROW_SPACING).width(Length::Fill);
+    let mut rows = column![].spacing(spacing::GAP_14).width(Length::Fill);
 
     for chunk in entries.chunks(columns) {
-        let mut row: Row<'_, Message> = Row::new().spacing(COL_SPACING);
+        let mut row: Row<'_, Message> = Row::new().spacing(spacing::GAP_16);
         for entry in chunk {
             row = row.push(cell(&entry.label, entry.value.clone()));
         }
@@ -60,7 +55,7 @@ where
     }
 
     card(rows)
-        .padding(padding::all(CARD_PADDING))
+        .padding(padding::all(spacing::PAD_16))
         .width(Length::Fill)
         .into()
 }
@@ -74,7 +69,7 @@ where
     let value = text::card_title(value).color(color::TEXT_PRIMARY);
 
     column![label, value]
-        .spacing(CELL_SPACING)
+        .spacing(spacing::GAP_4)
         .width(Length::Fill)
         .into()
 }

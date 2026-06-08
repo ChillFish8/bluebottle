@@ -23,7 +23,7 @@ use crate::animate::hover::Hover;
 use crate::border::Radius;
 use crate::util::lerp;
 use crate::widget::text;
-use crate::{color, font, style};
+use crate::{color, font, spacing, style};
 
 const TRACK_HEIGHT: f32 = 6.0;
 const THUMB_DIAMETER: f32 = 18.0;
@@ -40,7 +40,6 @@ const TICK_ALPHA: f32 = 0.30;
 /// span/step would exceed this cap stops drawing ticks rather than freezing
 /// the draw loop. The cap is well above what a human can resolve.
 const MAX_TICK_COUNT: i32 = 200;
-const READOUT_SPACING: f32 = 12.0;
 const READOUT_BUDGET: f32 = 56.0;
 const LEAD_ICON_SIZE: f32 = 18.0;
 
@@ -512,7 +511,7 @@ where
         Row::with_children([icon.into(), rail, readout.into()])
             .width(s.width)
             .align_y(Center)
-            .spacing(READOUT_SPACING)
+            .spacing(spacing::GAP_12)
             .into()
     }
 }

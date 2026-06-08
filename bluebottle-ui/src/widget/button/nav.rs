@@ -21,13 +21,12 @@ use iced::{
 
 use crate::animate::hover::{EPSILON, Hover, PressState};
 use crate::widget::path_trace::trace_partial;
-use crate::{color, font, icon, text};
+use crate::{border, color, font, icon, spacing, text};
 
-const NAV_ICON_PADDING: [u16; 2] = [4, 16];
+const NAV_ICON_PADDING: [f32; 2] = [spacing::PAD_4, spacing::PAD_16];
 const NAV_PUCK_WIDTH: f32 = 44.0;
 const NAV_PUCK_HEIGHT: f32 = 28.0;
 // r999 in the spec. A radius past half the height renders a full pill.
-const NAV_PUCK_RADIUS: f32 = 999.0;
 // The selection border and the colour and weight shift run slower than the
 // shared hover fade so the wrap reads as a deliberate transition.
 const NAV_SELECT_FADE: Duration = Duration::from_millis(175);
@@ -241,7 +240,7 @@ where
                 Quad {
                     bounds: puck,
                     border: Border {
-                        radius: NAV_PUCK_RADIUS.into(),
+                        radius: border::ROUNDED_FULL.into(),
                         ..Border::default()
                     },
                     ..Quad::default()

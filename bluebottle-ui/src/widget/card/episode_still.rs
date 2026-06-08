@@ -6,11 +6,11 @@ use std::borrow::Cow;
 use iced::{Element, Size};
 
 use super::frame::{self, Aspect, CardFrame};
+use crate::border;
 use crate::widget::blur::Backdrop;
 use crate::widget::button;
 
 pub const DEFAULT_IMAGE_SIZE: Size = Size::new(320.0, 180.0);
-pub const DEFAULT_RADIUS: f32 = 12.0;
 /// Diameter of the centre play button. Sourced from the button widget
 /// so the frosted backdrop stays concentric with the real button.
 pub const DEFAULT_PLAY_SIZE: f32 = button::AccentSizeVariant::Main.diameter();
@@ -124,7 +124,7 @@ pub fn episode_still_skeleton<'a, Message>() -> Element<'a, Message>
 where
     Message: 'a,
 {
-    frame::skeleton(DEFAULT_IMAGE_SIZE, DEFAULT_RADIUS)
+    frame::skeleton(DEFAULT_IMAGE_SIZE, border::ROUNDED_XL)
 }
 
 impl<'a, Message> From<EpisodeStill<'a, Message>> for Element<'a, Message>
@@ -136,7 +136,7 @@ where
             backdrop: card.backdrop,
             aspect: Aspect::Landscape,
             image_size: DEFAULT_IMAGE_SIZE,
-            corner_radius: DEFAULT_RADIUS,
+            corner_radius: border::ROUNDED_XL,
             play_size: DEFAULT_PLAY_SIZE,
             watched: card.watched,
             favourite: card.favourite,

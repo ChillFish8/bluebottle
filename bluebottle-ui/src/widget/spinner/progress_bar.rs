@@ -10,13 +10,12 @@ use iced::{Background, Element, Event, Length, Rectangle, Size, mouse, window};
 use super::bead::Tone;
 use crate::border::Radius;
 use crate::widget::text;
-use crate::{color, easing, font, style};
+use crate::{color, easing, font, spacing, style};
 
 const TRACK_HEIGHT: f32 = 8.0;
 const INDETERMINATE_FRACTION: f32 = 0.4;
 const INDETERMINATE_CYCLE: Duration = Duration::from_millis(1400);
 const FILL_ALPHA: f32 = 0.62;
-const LABEL_SPACING: f32 = 12.0;
 
 /// A glass-rail progress indicator. Indeterminate by default. The bare rail
 /// primitive without the trailing percentage read-out. Reach for
@@ -256,7 +255,7 @@ where
                 Row::with_children([rail, label])
                     .width(outer_width)
                     .align_y(iced::Center)
-                    .spacing(LABEL_SPACING)
+                    .spacing(spacing::GAP_12)
                     .into()
             },
         }

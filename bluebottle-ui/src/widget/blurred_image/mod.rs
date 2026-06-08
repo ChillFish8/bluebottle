@@ -27,9 +27,8 @@ use iced::widget::stack;
 use iced::{Color, Element, Length, Size};
 pub use shader::{BlurRegion, MAX_REGIONS, ProgressStrip};
 
-use crate::style;
 use crate::widget::blur::Backdrop;
-use crate::widget::skeleton::DEFAULT_RADIUS;
+use crate::{border, style};
 
 /// Creates a blurred image over `backdrop`.
 ///
@@ -42,7 +41,7 @@ pub fn blurred_image<'a, Message>(backdrop: Backdrop) -> BlurredImage<'a, Messag
         regions: Vec::new(),
         regions_fn: None,
         blur_radius: style::IMAGE_BLUR,
-        corner_radius: DEFAULT_RADIUS,
+        corner_radius: border::ROUNDED_MD,
         progress: None,
         width: Length::Fill,
         height: Length::Fill,

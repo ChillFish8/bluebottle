@@ -10,12 +10,9 @@ use iced::{Length, alignment, padding};
 use super::chassis::Dropdown;
 use super::{internal, season};
 use crate::widget::text;
-use crate::{color, font, icon};
-
-const PREFIX_GAP: f32 = 8.0;
+use crate::{color, font, icon, spacing};
 
 const TRIGGER_ICON_SIZE: f32 = 13.0;
-const ICON_LABEL_GAP: f32 = 4.0;
 
 /// One menu choice. Carries the display name and an optional count rendered
 /// flush right inside the menu row.
@@ -93,14 +90,14 @@ where
     }
     let prefix_cluster = prefix_cluster
         .push(prefix_text(label))
-        .spacing(ICON_LABEL_GAP)
+        .spacing(spacing::GAP_4)
         .align_y(alignment::Vertical::Center);
 
     let trigger = Row::new()
         .push(prefix_cluster)
         .push(trigger_value_text(value))
         .padding(padding::bottom(1))
-        .spacing(PREFIX_GAP)
+        .spacing(spacing::GAP_8)
         .width(Length::Fixed(trigger_width))
         .align_y(alignment::Vertical::Center);
 
@@ -157,13 +154,13 @@ fn trigger_width(label: &str, items: &[ItemRow], icon: Option<&'static str>) -> 
     let max_value_width = widths[1..].iter().copied().fold(0.0_f32, f32::max);
 
     let icon_width = if icon.is_some() {
-        TRIGGER_ICON_SIZE + ICON_LABEL_GAP
+        TRIGGER_ICON_SIZE + spacing::GAP_4
     } else {
         0.0
     };
 
     internal::round_up_10_min(
-        icon_width + label_width + PREFIX_GAP + max_value_width,
+        icon_width + label_width + spacing::GAP_8 + max_value_width,
         internal::TRIGGER_MIN_WIDTH,
     )
 }

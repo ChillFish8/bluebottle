@@ -8,11 +8,9 @@ use iced::widget::{column, container, image, row};
 use iced::{Center, ContentFit, Element, Length, padding};
 
 use crate::widget::text;
-use crate::{color, font};
+use crate::{border, color, font, spacing};
 
 const AVATAR_SIZE: f32 = 44.0;
-const ROW_GAP: f32 = 12.0;
-const TEXT_GAP: f32 = 2.0;
 
 /// A bare cast row. `name` reads as the Card Title, `role` as the caption
 /// beneath. The avatar is rendered without a ring so the drawer's quiet
@@ -37,16 +35,20 @@ where
             .color(color::TEXT_PRIMARY),
         text::caption(role),
     ]
-    .spacing(TEXT_GAP);
+    .spacing(spacing::GAP_2);
 
     container(
         row![avatar, identity]
-            .spacing(ROW_GAP)
+            .spacing(spacing::GAP_12)
             .align_y(Center)
             .width(Length::Fill),
     )
     .width(Length::Fill)
-    .padding(padding::Padding::default().vertical(10).horizontal(12))
+    .padding(
+        padding::Padding::default()
+            .vertical(spacing::PAD_10)
+            .horizontal(spacing::PAD_12),
+    )
     .into()
 }
 
@@ -68,24 +70,28 @@ where
     let name_bar: Element<'a, Message> = shimmer()
         .width(Length::Fixed(140.0))
         .height(Length::Fixed(13.0))
-        .radius(4.0)
+        .radius(border::ROUNDED_XS)
         .into();
 
     let role_bar: Element<'a, Message> = shimmer()
         .width(Length::Fixed(80.0))
         .height(Length::Fixed(11.0))
-        .radius(4.0)
+        .radius(border::ROUNDED_XS)
         .into();
 
-    let identity = column![name_bar, role_bar].spacing(TEXT_GAP);
+    let identity = column![name_bar, role_bar].spacing(spacing::GAP_2);
 
     container(
         row![avatar, identity]
-            .spacing(ROW_GAP)
+            .spacing(spacing::GAP_12)
             .align_y(Center)
             .width(Length::Fill),
     )
     .width(Length::Fill)
-    .padding(padding::Padding::default().vertical(10).horizontal(12))
+    .padding(
+        padding::Padding::default()
+            .vertical(spacing::PAD_10)
+            .horizontal(spacing::PAD_12),
+    )
     .into()
 }

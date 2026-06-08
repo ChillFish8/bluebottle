@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use bluebottle_ui::image::{PersonSize, PosterSize};
 use bluebottle_ui::splash_background::{Backdrop, splash_background, splash_panel};
-use bluebottle_ui::{clickable, color, font, icon, tab};
+use bluebottle_ui::{clickable, color, font, icon, spacing, tab};
 use iced::widget::{Space, column, container, image, row, stack, text};
 use iced::{
     Background,
@@ -487,8 +487,8 @@ impl Components {
             ]),
         ]
         .width(Length::Fill)
-        .padding(padding::all(32))
-        .spacing(40);
+        .padding(padding::all(spacing::PAD_32))
+        .spacing(spacing::GAP_40);
 
         let content = bluebottle_ui::scrollable::scrollable(blocks);
         let counter = container(bluebottle_ui::debug::fps_counter())
@@ -496,7 +496,7 @@ impl Components {
             .height(Length::Fill)
             .align_x(Right)
             .align_y(Top)
-            .padding(12);
+            .padding(spacing::PAD_12);
 
         stack![content, counter].into()
     }
@@ -513,15 +513,21 @@ fn category<'a>(
         bluebottle_ui::text::heading_large(title),
         bluebottle_ui::separator::structural_border(1.0),
     ]
-    .spacing(6);
+    .spacing(spacing::GAP_6);
 
     let cards = row![
-        card(column(demos()).spacing(24), Background::Color(color::BG)),
-        card(column(demos()).spacing(24), gradient_background()),
+        card(
+            column(demos()).spacing(spacing::GAP_24),
+            Background::Color(color::BG)
+        ),
+        card(
+            column(demos()).spacing(spacing::GAP_24),
+            gradient_background()
+        ),
     ]
-    .spacing(16);
+    .spacing(spacing::GAP_16);
 
-    column![header, cards].spacing(20).into()
+    column![header, cards].spacing(spacing::GAP_20).into()
 }
 
 /// A single widget demo. A bold sub-title above the widget being shown.
@@ -530,7 +536,7 @@ fn section<'a>(
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     column![bluebottle_ui::text::section_heading(title), content.into()]
-        .spacing(8)
+        .spacing(spacing::GAP_8)
         .into()
 }
 
@@ -598,10 +604,10 @@ fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
             swatch(swatches[2]),
             swatch(swatches[3]),
         ]
-        .spacing(4);
+        .spacing(spacing::GAP_4);
 
         let inner = column![text(label).size(12), strip,]
-            .spacing(6)
+            .spacing(spacing::GAP_6)
             .align_x(Center);
 
         let is_selected = accent == selected;
@@ -621,7 +627,7 @@ fn accent_picker(selected: color::Accent) -> Element<'static, Message> {
         );
     }
 
-    section("Accent Theme", row(items).spacing(8))
+    section("Accent Theme", row(items).spacing(spacing::GAP_8))
 }
 
 fn typography() -> Element<'static, Message> {
@@ -643,8 +649,8 @@ fn typography() -> Element<'static, Message> {
         text::eyebrow("EYEBROW", Variant::Main),
         text::micro_label("MICRO LABEL"),
     ]
-    .spacing(6)
-    .padding(padding::left(16));
+    .spacing(spacing::GAP_6)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Type Scale", scale)
 }
@@ -655,8 +661,8 @@ fn font_weights() -> Element<'static, Message> {
         text("The quick brown fox jumps over the lazy dog").font(font::semibold()),
         text("The quick brown fox jumps over the lazy dog").font(font::bold()),
     ]
-    .spacing(4)
-    .padding(padding::left(16));
+    .spacing(spacing::GAP_4)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Font Weights", weights)
 }
@@ -672,8 +678,8 @@ fn ellipsis_text() -> Element<'static, Message> {
         ))
         .width(220),
     ]
-    .spacing(6)
-    .padding(padding::left(16));
+    .spacing(spacing::GAP_6)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Text Ellipsis", demo)
 }
@@ -702,8 +708,8 @@ fn links() -> Element<'static, Message> {
             Message::LinkPressed("inline"),
         ),
     ]
-    .padding(padding::left(16))
-    .spacing(16);
+    .padding(padding::left(spacing::PAD_16))
+    .spacing(spacing::GAP_16);
 
     section("Links", demo)
 }
@@ -715,8 +721,8 @@ fn icons() -> Element<'static, Message> {
         icon::outline("favorite_border").size(48),
         icon::filled("favorite").size(48),
     ]
-    .spacing(4)
-    .padding(padding::left(16));
+    .spacing(spacing::GAP_4)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Icons", demo)
 }
@@ -733,7 +739,7 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
         ]
-        .spacing(8)
+        .spacing(spacing::GAP_8)
         .align_x(Center),
         column![
             bluebottle_ui::button::nav("Home", "home", true, Message::Click),
@@ -745,7 +751,7 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", true, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", true, Message::Click),
         ]
-        .spacing(8)
+        .spacing(spacing::GAP_8)
         .align_x(Center),
         column![
             bluebottle_ui::button::nav("Home", "home", true, Message::Click),
@@ -757,10 +763,10 @@ fn nav_buttons() -> Element<'static, Message> {
             bluebottle_ui::button::nav("Anime Movies", "movie", false, Message::Click),
             bluebottle_ui::button::nav("Music", "library_music", false, Message::Click),
         ]
-        .spacing(8)
+        .spacing(spacing::GAP_8)
         .align_x(Center),
     ]
-    .spacing(8);
+    .spacing(spacing::GAP_8);
 
     section("Nav Buttons", demo)
 }
@@ -794,8 +800,8 @@ fn icon_buttons(states: [bool; 4]) -> Element<'static, Message> {
             Message::ToggleIcon(3),
         ),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Bordered Glass Icons", demo)
@@ -812,8 +818,8 @@ fn icon_flat_buttons(states: [bool; 2]) -> Element<'static, Message> {
         icon_flat("favorite", false, None),
         icon_flat("favorite", true, None),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Flat Round Icons", demo)
@@ -829,8 +835,8 @@ fn icon_carousel_buttons() -> Element<'static, Message> {
         icon_carousel("chevron_left", None),
         icon_carousel("chevron_right", None),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Carousel Nav Icons", demo)
@@ -843,8 +849,8 @@ fn icon_overlay_buttons() -> Element<'static, Message> {
         icon_overlay("cast", Message::Click),
         icon_overlay("more_horiz", Message::Click),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Overlay Pill Icons", demo)
@@ -854,8 +860,8 @@ fn dismiss_buttons() -> Element<'static, Message> {
     use bluebottle_ui::button::{dismiss, dismiss_icon};
 
     let demo = row![dismiss(Message::Click), dismiss_icon(Message::Click)]
-        .padding(8)
-        .spacing(8)
+        .padding(spacing::PAD_8)
+        .spacing(spacing::GAP_8)
         .align_y(Center);
 
     section("Dismiss Buttons", demo)
@@ -869,8 +875,8 @@ fn media_primary_buttons() -> Element<'static, Message> {
         primary("play_arrow", PrimarySizeVariant::Medium, Message::Click),
         primary("play_arrow", PrimarySizeVariant::Large, Message::Click),
     ]
-    .padding(8)
-    .spacing(16)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_16)
     .align_y(Center);
 
     section("Primary Play / Pause", demo)
@@ -887,8 +893,8 @@ fn media_transport_buttons() -> Element<'static, Message> {
         transport_mini("skip_previous", Message::Click),
         transport_mini("skip_next", Message::Click),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Transport Skip / Mode", demo)
@@ -901,8 +907,8 @@ fn media_accent_buttons() -> Element<'static, Message> {
         accent("play_arrow", AccentSizeVariant::Main, Message::Click),
         accent("play_arrow", AccentSizeVariant::Alt, Message::Click),
     ]
-    .padding(8)
-    .spacing(8)
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     section("Accent Hover-Reveal Play", demo)
@@ -913,8 +919,8 @@ fn hero_buttons() -> Element<'static, Message> {
         bluebottle_ui::button::hero("settings", "settings", Message::Click),
         bluebottle_ui::button::hero("play_arrow", "Resume · 1h 48m", Message::Click),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Hero Buttons", demo)
 }
@@ -925,15 +931,15 @@ fn ghost_pills() -> Element<'static, Message> {
             bluebottle_ui::button::ghost("Add to list", None, Message::Click),
             bluebottle_ui::button::ghost("Share", Some("share"), Message::Click),
         ]
-        .spacing(8),
+        .spacing(spacing::GAP_8),
         row![
             bluebottle_ui::button::ghost_small("Add to list", None, Message::Click),
             bluebottle_ui::button::ghost_small("Share", Some("share"), Message::Click),
         ]
-        .spacing(8),
+        .spacing(spacing::GAP_8),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Ghost Pills", demo)
 }
@@ -959,15 +965,15 @@ fn toggle_pills(states: [bool; 3]) -> Element<'static, Message> {
             Message::ToggleToolbar(2)
         ),
     ]
-    .spacing(8);
+    .spacing(spacing::GAP_8);
 
     let labels_only = row![
         bluebottle_ui::button::toggle_pill("Off", None, false, Message::Click),
         bluebottle_ui::button::toggle_pill("On", None, true, Message::Click),
     ]
-    .spacing(8);
+    .spacing(spacing::GAP_8);
 
-    let demo = column![toolbar, labels_only].spacing(8);
+    let demo = column![toolbar, labels_only].spacing(spacing::GAP_8);
 
     section("Toggle Pills", demo)
 }
@@ -987,7 +993,7 @@ fn checkboxes(states: [bool; 4]) -> Element<'static, Message> {
             Some(Message::ToggleCheckbox(1)),
         ),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let alt = row![
@@ -1002,10 +1008,10 @@ fn checkboxes(states: [bool; 4]) -> Element<'static, Message> {
             Some(Message::ToggleCheckbox(3)),
         ),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
-    let demo = column![main, alt].spacing(8);
+    let demo = column![main, alt].spacing(spacing::GAP_8);
 
     section("Checkboxes", demo)
 }
@@ -1025,7 +1031,7 @@ fn switches(states: [bool; 4]) -> Element<'static, Message> {
             Some(Message::ToggleSwitch(1)),
         ),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let alt = row![
@@ -1040,7 +1046,7 @@ fn switches(states: [bool; 4]) -> Element<'static, Message> {
             Some(Message::ToggleSwitch(3)),
         ),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let disabled = row![
@@ -1049,10 +1055,10 @@ fn switches(states: [bool; 4]) -> Element<'static, Message> {
         bluebottle_ui::button::switch(false, SwitchSizeVariant::Alt, None),
         bluebottle_ui::button::switch(true, SwitchSizeVariant::Alt, None),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
-    let demo = column![main, alt, disabled].spacing(8);
+    let demo = column![main, alt, disabled].spacing(spacing::GAP_8);
 
     section("Switches", demo)
 }
@@ -1078,7 +1084,7 @@ fn switch_rows(states: [bool; 4]) -> Element<'static, Message> {
             Some(Message::ToggleSwitch(2)),
         ),
     ]
-    .spacing(2);
+    .spacing(spacing::GAP_2);
 
     // Disabled rows render fixed on/off states so the demo's "Sign in to
     // unlock" copy is not contradicted by the live Switches section toggling
@@ -1097,9 +1103,9 @@ fn switch_rows(states: [bool; 4]) -> Element<'static, Message> {
             None,
         ),
     ]
-    .spacing(2);
+    .spacing(spacing::GAP_2);
 
-    let demo = column![live, disabled].spacing(8);
+    let demo = column![live, disabled].spacing(spacing::GAP_8);
 
     section("Toggle Rows", demo)
 }
@@ -1122,7 +1128,7 @@ fn card<'a>(
 ) -> Element<'a, Message> {
     container(content.into())
         .width(Length::Fill)
-        .padding(20)
+        .padding(spacing::PAD_20)
         .style(move |_theme| container::Style {
             background: Some(background),
             border: Border {
@@ -1155,8 +1161,8 @@ fn navigators() -> Element<'static, Message> {
             Message::Click,
         ),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Carousel Navigators", demo)
 }
@@ -1197,7 +1203,7 @@ fn tabs(selected: usize, selected_icon: usize) -> Element<'static, Message> {
             .into(),
         ),
     ]
-    .spacing(12);
+    .spacing(spacing::GAP_12);
 
     section("Tabs", demo)
 }
@@ -1209,16 +1215,17 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
     // width inside the `Length::Shrink` column collapses to zero, which is what
     // produced the thin-line menu before. The column itself sizes to the widest
     // item, so the rows still align.
-    let menu = DROPDOWN_CHOICES
-        .iter()
-        .fold(column![].spacing(2), |col, choice| {
+    let menu = DROPDOWN_CHOICES.iter().fold(
+        column![].spacing(spacing::GAP_2),
+        |col, choice| {
             col.push(
                 clickable(text(*choice).size(13))
                     .on_press(Message::DropdownPick(choice))
-                    .padding(padding::all(6).left(10).right(10))
+                    .padding(padding::all(spacing::PAD_6).left(10).right(10))
                     .radius(6.0),
             )
-        });
+        },
+    );
 
     let widget = bluebottle_ui::dropdown::dropdown(label, menu, open)
         .on_toggle(|opening| {
@@ -1233,7 +1240,7 @@ fn dropdown_demo(open: bool, chosen: &'static str) -> Element<'static, Message> 
         .selected_background(color::HOVER)
         .selected_border(color::border_strong())
         .radius(10.0)
-        .padding(padding::all(8).left(12).right(12));
+        .padding(padding::all(spacing::PAD_8).left(12).right(12));
 
     section(
         "Dropdown (chassis)",
@@ -1376,7 +1383,7 @@ fn breadcrumbs() -> Element<'static, Message> {
             "Dusk Beyond the End of the World",
         ]),
     ]
-    .spacing(8);
+    .spacing(spacing::GAP_8);
 
     section("Breadcrumbs", demo)
 }
@@ -1422,22 +1429,22 @@ fn posters() -> Element<'static, Message> {
             bluebottle_ui::image::poster(content.clone(), PosterSize::Large),
             bluebottle_ui::image::poster_skeleton(PosterSize::Large),
         ]
-        .padding(8)
-        .spacing(8),
+        .padding(spacing::PAD_8)
+        .spacing(spacing::GAP_8),
         row![
             bluebottle_ui::image::poster(content.clone(), PosterSize::Medium),
             bluebottle_ui::image::poster_skeleton(PosterSize::Medium),
         ]
-        .padding(8)
-        .spacing(8),
+        .padding(spacing::PAD_8)
+        .spacing(spacing::GAP_8),
         row![
             bluebottle_ui::image::poster(content, PosterSize::Small),
             bluebottle_ui::image::poster_skeleton(PosterSize::Small),
         ]
-        .padding(8)
-        .spacing(8),
+        .padding(spacing::PAD_8)
+        .spacing(spacing::GAP_8),
     ]
-    .spacing(4);
+    .spacing(spacing::GAP_4);
 
     section("Image Posters", demo)
 }
@@ -1449,8 +1456,8 @@ fn episodes() -> Element<'static, Message> {
         bluebottle_ui::image::thumbnail(content),
         bluebottle_ui::image::thumbnail_skeleton(),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Image Episodes", demo)
 }
@@ -1462,8 +1469,8 @@ fn albums() -> Element<'static, Message> {
         bluebottle_ui::image::square(content),
         bluebottle_ui::image::square_skeleton(),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Image Albums", demo)
 }
@@ -1477,8 +1484,8 @@ fn persons() -> Element<'static, Message> {
         bluebottle_ui::image::person(content, PersonSize::Square),
         bluebottle_ui::image::person_skeleton(PersonSize::Square),
     ]
-    .padding(8)
-    .spacing(8);
+    .padding(spacing::PAD_8)
+    .spacing(spacing::GAP_8);
 
     section("Image Persons", demo)
 }
@@ -1522,9 +1529,9 @@ fn media_images() -> Element<'static, Message> {
         inert = inert.pill(bluebottle_ui::PillCorner::BottomLeft, chip);
     }
 
-    let demo = row![clickable, inert].spacing(16);
+    let demo = row![clickable, inert].spacing(spacing::GAP_16);
 
-    section("Media Images", container(demo).padding(8))
+    section("Media Images", container(demo).padding(spacing::PAD_8))
 }
 
 fn smart_list_demo(
@@ -1549,13 +1556,13 @@ fn smart_list_demo(
             .map(|ci| {
                 if hydrated {
                     container(text(format!("Group {gi} \u{2022} Row {ci}")))
-                        .padding(padding::all(8))
+                        .padding(padding::all(spacing::PAD_8))
                         .height(Length::Fixed(36.0))
                         .width(Length::Fill)
                         .into()
                 } else {
                     container(skeleton::skeleton().height(20).width(Length::Fill))
-                        .padding(padding::all(8))
+                        .padding(padding::all(spacing::PAD_8))
                         .height(Length::Fixed(72.0))
                         .width(Length::Fill)
                         .into()
@@ -1596,8 +1603,8 @@ fn smart_list_demo(
             Message::SmartListHydrate,
         ),
     ]
-    .padding(padding::left(16))
-    .spacing(8);
+    .padding(padding::left(spacing::PAD_16))
+    .spacing(spacing::GAP_8);
 
     let shown_text = shown
         .map(|i| format!("Shown group: {i} ({})", group_labels[i]))
@@ -1609,9 +1616,9 @@ fn smart_list_demo(
         container(list)
             .height(Length::Fixed(320.0))
             .width(Length::Fill)
-            .padding(padding::left(16)),
+            .padding(padding::left(spacing::PAD_16)),
     ]
-    .spacing(8);
+    .spacing(spacing::GAP_8);
 
     section("Smart List", demo)
 }
@@ -1634,14 +1641,14 @@ fn reorderable_demo(order: &[usize]) -> Element<'static, Message> {
                     .color(color::TEXT_SECONDARY),
             );
 
-            let body = row![glyph, title].spacing(10).align_y(Center);
+            let body = row![glyph, title].spacing(spacing::GAP_10).align_y(Center);
 
             let inner = row![body, container(handle).width(Length::Fill).align_x(Right)]
-                .spacing(12)
+                .spacing(spacing::GAP_12)
                 .align_y(Center);
 
             bluebottle_ui::card::card(inner)
-                .padding(padding::all(12))
+                .padding(padding::all(spacing::PAD_12))
                 .width(Length::Fill)
                 .into()
         };
@@ -1676,7 +1683,7 @@ fn spinners() -> Element<'static, Message> {
         dot_ring().diameter(DotRingSize::Large),
         dot_ring().diameter(DotRingSize::Large).tone(Tone::White),
     ]
-    .spacing(16)
+    .spacing(spacing::GAP_16)
     .align_y(Center);
 
     let pulses = row![
@@ -1684,7 +1691,7 @@ fn spinners() -> Element<'static, Message> {
         dot_pulse().diameter(DotPulseSize::Small),
         dot_pulse().tone(Tone::White),
     ]
-    .spacing(20)
+    .spacing(spacing::GAP_20)
     .align_y(Center);
 
     let bars = column![
@@ -1693,9 +1700,9 @@ fn spinners() -> Element<'static, Message> {
         progress_bar().value(0.18).width(320),
         progress_bar().value(0.45).tone(Tone::White).width(320),
     ]
-    .spacing(12);
+    .spacing(spacing::GAP_12);
 
-    let demo = column![rings, pulses, bars].spacing(20);
+    let demo = column![rings, pulses, bars].spacing(spacing::GAP_20);
 
     section("Loaders", demo)
 }
@@ -1717,7 +1724,10 @@ fn search_fields<'a>(value: &'a str, dense: &'a str) -> Element<'a, Message> {
         .on_clear(Message::SearchDenseClear)
         .width(280);
 
-    section("Search", column![standard, dense_field].spacing(12))
+    section(
+        "Search",
+        column![standard, dense_field].spacing(spacing::GAP_12),
+    )
 }
 
 fn text_fields<'a>(
@@ -1761,7 +1771,7 @@ fn text_fields<'a>(
 
     section(
         "Text Fields",
-        column![neutral, optional, valid, error, disabled].spacing(16),
+        column![neutral, optional, valid, error, disabled].spacing(spacing::GAP_16),
     )
 }
 
@@ -1795,7 +1805,9 @@ fn steppers(value: i32, compact: i32) -> Element<'static, Message> {
 
     section(
         "Steppers",
-        row![standard, compact_stepper].spacing(16).align_y(Center),
+        row![standard, compact_stepper]
+            .spacing(spacing::GAP_16)
+            .align_y(Center),
     )
 }
 
@@ -1814,7 +1826,7 @@ fn sliders(continuous: f32, stepped: f32, volume: f32) -> Element<'static, Messa
         .lead_icon("volume_up", |v| format!("{:.0}%", v * 100.0))
         .width(360);
 
-    let demo = column![bare, stepped_slider, labelled].spacing(20);
+    let demo = column![bare, stepped_slider, labelled].spacing(spacing::GAP_20);
 
     section("Sliders", demo)
 }
@@ -1837,8 +1849,8 @@ fn splash_backgrounds() -> Element<'static, Message> {
             .width(Length::FillPortion(1))
             .height(320),
     ]
-    .spacing(8)
-    .padding(padding::left(16));
+    .spacing(spacing::GAP_8)
+    .padding(padding::left(spacing::PAD_16));
 
     section("Splash Backgrounds", demo)
 }
@@ -1858,9 +1870,9 @@ fn blurred_images() -> Element<'static, Message> {
                 text(label).size(11).color(color::TEXT_SECONDARY),
                 text(value).size(18).color(color::TEXT_PRIMARY),
             ]
-            .spacing(6),
+            .spacing(spacing::GAP_6),
         )
-        .padding(16)
+        .padding(spacing::PAD_16)
         .width(Length::Fixed(panel_w))
         .height(Length::Fixed(panel_h))
     };
@@ -2038,23 +2050,24 @@ fn media_cards(
         .on_favourite_toggled(move |v| Message::CardFavouriteToggled(id, v));
 
     let row_episodes = row![episode_rest, episode_progress, episode_watched]
-        .spacing(16)
-        .padding(padding::all(8));
+        .spacing(spacing::GAP_16)
+        .padding(padding::all(spacing::PAD_8));
     let row_posters = row![poster_rest, poster_progress, poster_watched]
-        .spacing(16)
-        .padding(padding::all(8));
+        .spacing(spacing::GAP_16)
+        .padding(padding::all(spacing::PAD_8));
     let row_albums = row![album_rest, album_favourite]
-        .spacing(16)
-        .padding(padding::all(8));
+        .spacing(spacing::GAP_16)
+        .padding(padding::all(spacing::PAD_8));
     let row_skeletons = row![
         bluebottle_ui::episode_still_skeleton::<Message>(),
         bluebottle_ui::poster_card_skeleton::<Message>(),
         bluebottle_ui::album_card_skeleton::<Message>(),
     ]
-    .spacing(16)
-    .padding(padding::all(8));
+    .spacing(spacing::GAP_16)
+    .padding(padding::all(spacing::PAD_8));
 
-    let demo = column![row_episodes, row_posters, row_albums, row_skeletons].spacing(20);
+    let demo = column![row_episodes, row_posters, row_albums, row_skeletons]
+        .spacing(spacing::GAP_20);
 
     section("Media Cards", demo)
 }
@@ -2076,18 +2089,18 @@ fn separators() -> Element<'static, Message> {
                 section_label("In this episode"),
                 text("12").size(10).color(color::TEXT_DARK),
             ]
-            .spacing(6)
+            .spacing(spacing::GAP_6)
             .align_y(Center)
         ),
     ]
-    .spacing(12)
+    .spacing(spacing::GAP_12)
     .width(Length::Fixed(400.0));
 
     let terminals = column![
         terminal_marker("End of series"),
         terminal_marker("All caught up"),
     ]
-    .spacing(12)
+    .spacing(spacing::GAP_12)
     .width(Length::Fixed(400.0));
 
     let solid = column![
@@ -2103,7 +2116,7 @@ fn separators() -> Element<'static, Message> {
         text("Fading in").size(13),
         structural_border(0.5),
     ]
-    .spacing(6)
+    .spacing(spacing::GAP_6)
     .width(Length::Fixed(400.0));
 
     let inline = row![
@@ -2116,8 +2129,8 @@ fn separators() -> Element<'static, Message> {
     .align_y(Center);
 
     let demo = column![section_rules, terminals, solid, structural, inline]
-        .spacing(24)
-        .padding(padding::left(16));
+        .spacing(spacing::GAP_24)
+        .padding(padding::left(spacing::PAD_16));
 
     section("Separators", demo)
 }
@@ -2130,7 +2143,7 @@ fn meta_chips() -> Element<'static, Message> {
         meta::informational("DOLBY VISION", None),
         meta::informational("ATMOS", Some(Message::Click)),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let categories = row![
@@ -2138,7 +2151,7 @@ fn meta_chips() -> Element<'static, Message> {
         meta::category("Drama", None),
         meta::category("Adventure", Some(Message::Click)),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let tags = row![
@@ -2146,7 +2159,7 @@ fn meta_chips() -> Element<'static, Message> {
         meta::tag("New", None),
         meta::tag("Watched", Some(Message::Click)),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let section_badges = row![
@@ -2155,12 +2168,12 @@ fn meta_chips() -> Element<'static, Message> {
         meta::section_badge("Film", Some("movie"), Some(Message::Click)),
         meta::section_badge("Recently Added", None, None),
     ]
-    .spacing(8)
+    .spacing(spacing::GAP_8)
     .align_y(Center);
 
     let demo = column![informational, categories, tags, section_badges]
-        .spacing(12)
-        .padding(padding::left(16));
+        .spacing(spacing::GAP_12)
+        .padding(padding::left(spacing::PAD_16));
 
     section("Meta Chips", demo)
 }
@@ -2177,7 +2190,7 @@ fn continue_watching_cards() -> Element<'static, Message> {
     );
 
     let Some(thumbnail_backdrop) = THUMBNAIL1_BACKDROP.clone() else {
-        return section("Continue Watching", column![film].spacing(12));
+        return section("Continue Watching", column![film].spacing(spacing::GAP_12));
     };
 
     let show = continue_show(
@@ -2190,7 +2203,10 @@ fn continue_watching_cards() -> Element<'static, Message> {
         Some(Message::Click),
     );
 
-    section("Continue Watching", column![film, show].spacing(12))
+    section(
+        "Continue Watching",
+        column![film, show].spacing(spacing::GAP_12),
+    )
 }
 
 fn drawer_cast_rows() -> Element<'static, Message> {
@@ -2205,11 +2221,11 @@ fn drawer_cast_rows() -> Element<'static, Message> {
         drawer_cast_row_skeleton(),
         drawer_cast_row_skeleton(),
     ]
-    .spacing(2);
+    .spacing(spacing::GAP_2);
 
     let panel = container(rows)
         .width(Length::Fill)
-        .padding(8)
+        .padding(spacing::PAD_8)
         .style(|_theme| container::Style {
             background: Some(iced::Background::Color(color::SECONDARY)),
             border: iced::Border {
@@ -2252,11 +2268,11 @@ fn drawer_episode_rows() -> Element<'static, Message> {
         drawer_episode_row_skeleton(),
         drawer_episode_row_skeleton(),
     ]
-    .spacing(2);
+    .spacing(spacing::GAP_2);
 
     let panel = container(rows)
         .width(Length::Fill)
-        .padding(8)
+        .padding(spacing::PAD_8)
         .style(|_theme| container::Style {
             background: Some(iced::Background::Color(color::SECONDARY)),
             border: iced::Border {
@@ -2281,7 +2297,7 @@ fn library_counts() -> Element<'static, Message> {
             12_503,
         ),
     ]
-    .spacing(12);
+    .spacing(spacing::GAP_12);
 
     section("Library Counts", demo)
 }
@@ -2324,7 +2340,7 @@ fn library_sources() -> Element<'static, Message> {
         Message::Click,
     );
 
-    let demo = column![online_remote, offline_remote, local].spacing(12);
+    let demo = column![online_remote, offline_remote, local].spacing(spacing::GAP_12);
 
     section("Library Sources", demo)
 }
@@ -2348,7 +2364,7 @@ fn cards() -> Element<'static, Message> {
             label,
             bluebottle_ui::text::Variant::Main,
         ))
-        .padding(20)
+        .padding(spacing::PAD_20)
     };
 
     let neutral = bluebottle_ui::card::card(body("Bordered glass"));
@@ -2357,11 +2373,11 @@ fn cards() -> Element<'static, Message> {
         .background(color::primary_glass())
         .border(color::primary());
 
-    let custom_padding =
-        bluebottle_ui::card::card(body("Roomy padding")).padding(padding::all(24));
+    let custom_padding = bluebottle_ui::card::card(body("Roomy padding"))
+        .padding(padding::all(spacing::PAD_24));
 
     let demo = row![neutral, accent, custom_padding]
-        .spacing(12)
+        .spacing(spacing::GAP_12)
         .align_y(Center);
 
     section("Cards", demo)

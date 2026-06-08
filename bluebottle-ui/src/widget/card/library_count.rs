@@ -9,12 +9,10 @@ use iced::{Background, Border, Center, Color, Element, Length, Theme, padding};
 
 use super::core::card;
 use crate::widget::text;
-use crate::{border, color, icon};
+use crate::{border, color, icon, spacing};
 
 const ICON_BOX_SIZE: f32 = 38.0;
 const ICON_SIZE: f32 = 18.0;
-const ROW_GAP: f32 = 12.0;
-const STACK_SPACING: f32 = 2.0;
 
 // Icon chip recipe. The chip is the only spot of colour on the tile so it
 // rides at a stronger fill than a neutral glass surface.
@@ -37,16 +35,16 @@ where
     let count_text = text::heading_medium(format_thousands(count));
     let name_text = text::caption(name.into());
 
-    let stack = column![count_text, name_text].spacing(STACK_SPACING);
+    let stack = column![count_text, name_text].spacing(spacing::GAP_2);
 
     let body = Row::new()
         .push(chip)
         .push(stack)
-        .spacing(ROW_GAP)
+        .spacing(spacing::GAP_12)
         .align_y(Center);
 
     card(body)
-        .padding(padding::all(16.0))
+        .padding(padding::all(spacing::PAD_16))
         .width(Length::Fill)
         .into()
 }

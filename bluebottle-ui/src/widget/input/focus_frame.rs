@@ -33,7 +33,7 @@ use iced::{
 
 use crate::animate::hover::{EPSILON, Hover};
 use crate::border::Radius;
-use crate::color;
+use crate::{border, color};
 
 /// Shared text-input style for every shell in this module. A disabled field
 /// keeps the same chrome as enabled, but the populated value text drops to
@@ -59,9 +59,6 @@ pub(super) fn text_input_style(
     }
 }
 
-const PILL_RADIUS: f32 = 999.0;
-const FIELD_RADIUS: f32 = 12.0;
-
 /// Background recipe.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Shape {
@@ -74,8 +71,8 @@ pub enum Shape {
 impl Shape {
     fn radius(self) -> Radius {
         match self {
-            Self::Pill => Radius::new(PILL_RADIUS),
-            Self::Field => Radius::new(FIELD_RADIUS),
+            Self::Pill => Radius::new(border::ROUNDED_FULL),
+            Self::Field => Radius::new(border::ROUNDED_XL),
         }
     }
 }

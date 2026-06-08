@@ -22,66 +22,56 @@ use super::internal;
 use crate::widget::clickable::Clickable;
 use crate::widget::scrollable::scrollable;
 use crate::widget::{button, text};
-use crate::{color, font, icon};
-
-const TRIGGER_RADIUS: f32 = 999.0;
+use crate::{border, color, font, icon, spacing};
 
 const TRIGGER_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 8.0,
-    bottom: 6.0,
-    left: 10.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_8,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_10,
 };
 
-const MENU_RADIUS: f32 = 14.0;
-
 const MENU_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 6.0,
-    bottom: 6.0,
-    left: 6.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_6,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_6,
 };
 
 // Source rows are taller than the shared default so the rich layout
 // breathes inside the menu.
 const ROW_PADDING: Padding = Padding {
-    top: 10.0,
-    right: 12.0,
-    bottom: 10.0,
-    left: 12.0,
+    top: spacing::PAD_10,
+    right: spacing::PAD_12,
+    bottom: spacing::PAD_10,
+    left: spacing::PAD_12,
 };
 
 const STATUS_DOT_SIZE: f32 = 8.0;
 const STATUS_DOT_GLOW_BLUR: f32 = 6.0;
 const STATUS_DOT_GLOW_ALPHA: f32 = 0.6;
 const LIBRARY_ICON_SIZE: f32 = 14.0;
-const TRIGGER_GAP: f32 = 6.0;
 
 const CHIP_PADDING: Padding = Padding {
     top: 1.0,
-    right: 6.0,
+    right: spacing::PAD_6,
     bottom: 1.0,
-    left: 6.0,
+    left: spacing::PAD_6,
 };
 
 // Greater than the 6 px STATUS_DOT_GLOW_BLUR so the dot's halo does not
 // crowd the status caption.
-const ROW_STATUS_GAP: f32 = 8.0;
-const NAME_ROW_GAP: f32 = 8.0;
 
 const TRIGGER_MIN_WIDTH: f32 = 120.0;
 
 const MENU_WIDTH: f32 = 320.0;
 const MENU_MAX_HEIGHT: f32 = 320.0;
 
-const MENU_INNER_SPACING: f32 = 4.0;
-const ROW_LINE_SPACING: f32 = 8.0;
-const ROW_COLUMN_GAP: f32 = 12.0;
 const FOOTER_PADDING: Padding = Padding {
-    top: 4.0,
-    right: 4.0,
+    top: spacing::PAD_4,
+    right: spacing::PAD_4,
     bottom: 2.0,
-    left: 4.0,
+    left: spacing::PAD_4,
 };
 
 /// Connection state of a source. Drives the trigger dot colour and the row
@@ -283,7 +273,7 @@ where
             .fade_edges(color::GLASS_OPAQUE);
 
         let mut menu = column![header, scroll]
-            .spacing(MENU_INNER_SPACING)
+            .spacing(spacing::GAP_4)
             .width(Length::Fill);
 
         if let Some(footer) = src.footer {
@@ -319,7 +309,7 @@ where
     Message: Clone + 'a,
 {
     dropdown(label, menu, expanded)
-        .radius(TRIGGER_RADIUS)
+        .radius(border::ROUNDED_FULL)
         .padding(TRIGGER_PADDING)
         .background(color::overlay_fill())
         .tint(color::overlay_fill())
@@ -327,7 +317,7 @@ where
         .selected_border(color::primary())
         .menu_background(color::GLASS_OPAQUE)
         .menu_border(color::border())
-        .menu_radius(MENU_RADIUS)
+        .menu_radius(border::ROUNDED_2XL)
         .menu_padding(MENU_PADDING)
         .menu_width(Length::Fixed(MENU_WIDTH))
 }
@@ -383,7 +373,7 @@ where
         .push(cast_icon)
         .push(name_text)
         .push(Space::new().width(Length::Fill))
-        .spacing(TRIGGER_GAP)
+        .spacing(spacing::GAP_6)
         .width(Length::Fixed(width))
         .align_y(alignment::Vertical::Center)
         .into()
@@ -405,7 +395,7 @@ fn trigger_width(entries: &[SourceEntry]) -> f32 {
         .collect();
     let name_width = internal::widest_shaped(names.iter());
 
-    let chrome = STATUS_DOT_SIZE + LIBRARY_ICON_SIZE + (TRIGGER_GAP * 3.0);
+    let chrome = STATUS_DOT_SIZE + LIBRARY_ICON_SIZE + (spacing::GAP_6 * 3.0);
     internal::round_up_10_min(name_width + chrome, TRIGGER_MIN_WIDTH)
 }
 
@@ -431,7 +421,7 @@ where
         .push(name)
         .push(Space::new().width(Length::Fill))
         .push(resolution_chip)
-        .spacing(NAME_ROW_GAP)
+        .spacing(spacing::GAP_8)
         .align_y(alignment::Vertical::Center)
         .width(Length::Fill);
 
@@ -442,7 +432,7 @@ where
     let mut status_row = Row::new()
         .push(status_dot(entry.status.color()))
         .push(status_text)
-        .spacing(ROW_STATUS_GAP)
+        .spacing(spacing::GAP_8)
         .align_y(alignment::Vertical::Center);
 
     if !entry.tags.is_empty() {
@@ -467,13 +457,13 @@ where
     .color(color::TEXT_SECONDARY);
 
     let middle = column![name_row, status_row, host_eps]
-        .spacing(ROW_LINE_SPACING)
+        .spacing(spacing::GAP_8)
         .width(Length::Fill);
 
     Row::new()
         .push(box_)
         .push(middle)
-        .spacing(ROW_COLUMN_GAP)
+        .spacing(spacing::GAP_12)
         .width(Length::Fill)
         .align_y(alignment::Vertical::Center)
         .into()
@@ -486,7 +476,7 @@ fn status_dot<'a, Message: 'a>(tint: Color) -> Element<'a, Message> {
         .style(move |_theme| container::Style {
             background: Some(Background::Color(tint)),
             border: Border {
-                radius: 999.0.into(),
+                radius: border::ROUNDED_FULL.into(),
                 ..Border::default()
             },
             shadow: Shadow {
@@ -512,7 +502,7 @@ fn bordered_chip<'a, Message: 'a>(
                 color::srgb_alpha(0.28),
             ))),
             border: Border {
-                radius: 999.0.into(),
+                radius: border::ROUNDED_FULL.into(),
                 width: 1.0,
                 color: tint,
             },

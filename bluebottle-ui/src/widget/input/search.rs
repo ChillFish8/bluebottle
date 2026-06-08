@@ -3,11 +3,9 @@ use iced::{Center, Element, Length, Padding, Pixels};
 
 use super::focus_frame::{Shape, focus_frame, text_input_style};
 use crate::icon::{ICON_FILLED_FONT, filled_codepoint};
+use crate::spacing;
 use crate::widget::button::icon_flat;
 
-const ICON_GAP: f32 = 8.0;
-const SHELL_LEFT_PAD: f32 = 12.0;
-const SHELL_RIGHT_PAD: f32 = 6.0;
 /// Content height for size-14 / line-height-1.3 text. The text_input's
 /// vertical padding fills the pill height around this so the field's hit
 /// bounds span the full visual height.
@@ -123,14 +121,14 @@ where
             font: ICON_FILLED_FONT,
             code_point: magnifier_code,
             size: Some(Pixels(metrics.magnifier)),
-            spacing: ICON_GAP,
+            spacing: spacing::GAP_8,
             side: text_input::Side::Left,
         };
 
         // The input owns its horizontal inset so the padded zone counts as
         // its hit area. The shell keeps only the right edge gap for the
         // optional clear button to breathe.
-        let input_right_pad = if has_clear { 0.0 } else { SHELL_RIGHT_PAD };
+        let input_right_pad = if has_clear { 0.0 } else { spacing::PAD_6 };
         let pad_y = ((metrics.height - CONTENT_HEIGHT) / 2.0).max(0.0);
         let mut input = text_input(field.placeholder, field.value)
             .icon(magnifier)
@@ -138,7 +136,7 @@ where
                 top: pad_y,
                 right: input_right_pad,
                 bottom: pad_y,
-                left: SHELL_LEFT_PAD,
+                left: spacing::PAD_12,
             })
             .size(14)
             .width(Length::Fill)
@@ -159,7 +157,7 @@ where
             let clear = icon_flat("close", false, Some(on_clear))
                 .size(metrics.clear_diameter, metrics.clear_glyph);
             row = row.push(clear);
-            SHELL_RIGHT_PAD
+            spacing::PAD_6
         } else {
             0.0
         };

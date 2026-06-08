@@ -10,16 +10,14 @@ use iced::widget::shader::Shader;
 use iced::{Element, Length};
 
 use self::shader::SkeletonProgram;
-
-/// The default corner radius, matching the poster and card art rounding.
-pub const DEFAULT_RADIUS: f32 = 8.0;
+use crate::border;
 
 /// A shimmer placeholder that fills its bounds as a rounded rectangle.
 pub fn skeleton() -> Skeleton {
     Skeleton {
         width: Length::Fill,
         height: Length::Fill,
-        radius: DEFAULT_RADIUS,
+        radius: border::ROUNDED_MD,
     }
 }
 

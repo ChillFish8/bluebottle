@@ -21,31 +21,22 @@ use iced::{
 use super::core::card;
 use super::library_count::{format_thousands, icon_chip};
 use crate::widget::{button, text};
-use crate::{border, color, font, icon};
+use crate::{border, color, font, icon, spacing};
 
 const CARD_PADDING: Padding = Padding {
-    top: 14.0,
-    right: 14.0,
-    bottom: 14.0,
-    left: 14.0,
+    top: spacing::PAD_14,
+    right: spacing::PAD_14,
+    bottom: spacing::PAD_14,
+    left: spacing::PAD_14,
 };
-
-const ROW_GAP: f32 = 16.0;
-const META_LINE_SPACING: f32 = 4.0;
-const NAME_ROW_GAP: f32 = 8.0;
-const STATUS_GAP: f32 = 6.0;
-const STATUS_CLUSTER_GAP: f32 = 12.0;
-const COUNT_STACK_SPACING: f32 = 2.0;
-const COUNTS_GAP: f32 = 16.0;
-const RIGHT_SIDE_GAP: f32 = 16.0;
 
 const STATUS_DOT_SIZE: f32 = 8.0;
 
 const TYPE_CHIP_PADDING: Padding = Padding {
-    top: 2.0,
-    right: 8.0,
-    bottom: 2.0,
-    left: 8.0,
+    top: spacing::PAD_2,
+    right: spacing::PAD_8,
+    bottom: spacing::PAD_2,
+    left: spacing::PAD_8,
 };
 const TYPE_CHIP_FILL_ALPHA: f32 = 0.04;
 
@@ -133,7 +124,7 @@ where
         .push(identity)
         .push(Space::new().width(Length::Fill))
         .push(right)
-        .spacing(ROW_GAP)
+        .spacing(spacing::GAP_16)
         .align_y(Center);
 
     card(body).padding(CARD_PADDING).width(Length::Fill).into()
@@ -168,23 +159,23 @@ where
     let name_cluster = Row::new()
         .push(text::title_small(name))
         .push(type_chip(kind))
-        .spacing(NAME_ROW_GAP)
+        .spacing(spacing::GAP_8)
         .align_y(Center);
 
     let status_cluster = Row::new()
         .push(status_dot(status.tint()))
         .push(text::caption(status.label()).color(status.tint()))
-        .spacing(STATUS_GAP)
+        .spacing(spacing::GAP_6)
         .align_y(Center);
 
     let name_row = Row::new()
         .push(name_cluster)
         .push(status_cluster)
-        .spacing(STATUS_CLUSTER_GAP)
+        .spacing(spacing::GAP_12)
         .align_y(Center);
 
     column![name_row, text::caption(address)]
-        .spacing(META_LINE_SPACING)
+        .spacing(spacing::GAP_4)
         .into()
 }
 
@@ -195,7 +186,7 @@ fn right_side<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let mut counts_row = Row::new().spacing(COUNTS_GAP).align_y(Center);
+    let mut counts_row = Row::new().spacing(spacing::GAP_16).align_y(Center);
     for entry in counts {
         counts_row = counts_row.push(count_tile(entry.label, entry.count));
     }
@@ -209,7 +200,7 @@ where
         .push(counts_row)
         .push(settings)
         .push(grab)
-        .spacing(RIGHT_SIDE_GAP)
+        .spacing(spacing::GAP_16)
         .align_y(Center)
         .into()
 }
@@ -224,7 +215,7 @@ fn count_tile<'a, Message: 'a>(
     let label = text::caption(label);
 
     column![number, label]
-        .spacing(COUNT_STACK_SPACING)
+        .spacing(spacing::GAP_2)
         .align_x(Alignment::End)
         .into()
 }

@@ -33,21 +33,12 @@ use iced::{
 use crate::animate::hover::{EPSILON, Hover};
 use crate::widget::blur::Backdrop;
 use crate::widget::blurred_image;
-use crate::widget::skeleton::DEFAULT_RADIUS as IMAGE_RADIUS;
-use crate::{color, style};
+use crate::{border, color, spacing, style};
 
 /// Background-tint alpha applied over the image at full hover.
 const TINT_ALPHA: f32 = 0.75;
 
-/// Inset from the image edge to a corner pill. Matches the card frame's
-/// `CHROME_INSET` so a `media_image` pill lines up with the time-left pill
-/// on the watch-signal cards.
-const PILL_INSET: f32 = 12.0;
-
 /// Spacing between consecutive pills that share a corner. Each pill keeps
-/// its own frosted region with the gap between them transparent.
-const PILL_GAP: f32 = 6.0;
-
 /// Where a pill anchors on the image. Variant order matches the indices
 /// the layout uses when bookkeeping per-corner stack offsets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,7 +67,7 @@ where
         border: true,
         width: Length::Shrink,
         height: Length::Shrink,
-        corner_radius: IMAGE_RADIUS,
+        corner_radius: border::ROUNDED_MD,
         blur_radius: None,
     }
 }
@@ -109,7 +100,7 @@ where
 
     /// Pins `content` to one corner of the image with a matching frosted
     /// region behind it. The pill shrink-fits its content and sits at the
-    /// shared [`PILL_INSET`] from the corner so a `media_image` pill aligns
+    /// shared [`spacing::PAD_12`] from the corner so a `media_image` pill aligns
     /// with the time-left pill on the watch-signal cards.
     pub fn pill(
         mut self,
@@ -328,7 +319,7 @@ where
             let stack_offset = corner_offsets[corner as usize];
             let origin = pill_origin(corner, image_rect, pill_size, stack_offset);
 
-            corner_offsets[corner as usize] += pill_size.width + PILL_GAP;
+            corner_offsets[corner as usize] += pill_size.width + spacing::GAP_6;
 
             pill_regions.push(blurred_image::BlurRegion::pill(Rectangle::new(
                 origin, pill_size,
@@ -708,20 +699,21 @@ fn pill_origin(
     stack_offset: f32,
 ) -> Point {
     match corner {
-        PillCorner::TopLeft => {
-            Point::new(image.x + PILL_INSET + stack_offset, image.y + PILL_INSET)
-        },
+        PillCorner::TopLeft => Point::new(
+            image.x + spacing::PAD_12 + stack_offset,
+            image.y + spacing::PAD_12,
+        ),
         PillCorner::TopRight => Point::new(
-            image.x + image.width - PILL_INSET - pill.width - stack_offset,
-            image.y + PILL_INSET,
+            image.x + image.width - spacing::PAD_12 - pill.width - stack_offset,
+            image.y + spacing::PAD_12,
         ),
         PillCorner::BottomLeft => Point::new(
-            image.x + PILL_INSET + stack_offset,
-            image.y + image.height - PILL_INSET - pill.height,
+            image.x + spacing::PAD_12 + stack_offset,
+            image.y + image.height - spacing::PAD_12 - pill.height,
         ),
         PillCorner::BottomRight => Point::new(
-            image.x + image.width - PILL_INSET - pill.width - stack_offset,
-            image.y + image.height - PILL_INSET - pill.height,
+            image.x + image.width - spacing::PAD_12 - pill.width - stack_offset,
+            image.y + image.height - spacing::PAD_12 - pill.height,
         ),
     }
 }

@@ -16,13 +16,13 @@
 use std::borrow::Cow;
 use std::time::Instant;
 
-use iced::Center;
 use iced::advanced::renderer::{Quad, Style};
 use iced::advanced::widget::{Operation, Tree, tree};
 use iced::advanced::{Clipboard, Layout, Renderer, Shell, Widget, layout};
 use iced::widget::{column, container, image, row};
 use iced::{
     Border,
+    Center,
     Color,
     Element,
     Event,
@@ -39,22 +39,12 @@ use iced::{
 use super::util::paint_centered_icon;
 use crate::animate::hover::{EPSILON, Hover};
 use crate::widget::text;
-use crate::{color, font};
-
-const ROW_RADIUS: f32 = 10.0;
-const ROW_PAD_V: f32 = 10.0;
-const ROW_PAD_H: f32 = 12.0;
-const ROW_GAP: f32 = 12.0;
-const TEXT_GAP: f32 = 4.0;
-const META_GAP: f32 = 6.0;
-const EYEBROW_GAP: f32 = 6.0;
+use crate::{border, color, font, spacing};
 
 const THUMB_W: f32 = 120.0;
 const THUMB_H: f32 = 68.0;
-const THUMB_RADIUS: f32 = 8.0;
 
 const PROGRESS_HEIGHT: f32 = 4.0;
-const CHECKBOX_INSET: f32 = 4.0;
 const CHECKBOX_SIZE: f32 = 20.0;
 
 const PLAY_SIZE: f32 = 36.0;
@@ -185,9 +175,10 @@ where
         let secondary = color::with_alpha(color::TEXT_SECONDARY, opacity_factor);
         let separator = color::with_alpha(color::TEXT_DARK, opacity_factor);
 
-        let eyebrow = text::eyebrow(format!("EP {episode_number:02}"), text::Variant::Main)
-            .font(font::bold())
-            .color(accent);
+        let eyebrow =
+            text::eyebrow(format!("EP {episode_number:02}"), text::Variant::Main)
+                .font(font::bold())
+                .color(accent);
 
         let title_text = text::card_title(title)
             .font(font::semibold())
@@ -199,10 +190,10 @@ where
         };
 
         let title_row = row![eyebrow, title_widget]
-            .spacing(EYEBROW_GAP)
+            .spacing(spacing::GAP_6)
             .align_y(Center);
 
-        let mut meta_row = row![].spacing(META_GAP).align_y(Center);
+        let mut meta_row = row![].spacing(spacing::GAP_6).align_y(Center);
         let mut pushed = 0usize;
 
         for item in meta {
@@ -232,7 +223,7 @@ where
         }
 
         let identity: Element<'a, Message> = column![title_row, meta_row]
-            .spacing(TEXT_GAP)
+            .spacing(spacing::GAP_4)
             .width(Length::Fill)
             .into();
 
@@ -292,23 +283,23 @@ where
     let thumb: Element<'a, Message> = shimmer()
         .width(Length::Fixed(THUMB_W))
         .height(Length::Fixed(THUMB_H))
-        .radius(THUMB_RADIUS)
+        .radius(border::ROUNDED_MD)
         .into();
 
     let title_bar: Element<'a, Message> = shimmer()
         .width(Length::Fixed(240.0))
         .height(Length::Fixed(13.0))
-        .radius(4.0)
+        .radius(border::ROUNDED_XS)
         .into();
 
     let meta_bar: Element<'a, Message> = shimmer()
         .width(Length::Fixed(160.0))
         .height(Length::Fixed(10.0))
-        .radius(4.0)
+        .radius(border::ROUNDED_XS)
         .into();
 
     let identity = column![title_bar, meta_bar]
-        .spacing(TEXT_GAP)
+        .spacing(spacing::GAP_4)
         .width(Length::Fill);
 
     let more_dot: Element<'a, Message> = shimmer()
@@ -319,15 +310,15 @@ where
 
     container(
         row![thumb, identity, more_dot]
-            .spacing(ROW_GAP)
+            .spacing(spacing::GAP_12)
             .align_y(Center)
             .width(Length::Fill),
     )
     .width(Length::Fill)
     .padding(
         Padding::default()
-            .vertical(ROW_PAD_V)
-            .horizontal(ROW_PAD_H),
+            .vertical(spacing::PAD_10)
+            .horizontal(spacing::PAD_12),
     )
     .into()
 }
@@ -359,7 +350,8 @@ where
     }
 }
 
-impl<'a, Message> Widget<Message, Theme, IcedRenderer> for DrawerEpisodeRowWidget<'a, Message>
+impl<'a, Message> Widget<Message, Theme, IcedRenderer>
+    for DrawerEpisodeRowWidget<'a, Message>
 where
     Message: Clone + 'a,
 {
@@ -377,10 +369,10 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         let padding = Padding {
-            top: ROW_PAD_V,
-            right: ROW_PAD_H,
-            bottom: ROW_PAD_V,
-            left: ROW_PAD_H,
+            top: spacing::PAD_10,
+            right: spacing::PAD_12,
+            bottom: spacing::PAD_10,
+            left: spacing::PAD_12,
         };
 
         // Fall back to a sensible width when the parent leaves us
@@ -404,11 +396,10 @@ where
         );
 
         let identity_max_w =
-            (inner_w - THUMB_W - ROW_GAP - MORE_DIAMETER - ROW_GAP).max(0.0);
-        let identity_limits = layout::Limits::new(
-            Size::ZERO,
-            Size::new(identity_max_w, f32::INFINITY),
-        );
+            (inner_w - THUMB_W - spacing::GAP_12 - MORE_DIAMETER - spacing::GAP_12)
+                .max(0.0);
+        let identity_limits =
+            layout::Limits::new(Size::ZERO, Size::new(identity_max_w, f32::INFINITY));
         let identity_node = self.children[IDENTITY_IDX].as_widget_mut().layout(
             &mut tree.children[IDENTITY_IDX],
             renderer,
@@ -421,13 +412,11 @@ where
         let more_y = padding.top + (row_h - MORE_DIAMETER) * 0.5;
 
         let identity_node = identity_node.move_to(Point::new(
-            padding.left + THUMB_W + ROW_GAP,
+            padding.left + THUMB_W + spacing::GAP_12,
             identity_y,
         ));
-        let more_node = more_node.move_to(Point::new(
-            padding.left + inner_w - MORE_DIAMETER,
-            more_y,
-        ));
+        let more_node = more_node
+            .move_to(Point::new(padding.left + inner_w - MORE_DIAMETER, more_y));
 
         let total = Size::new(
             inner_w + padding.left + padding.right,
@@ -448,8 +437,8 @@ where
                 &checkbox_limits,
             );
 
-            let cx = padding.left + THUMB_W - CHECKBOX_INSET - CHECKBOX_SIZE;
-            let cy = thumb_y + CHECKBOX_INSET;
+            let cx = padding.left + THUMB_W - spacing::PAD_4 - CHECKBOX_SIZE;
+            let cy = thumb_y + spacing::PAD_4;
             child_nodes.push(checkbox_node.move_to(Point::new(cx, cy)));
         }
 
@@ -474,7 +463,7 @@ where
         let hover = state.hover.current(now);
 
         let row_border = Border {
-            radius: ROW_RADIUS.into(),
+            radius: border::ROUNDED_LG.into(),
             ..Border::default()
         };
 
@@ -498,7 +487,10 @@ where
                     border: row_border,
                     ..Quad::default()
                 },
-                color::with_alpha(Color::BLACK, color::srgb_alpha(WATCHED_ROW_WASH_ALPHA)),
+                color::with_alpha(
+                    Color::BLACK,
+                    color::srgb_alpha(WATCHED_ROW_WASH_ALPHA),
+                ),
             );
         }
 
@@ -506,14 +498,14 @@ where
         // hit-test paths stay in lockstep without smuggling extra state.
         let thumb_bounds = Rectangle::new(
             Point::new(
-                bounds.x + ROW_PAD_H,
-                bounds.y + ROW_PAD_V + (row_inner_h(bounds) - THUMB_H) * 0.5,
+                bounds.x + spacing::PAD_12,
+                bounds.y + spacing::PAD_10 + (row_inner_h(bounds) - THUMB_H) * 0.5,
             ),
             Size::new(THUMB_W, THUMB_H),
         );
 
         let rounded = Border {
-            radius: THUMB_RADIUS.into(),
+            radius: border::ROUNDED_MD.into(),
             ..Border::default()
         };
 
@@ -523,7 +515,7 @@ where
                 handle: self.thumbnail.clone(),
                 filter_method: iced::widget::image::FilterMethod::Linear,
                 rotation: iced::Radians(0.0),
-                border_radius: THUMB_RADIUS.into(),
+                border_radius: border::ROUNDED_MD.into(),
                 opacity: 1.0,
                 snap: true,
             },
@@ -568,8 +560,8 @@ where
                 radius: iced::border::Radius {
                     top_left: 0.0,
                     top_right: 0.0,
-                    bottom_right: THUMB_RADIUS,
-                    bottom_left: THUMB_RADIUS,
+                    bottom_right: border::ROUNDED_MD,
+                    bottom_left: border::ROUNDED_MD,
                 },
                 ..Border::default()
             };
@@ -587,7 +579,10 @@ where
             if fill_w > EPSILON {
                 renderer.fill_quad(
                     Quad {
-                        bounds: Rectangle::new(track.position(), Size::new(fill_w, PROGRESS_HEIGHT)),
+                        bounds: Rectangle::new(
+                            track.position(),
+                            Size::new(fill_w, PROGRESS_HEIGHT),
+                        ),
                         border: strip_border,
                         ..Quad::default()
                     },
@@ -599,7 +594,8 @@ where
         if hover > EPSILON {
             let cx = thumb_bounds.x + (thumb_bounds.width - PLAY_SIZE) * 0.5;
             let cy = thumb_bounds.y + (thumb_bounds.height - PLAY_SIZE) * 0.5;
-            let disc = Rectangle::new(Point::new(cx, cy), Size::new(PLAY_SIZE, PLAY_SIZE));
+            let disc =
+                Rectangle::new(Point::new(cx, cy), Size::new(PLAY_SIZE, PLAY_SIZE));
 
             renderer.fill_quad(
                 Quad {
@@ -661,7 +657,8 @@ where
         operation: &mut dyn Operation,
     ) {
         let mut child_layouts = layout.children();
-        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut()) {
+        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut())
+        {
             let child_layout = child_layouts.next().expect("child layout");
             child
                 .as_widget_mut()
@@ -692,7 +689,8 @@ where
         // Forward to children first so the more button and the title link
         // can claim their own press before the row chassis sees it.
         let mut child_layouts = layout.children();
-        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut()) {
+        for (child, child_tree) in self.children.iter_mut().zip(tree.children.iter_mut())
+        {
             let child_layout = child_layouts.next().expect("child layout");
             child.as_widget_mut().update(
                 child_tree,
@@ -798,5 +796,5 @@ where
 /// so the draw path stays in lockstep with the layout without an extra
 /// state field.
 fn row_inner_h(bounds: Rectangle) -> f32 {
-    (bounds.height - ROW_PAD_V * 2.0).max(0.0)
+    (bounds.height - spacing::PAD_10 * 2.0).max(0.0)
 }

@@ -1,8 +1,8 @@
 use iced::widget::{button, row, text};
-use iced::{Center, Element, Theme, border};
+use iced::{Center, Element, Theme};
 
 use super::{Status, Style};
-use crate::{color, icon};
+use crate::{border, color, icon, spacing};
 
 /// Padding around a disabled icon so it slots into the same rows as a standard
 /// button without shifting.
@@ -26,7 +26,7 @@ where
             .into();
     }
 
-    let mut items = row![].spacing(4).align_y(Center);
+    let mut items = row![].spacing(spacing::GAP_4).align_y(Center);
 
     if let Some(name) = icon_name {
         items = items.push(icon::filled(name).size(24).color(color::TEXT_DARK));
@@ -43,7 +43,7 @@ fn disabled_button_style(_theme: &Theme, _status: Status) -> Style {
     Style {
         text_color: color::TEXT_DARK,
         background: None,
-        border: border::rounded(999),
+        border: border::rounded(border::ROUNDED_FULL),
         ..Style::default()
     }
 }

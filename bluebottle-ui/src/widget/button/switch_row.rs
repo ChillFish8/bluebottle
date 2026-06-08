@@ -16,20 +16,14 @@ use iced::{Element, Length, Padding, alignment};
 use super::switch::{SwitchSizeVariant, switch};
 use crate::widget::clickable::clickable;
 use crate::widget::text;
-use crate::{border, color, font};
+use crate::{border, color, font, spacing};
 
 const ROW_PADDING: Padding = Padding {
-    top: 8.0,
-    right: 12.0,
-    bottom: 8.0,
-    left: 12.0,
+    top: spacing::PAD_8,
+    right: spacing::PAD_12,
+    bottom: spacing::PAD_8,
+    left: spacing::PAD_12,
 };
-
-/// Gap between the label and the switch when the row stretches to fill.
-const ROW_SPACING: f32 = 12.0;
-
-/// Gap between the label and the sub-caption inside the text column.
-const TEXT_SPACING: f32 = 2.0;
 
 /// Builds a toggle row. The whole capsule dispatches `message` on press, the
 /// trailing switch dispatches the same message on its own track. A `None`
@@ -59,7 +53,7 @@ where
         color::TEXT_DARK
     };
 
-    let mut text_column = Column::new().spacing(TEXT_SPACING);
+    let mut text_column = Column::new().spacing(spacing::GAP_2);
     text_column =
         text_column.push(text::label(label, label_variant).font(font::medium()));
     if let Some(sub) = sub {
@@ -70,7 +64,7 @@ where
         .push(text_column)
         .push(Space::new().width(Length::Fill))
         .push(trail)
-        .spacing(ROW_SPACING)
+        .spacing(spacing::GAP_12)
         .align_y(alignment::Vertical::Center);
 
     clickable(content)

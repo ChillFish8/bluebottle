@@ -33,21 +33,19 @@ use iced::{
 use crate::animate::hover::{EPSILON, Hover, PressState};
 use crate::text::Variant;
 use crate::util::lerp;
-use crate::{color, font, icon, text};
+use crate::{color, font, icon, spacing, text};
 
 const UNDERLINE_THICKNESS: f32 = 2.0;
 const UNDERLINE_RADIUS: f32 = UNDERLINE_THICKNESS / 2.0;
 const ICON_SIZE: f32 = 13.0;
-const ICON_LABEL_GAP: f32 = 6.0;
 const HOVER_BAR_FRACTION: f32 = 0.5;
 const HOVER_BAR_ALPHA: f32 = 0.5;
 const DEFAULT_PADDING: Padding = Padding {
-    top: 12.0,
-    right: 14.0,
-    bottom: 12.0,
-    left: 14.0,
+    top: spacing::PAD_12,
+    right: spacing::PAD_14,
+    bottom: spacing::PAD_12,
+    left: spacing::PAD_14,
 };
-const DEFAULT_SPACING: f32 = 2.0;
 
 /// Creates a tab strip over `items` with `selected` highlighted.
 /// `on_select` maps the clicked tab's index to a message. Clicking the
@@ -67,7 +65,7 @@ where
         selected,
         on_select: Box::new(on_select),
         padding: DEFAULT_PADDING,
-        spacing: DEFAULT_SPACING,
+        spacing: spacing::GAP_2,
         width: Length::Shrink,
         height: Length::Shrink,
     }
@@ -234,7 +232,7 @@ where
             );
             let label_size = label_node.size();
 
-            let inner_w = icon_size.width + ICON_LABEL_GAP + label_size.width;
+            let inner_w = icon_size.width + spacing::GAP_6 + label_size.width;
             let inner_h = icon_size.height.max(label_size.height);
 
             row_height = row_height.max(inner_h + pad_v);
@@ -268,7 +266,7 @@ where
             let icon_y = inner_y + (m.inner_h - m.icon.1.height) / 2.0;
             let icon_positioned = m.icon.0.move_to(Point::new(content_x, icon_y));
 
-            let label_x = content_x + m.icon.1.width + ICON_LABEL_GAP;
+            let label_x = content_x + m.icon.1.width + spacing::GAP_6;
             let label_y = inner_y + (m.inner_h - m.label.1.height) / 2.0;
             let label_positioned = m.label.0.move_to(Point::new(label_x, label_y));
 

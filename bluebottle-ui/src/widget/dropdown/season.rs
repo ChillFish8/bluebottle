@@ -12,25 +12,22 @@ use crate::widget::clickable::Clickable;
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::scrollable::scrollable;
 use crate::widget::text;
-use crate::{color, font};
-
-const TRIGGER_RADIUS: f32 = 8.0;
+use crate::{border, color, font, spacing};
 
 const TRIGGER_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 8.0,
-    bottom: 6.0,
-    left: 12.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_8,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_12,
 };
 
-const MENU_RADIUS: f32 = 12.0;
 const MENU_WIDTH: f32 = 220.0;
 
 const MENU_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 6.0,
-    bottom: 6.0,
-    left: 6.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_6,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_6,
 };
 
 /// The bare panel chassis shared by season, filter, and labelled. An r8 pill
@@ -44,7 +41,7 @@ where
     Message: Clone + 'a,
 {
     dropdown(label, menu, expanded)
-        .radius(TRIGGER_RADIUS)
+        .radius(border::ROUNDED_MD)
         .padding(TRIGGER_PADDING)
         .background(color::border())
         .tint(color::hover_veil())
@@ -52,7 +49,7 @@ where
         .selected_border(color::primary())
         .menu_background(color::GLASS_OPAQUE)
         .menu_border(color::border())
-        .menu_radius(MENU_RADIUS)
+        .menu_radius(border::ROUNDED_XL)
         .menu_padding(MENU_PADDING)
         .menu_width(Length::Fixed(MENU_WIDTH))
 }
@@ -73,14 +70,8 @@ where
         .selected_background(color::accent_row_selected())
 }
 
-const TRIGGER_GAP: f32 = 8.0;
-
-const ROW_LINE_SPACING: f32 = 2.0;
-
 const ROW_WIDTH: f32 = 260.0;
 const SEASON_MENU_WIDTH: f32 = ROW_WIDTH + MENU_PADDING.left + MENU_PADDING.right;
-
-const TITLE_YEAR_GAP: f32 = 6.0;
 
 const MAX_ROWS: usize = 4;
 const ROW_FULL_HEIGHT: f32 = 56.0;
@@ -159,7 +150,7 @@ fn trigger_width(items: &[SeasonInfo]) -> f32 {
     let widths = text::shape_widths(runs.iter());
     let widest = widths
         .chunks_exact(2)
-        .map(|pair| pair[0] + TRIGGER_GAP + pair[1])
+        .map(|pair| pair[0] + spacing::GAP_8 + pair[1])
         .fold(0.0_f32, f32::max);
 
     internal::round_up_10_min(widest, internal::TRIGGER_MIN_WIDTH)
@@ -225,7 +216,7 @@ where
     let title_line = Row::new()
         .push(season_title)
         .push(year)
-        .spacing(TITLE_YEAR_GAP)
+        .spacing(spacing::GAP_6)
         .align_y(alignment::Vertical::Center);
 
     let subtitle = ellipsis_text(
@@ -236,7 +227,7 @@ where
     .width(Length::Fill);
 
     let main = column![title_line, subtitle]
-        .spacing(ROW_LINE_SPACING)
+        .spacing(spacing::GAP_2)
         .width(Length::Fill);
 
     let eps = text::micro_label(format!("{} eps", item.episode_count))

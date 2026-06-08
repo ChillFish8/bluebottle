@@ -3,7 +3,7 @@ use iced::widget::{container, row};
 use iced::{Center, Color, Element, padding};
 
 use crate::widget::clickable::clickable;
-use crate::{color, font, icon, text};
+use crate::{color, font, icon, spacing, text};
 
 /// Ghost Pill
 ///
@@ -18,13 +18,15 @@ pub fn ghost<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let mut items = row![].spacing(4).align_y(Center);
+    let mut items = row![].spacing(spacing::GAP_4).align_y(Center);
     if let Some(name) = icon_name {
         items = items.push(icon::filled(name).size(16));
     }
     items = items.push(text::label(label, text::Variant::Main));
 
-    let pad = padding::Padding::default().horizontal(16).vertical(8);
+    let pad = padding::Padding::default()
+        .horizontal(spacing::PAD_16)
+        .vertical(spacing::PAD_8);
     ghost_pill(items, pad, color::TEXT_PRIMARY, message)
 }
 
@@ -40,13 +42,15 @@ pub fn ghost_small<'a, Message>(
 where
     Message: Clone + 'a,
 {
-    let mut items = row![].spacing(4).align_y(Center);
+    let mut items = row![].spacing(spacing::GAP_4).align_y(Center);
     if let Some(name) = icon_name {
         items = items.push(icon::filled(name).size(14));
     }
     items = items.push(text::caption(label));
 
-    let pad = padding::Padding::default().horizontal(12).vertical(6);
+    let pad = padding::Padding::default()
+        .horizontal(spacing::PAD_12)
+        .vertical(spacing::PAD_6);
     ghost_pill(items, pad, color::TEXT_SECONDARY, message)
 }
 
@@ -73,12 +77,14 @@ where
     )
     .padding(padding::bottom(1));
 
-    let mut items = row![].spacing(8).align_y(Center);
+    let mut items = row![].spacing(spacing::GAP_8).align_y(Center);
     if let Some(name) = icon_name {
         items = items.push(icon::filled(name).size(14));
     }
     items = items.push(optically_padded);
 
+    // 14/7 sit between scale steps. Kept as literals so the toggle pill's
+    // resting height matches the icon glyph baseline used elsewhere.
     let pad = padding::Padding::default().horizontal(14).vertical(7);
     let glass = color::border_strong();
 

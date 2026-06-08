@@ -6,26 +6,26 @@ use iced::{Element, Length, Padding, alignment};
 
 use crate::widget::clickable::{Clickable, clickable};
 use crate::widget::{animated_tick, text};
-use crate::{color, font};
+use crate::{border, color, font, spacing};
 
-pub(super) const ROW_RADIUS: f32 = 8.0;
+pub(super) const ROW_RADIUS: f32 = border::ROUNDED_MD;
 
 pub(super) const ROW_PADDING: Padding = Padding {
-    top: 6.0,
-    right: 10.0,
-    bottom: 6.0,
-    left: 10.0,
+    top: spacing::PAD_6,
+    right: spacing::PAD_10,
+    bottom: spacing::PAD_6,
+    left: spacing::PAD_10,
 };
 
-pub(super) const MENU_ROW_SPACING: f32 = 4.0;
+pub(super) const MENU_ROW_SPACING: f32 = spacing::GAP_4;
 
-pub(super) const TICK_GAP: f32 = 8.0;
+pub(super) const TICK_GAP: f32 = spacing::GAP_8;
 
 pub(super) const HEADER_PADDING: Padding = Padding {
-    top: 4.0,
-    right: 10.0,
-    bottom: 8.0,
-    left: 10.0,
+    top: spacing::PAD_4,
+    right: spacing::PAD_10,
+    bottom: spacing::PAD_8,
+    left: spacing::PAD_10,
 };
 
 const TICK_GLYPH_SIZE: f32 = 14.0;

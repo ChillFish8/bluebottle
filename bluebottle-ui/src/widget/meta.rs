@@ -13,14 +13,13 @@ use iced::{Center, Element, padding};
 
 use crate::widget::clickable::clickable;
 use crate::widget::text;
-use crate::{color, font, icon};
-
-/// Corner radius of every meta chip. Rounded rectangle, not pill.
-const META_RADIUS: f32 = 6.0;
+use crate::{border, color, font, icon, spacing};
 
 /// Shared chip padding. 4 vertical, 8 horizontal.
 fn meta_padding() -> padding::Padding {
-    padding::Padding::default().vertical(4).horizontal(8)
+    padding::Padding::default()
+        .vertical(spacing::PAD_4)
+        .horizontal(spacing::PAD_8)
 }
 
 /// A hairline-bordered chip around a micro-label run. The transparent fill keeps
@@ -34,7 +33,7 @@ where
 {
     clickable(text::micro_label(label).color(color::TEXT_SECONDARY))
         .padding(meta_padding())
-        .radius(META_RADIUS)
+        .radius(border::ROUNDED_SM)
         .border(color::border_strong())
         .tint(color::hover_veil())
         .on_press_maybe(on_press)
@@ -52,7 +51,7 @@ where
 {
     clickable(text::caption(label).color(color::primary()))
         .padding(meta_padding())
-        .radius(META_RADIUS)
+        .radius(border::ROUNDED_SM)
         .background(color::primary_glass())
         .tint(color::hover_veil())
         .on_press_maybe(on_press)
@@ -70,7 +69,7 @@ where
 {
     clickable(text::caption(label).color(color::TEXT_PRIMARY))
         .padding(meta_padding())
-        .radius(META_RADIUS)
+        .radius(border::ROUNDED_SM)
         .background(color::border())
         .tint(color::hover_veil())
         .on_press_maybe(on_press)
@@ -116,7 +115,7 @@ where
     let fill = color::with_alpha(accent, color::srgb_alpha(0.10));
     let border = color::with_alpha(accent, color::srgb_alpha(0.20));
 
-    let mut items = row![].spacing(4).align_y(Center);
+    let mut items = row![].spacing(spacing::GAP_4).align_y(Center);
     if let Some(name) = icon_name {
         items = items.push(icon::filled(name).size(11).color(accent));
     }

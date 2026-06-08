@@ -17,7 +17,7 @@ use crate::widget::clickable::Clickable;
 use crate::widget::link::link;
 use crate::widget::scrollable::scrollable;
 use crate::widget::text;
-use crate::{color, font};
+use crate::{color, font, spacing};
 
 // Matches season's `"· N eps"` prefix so the count text reads the same on
 // both triggers. The label-to-count gap is provided by the fill spacer in
@@ -29,9 +29,6 @@ const SUFFIX_GAP_HINT: &str = "\u{00b7} ";
 // least this much slack for the fill spacer to consume. Without it, a label
 // whose natural width lands close to a 10 px boundary can crash into the
 // count.
-const TRIGGER_MIN_GAP: f32 = 12.0;
-
-const MENU_INNER_SPACING: f32 = 4.0;
 
 const MAX_ROWS: usize = 6;
 // Each row is the 20 px checkbox plus ROW_PADDING (6 + 6). The 4 px slack
@@ -81,7 +78,7 @@ where
         .fade_edges(color::GLASS_OPAQUE);
 
     let menu = column![header, scroll]
-        .spacing(MENU_INNER_SPACING)
+        .spacing(spacing::GAP_4)
         .width(Length::Fill);
 
     season::panel(trigger, menu, false)
@@ -110,7 +107,7 @@ fn trigger_width(label: &str, item_count: usize) -> f32 {
     let widths = text::shape_widths([&label_text, &count_text]);
 
     internal::round_up_10_min(
-        widths[0] + TRIGGER_MIN_GAP + widths[1],
+        widths[0] + spacing::GAP_12 + widths[1],
         internal::TRIGGER_MIN_WIDTH,
     )
 }
@@ -162,7 +159,7 @@ where
     let select_count = text::eyebrow(format!("{active} SELECTED"), text::Variant::Main)
         .color(color::TEXT_MUTED);
 
-    let summary = iced::widget::row![label, select_count].spacing(4);
+    let summary = iced::widget::row![label, select_count].spacing(spacing::GAP_4);
 
     let (action_label, action_value) = if active > 0 {
         ("Clear", false)

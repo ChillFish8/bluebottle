@@ -14,13 +14,12 @@ use iced::{
     Rectangle,
     Size,
     alignment,
-    border,
     mouse,
     widget,
     window,
 };
 
-use crate::{color, font};
+use crate::{border, color, font};
 
 /// Wrap the element in a container with debug box lines.
 pub fn container<'a, Message>(
@@ -109,7 +108,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FpsCounter {
             Quad {
                 bounds,
                 border: Border::default()
-                    .rounded(8)
+                    .rounded(border::ROUNDED_MD)
                     .width(1)
                     .color(color::border_strong()),
                 ..Quad::default()

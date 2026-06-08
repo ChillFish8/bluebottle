@@ -26,11 +26,7 @@ use iced::{Border, Color, Element, Event, Length, Rectangle, Size, mouse, window
 use crate::animate::hover::Hover;
 use crate::util::lerp;
 use crate::widget::clickable::clickable;
-use crate::{border, color, style};
-
-/// Inset of the knob from the track edge. Lands the knob flush inside the
-/// rounded cap at both ends without overshooting the hairline.
-const KNOB_INSET: f32 = 4.0;
+use crate::{border, color, spacing, style};
 
 /// Size variants of the switch.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
@@ -143,8 +139,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for SwitchKnob {
         let slide = state.slide.current(Instant::now());
 
         let bounds = layout.bounds();
-        let off_x = bounds.x + KNOB_INSET;
-        let on_x = bounds.x + bounds.width - KNOB_INSET - self.knob;
+        let off_x = bounds.x + spacing::PAD_4;
+        let on_x = bounds.x + bounds.width - spacing::PAD_4 - self.knob;
         let knob_bounds = Rectangle {
             x: lerp(off_x, on_x, slide),
             y: bounds.y + (bounds.height - self.knob) * 0.5,

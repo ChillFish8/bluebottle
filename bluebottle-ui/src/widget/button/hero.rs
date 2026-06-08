@@ -2,7 +2,7 @@ use iced::widget::{container, row};
 use iced::{Center, Color, Element, padding};
 
 use crate::widget::clickable::clickable;
-use crate::{color, icon, text};
+use crate::{color, icon, spacing, text};
 
 /// The brightest thing on a dark, blurred stage. A white fill with dark text
 /// and a soft glow.
@@ -22,10 +22,14 @@ where
         icon::filled(icon_name).size(16),
         container(label).padding(padding::bottom(2))
     ]
-    .spacing(4)
+    .spacing(spacing::GAP_4)
     .align_y(Center);
 
-    let padding = padding::Padding::default().horizontal(22).vertical(10);
+    // 22 px horizontal sits between scale steps. Kept as a literal so the
+    // hero button keeps its bespoke wider gutter against the icon glyph.
+    let padding = padding::Padding::default()
+        .horizontal(22)
+        .vertical(spacing::PAD_10);
 
     // The white fill carries the colour and the hover tint is disabled, so
     // only the glow reacts on hover.

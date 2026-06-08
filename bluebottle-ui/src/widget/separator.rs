@@ -24,22 +24,13 @@ use iced::{
 };
 
 use crate::widget::text::{self as ui_text, Variant};
-use crate::{color, font};
+use crate::{color, font, spacing};
 
 /// Hairline thickness in logical pixels.
 const RULE_THICKNESS: f32 = 1.0;
 
 /// Inline metadata dot diameter in logical pixels.
 const DOT_SIZE: f32 = 2.0;
-
-/// Gap between the section label and its trailing rule.
-const SECTION_GAP: f32 = 4.0;
-
-/// Gap between the terminal label and each flanking rule.
-const TERMINAL_GAP: f32 = 12.0;
-
-/// Gap on each side of the inline dot.
-const DOT_GAP: f32 = 8.0;
 
 /// A caller-supplied label followed by a hairline that fades to nothing at the
 /// far edge. The default block introducer. Pair with [section_label] for the
@@ -56,7 +47,7 @@ where
         fade_rule(color::border(), color::with_alpha(color::border(), 0.0))
     ]
     .align_y(Center)
-    .spacing(SECTION_GAP)
+    .spacing(spacing::GAP_4)
 }
 
 /// Stock label styling for [section_rule]. Uppercases the input and applies the
@@ -86,7 +77,7 @@ where
         fade_rule(color::border(), transparent),
     ]
     .align_y(Center)
-    .spacing(TERMINAL_GAP)
+    .spacing(spacing::GAP_12)
 }
 
 /// A full-strength hairline inset inside an enclosed surface. Use for menus
@@ -103,10 +94,10 @@ where
     );
 
     container(line).padding(padding::Padding {
-        top: 6.0,
-        right: 4.0,
-        bottom: 6.0,
-        left: 4.0,
+        top: spacing::PAD_6,
+        right: spacing::PAD_4,
+        bottom: spacing::PAD_6,
+        left: spacing::PAD_4,
     })
 }
 
@@ -143,9 +134,9 @@ where
 
     container(dot).padding(padding::Padding {
         top: 0.0,
-        right: DOT_GAP,
+        right: spacing::GAP_8,
         bottom: 0.0,
-        left: DOT_GAP,
+        left: spacing::GAP_8,
     })
 }
 

@@ -3,7 +3,7 @@ use iced::{Center, Element, padding};
 
 use super::chassis::icon_circle;
 use crate::widget::clickable::clickable;
-use crate::{color, font, icon, text};
+use crate::{color, font, icon, spacing, text};
 
 /// Close / Dismiss · Pill
 ///
@@ -21,7 +21,11 @@ where
     // Small diversion from the design spec, this is because we're adjusting for the font and
     // icon sizes to get the "optically centered" look, which is why we shifted the whole
     // item line down 1px and offset the label by +1 px relative to the icon.
-    let items = row![glyph, optically_aligned].spacing(4).align_y(Center);
+    let items = row![glyph, optically_aligned]
+        .spacing(spacing::GAP_4)
+        .align_y(Center);
+    // 14/8/9 px lift the dismiss pill's label off-centre to keep the icon
+    // and label optically aligned. Kept as literals.
     let pad = padding::Padding::default().horizontal(14).top(8).bottom(9);
     let glass = color::border_strong();
 

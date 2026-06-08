@@ -11,15 +11,14 @@
 use iced::widget::{Container, container};
 use iced::{Background, Border, Color, Element, Length, Padding, Theme};
 
-use crate::color;
 use crate::widget::clickable::clickable;
+use crate::{border, color, spacing};
 
-const DEFAULT_RADIUS: f32 = 14.0;
 const DEFAULT_PADDING: Padding = Padding {
-    top: 4.0,
-    right: 4.0,
-    bottom: 4.0,
-    left: 4.0,
+    top: spacing::PAD_4,
+    right: spacing::PAD_4,
+    bottom: spacing::PAD_4,
+    left: spacing::PAD_4,
 };
 
 /// A bordered glass card around `child`.
@@ -34,7 +33,7 @@ where
         inner: container(child).padding(DEFAULT_PADDING),
         background: color::with_alpha(color::WHITE, color::srgb_alpha(0.03)),
         border: color::border_strong(),
-        radius: DEFAULT_RADIUS,
+        radius: border::ROUNDED_2XL,
     }
 }
 
@@ -123,7 +122,7 @@ where
         child: child.into(),
         background: color::with_alpha(color::WHITE, color::srgb_alpha(0.03)),
         border: color::border_strong(),
-        radius: DEFAULT_RADIUS,
+        radius: border::ROUNDED_2XL,
         padding: DEFAULT_PADDING,
         tint: color::hover_veil(),
         width: Length::Shrink,

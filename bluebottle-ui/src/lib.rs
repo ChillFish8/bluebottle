@@ -4,6 +4,7 @@ pub mod color;
 pub mod easing;
 pub mod font;
 pub mod icon;
+pub mod spacing;
 pub mod style;
 pub mod util;
 mod widget;
