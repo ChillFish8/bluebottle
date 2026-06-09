@@ -38,6 +38,8 @@ static THUMBNAIL1_BACKDROP: LazyLock<Option<Backdrop>> =
     LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/thumbnail1.jpg"));
 static THUMBNAIL2_BACKDROP: LazyLock<Option<Backdrop>> =
     LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/thumbnail2.jpg"));
+static SQUARE_BACKDROP: LazyLock<Option<Backdrop>> =
+    LazyLock::new(|| load_backdrop("bluebottle-ui/assets/examples/music1.jpg"));
 
 fn load_backdrop(path: &str) -> Option<Backdrop> {
     let reader = ::image::ImageReader::open(path)
@@ -487,6 +489,7 @@ impl Components {
                 chapter_rows(),
                 poster_fans(self.picks_active),
                 sticky_demo(),
+                search_cards(),
                 library_counts(),
                 library_sources(),
                 film_facts_demo(),
@@ -2468,6 +2471,68 @@ fn sticky_demo() -> Element<'static, Message> {
     let demo = row![with_divider, no_divider].spacing(spacing::GAP_16);
 
     section("Sticky", demo)
+}
+
+fn search_cards() -> Element<'static, Message> {
+    use std::time::Duration;
+
+    use bluebottle_ui::card::{top_result, top_result_album, top_result_episode};
+
+    let Some(poster) = SPLASH_BACKDROP.clone() else {
+        return section("Search", text("Backdrop unavailable.").size(13));
+    };
+    let Some(thumb) = THUMBNAIL1_BACKDROP.clone() else {
+        return section("Search", text("Backdrop unavailable.").size(13));
+    };
+    let Some(album) = SQUARE_BACKDROP.clone() else {
+        return section("Search", text("Backdrop unavailable.").size(13));
+    };
+
+    let query = "Matrix";
+
+    let film = top_result(poster, "The Matrix Reloaded")
+        .group("Film", "movie")
+        .highlight(query)
+        .year(2003)
+        .star(7.2)
+        .tomato(74)
+        .runtime(Duration::from_secs(2 * 3600 + 18 * 60))
+        .rating("R")
+        .bookmarked(true)
+        .on_resume(Message::LinkPressed("search-top-film-resume"))
+        .on_details(Message::LinkPressed("search-top-film-details"))
+        .on_add(Message::LinkPressed("search-top-film-add"))
+        .on_bookmark(Message::LinkPressed("search-top-film-bookmark"))
+        .on_favourite(Message::LinkPressed("search-top-film-favourite"));
+
+    let episode = top_result_episode(thumb, "Enter the Matrix · S2 E4")
+        .group("Episode", "tv")
+        .highlight(query)
+        .year(2024)
+        .star(8.1)
+        .runtime(Duration::from_secs(48 * 60))
+        .rating("TV-14")
+        .on_resume(Message::LinkPressed("search-top-episode-resume"))
+        .on_details(Message::LinkPressed("search-top-episode-details"))
+        .on_add(Message::LinkPressed("search-top-episode-add"))
+        .on_bookmark(Message::LinkPressed("search-top-episode-bookmark"))
+        .on_favourite(Message::LinkPressed("search-top-episode-favourite"));
+
+    let soundtrack = top_result_album(album, "Matrix Soundtrack")
+        .group("Music", "library_music")
+        .highlight(query)
+        .year(1999)
+        .runtime(Duration::from_secs(63 * 60))
+        .favourited(true)
+        .on_resume(Message::LinkPressed("search-top-album-resume"))
+        .on_details(Message::LinkPressed("search-top-album-details"))
+        .on_add(Message::LinkPressed("search-top-album-add"))
+        .on_bookmark(Message::LinkPressed("search-top-album-bookmark"))
+        .on_favourite(Message::LinkPressed("search-top-album-favourite"));
+
+    let demo = column![film, episode, soundtrack].spacing(spacing::GAP_16);
+
+    section("Search", demo)
 }
 
 fn library_counts() -> Element<'static, Message> {

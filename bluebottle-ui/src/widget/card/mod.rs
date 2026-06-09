@@ -13,6 +13,7 @@ mod frame;
 mod library_count;
 mod library_source;
 mod poster_card;
+mod search;
 mod util;
 
 pub use core::{Card, ClickableCard, card, clickable_card};
@@ -37,3 +38,4 @@ pub use library_source::{
     library_source_count,
 };
 pub use poster_card::{PosterCard, poster_card, poster_card_skeleton};
+pub use search::{TopResult, top_result, top_result_album, top_result_episode};

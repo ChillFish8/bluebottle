@@ -13,11 +13,11 @@ use iced::widget::{Space, column, container, row, stack};
 use iced::{Background, Border, Center, Color, Element, Length, Theme, padding};
 
 use super::core::clickable_card;
+use crate::util::format_duration_short;
 use crate::widget::blur::Backdrop;
 use crate::widget::ellipsis_text::ellipsis_text;
 use crate::widget::media_image::media_image;
 use crate::widget::spinner::{Tone, progress_rail};
-use crate::util::format_duration_short;
 use crate::widget::{separator, text};
 use crate::{border, color, font, icon, spacing, style};
 
@@ -221,4 +221,3 @@ fn format_percent(fraction: f32) -> String {
     };
     format!("{percent}%")
 }
-

@@ -16,13 +16,14 @@ use iced::advanced::graphics::text::{
     Renderer as RawTextRenderer,
     cosmic_text,
 };
+use iced::advanced::renderer::Quad;
 use iced::advanced::text::Renderer as TextRenderer;
 use iced::advanced::widget::{Tree, tree};
-use iced::advanced::{Layout, Widget, layout, renderer};
+use iced::advanced::{Layout, Renderer as _, Widget, layout, renderer};
 use iced::widget::text::{Alignment, IntoFragment, LineHeight, Shaping};
-use iced::{Color, Element, Font, Length, Pixels, Rectangle, Size};
+use iced::{Border, Color, Element, Font, Length, Pixels, Rectangle, Size};
 
-use crate::{color, font};
+use crate::{border, color, font};
 
 /// Display Title Large
 ///
@@ -261,6 +262,7 @@ pub struct Text<'a> {
     align_x: Alignment,
     pub(crate) width: Length,
     pub(crate) height: Length,
+    highlight: Option<Cow<'a, str>>,
 }
 
 impl<'a> Text<'a> {
@@ -275,6 +277,7 @@ impl<'a> Text<'a> {
             align_x: Alignment::Default,
             width: Length::Shrink,
             height: Length::Shrink,
+            highlight: None,
         }
     }
 
@@ -334,6 +337,21 @@ impl<'a> Text<'a> {
     /// Sets the height of the text's bounding box.
     pub fn height(mut self, height: impl Into<Length>) -> Self {
         self.height = height.into();
+        self
+    }
+
+    /// Marks occurrences of `needle` in the run with the accent highlight
+    /// recipe. An accent 20% fill behind a 1px accent rim, drawn under the
+    /// glyphs so the text reads on top. Matching is ASCII case-insensitive
+    /// so a search query matches the title regardless of case. Empty needles
+    /// disable the highlight.
+    pub fn highlight(mut self, needle: impl Into<Cow<'a, str>>) -> Self {
+        let needle = needle.into();
+        self.highlight = if needle.is_empty() {
+            None
+        } else {
+            Some(needle)
+        };
         self
     }
 
@@ -435,6 +453,73 @@ impl<'a> Text<'a> {
     }
 }
 
+/// Paints the highlight quads behind every occurrence of `needle` in `buffer`.
+/// Walks each visual run, uses cosmic-text's own [`LayoutRun::highlight`] to
+/// resolve the pixel span of a byte range, and paints a rounded accent quad
+/// inside the text's bounds. Matching is ASCII case-insensitive.
+fn draw_highlights(
+    renderer: &mut iced::Renderer,
+    buffer: &cosmic_text::Buffer,
+    bounds: Rectangle,
+    needle: &str,
+) {
+    let needle_bytes = needle.as_bytes();
+    if needle_bytes.is_empty() {
+        return;
+    }
+
+    let fill = color::with_alpha(color::primary(), color::srgb_alpha(0.20));
+    let rim = color::primary();
+
+    for run in buffer.layout_runs() {
+        let haystack = run.text.as_bytes();
+        if haystack.len() < needle_bytes.len() {
+            continue;
+        }
+
+        let mut cursor = 0;
+        while cursor + needle_bytes.len() <= haystack.len() {
+            if haystack[cursor..cursor + needle_bytes.len()]
+                .eq_ignore_ascii_case(needle_bytes)
+            {
+                let start = cosmic_text::Cursor::new(run.line_i, cursor);
+                let end =
+                    cosmic_text::Cursor::new(run.line_i, cursor + needle_bytes.len());
+
+                if let Some((x_left, width)) = run.highlight(start, end) {
+                    let quad_bounds = Rectangle {
+                        x: bounds.x + x_left - HIGHLIGHT_PAD,
+                        y: bounds.y + run.line_top - HIGHLIGHT_PAD,
+                        width: width + HIGHLIGHT_PAD * 2.0,
+                        height: run.line_height + HIGHLIGHT_PAD * 2.0,
+                    };
+
+                    renderer.fill_quad(
+                        Quad {
+                            bounds: quad_bounds,
+                            border: Border {
+                                radius: border::ROUNDED_XS.into(),
+                                width: 1.0,
+                                color: rim,
+                            },
+                            ..Quad::default()
+                        },
+                        fill,
+                    );
+                }
+
+                cursor += needle_bytes.len();
+            } else {
+                cursor += 1;
+            }
+        }
+    }
+}
+
+/// Padding around each highlighted run, in logical pixels. Lets the accent
+/// fill breathe beyond the glyph edges on every side.
+const HIGHLIGHT_PAD: f32 = 2.0;
+
 /// Shapes each run and returns its natural width in logical pixels. Locks the
 /// global font system once for the batch so a loop of widths does not pay one
 /// lock acquisition per item.
@@ -527,6 +612,11 @@ impl<'a, Message> Widget<Message, iced::Theme, iced::Renderer> for Text<'a> {
         };
 
         let bounds = layout.bounds();
+
+        if let Some(needle) = self.highlight.as_deref() {
+            draw_highlights(renderer, buffer, bounds, needle);
+        }
+
         renderer.fill_raw(Raw {
             buffer: Arc::downgrade(buffer),
             position: bounds.position(),

@@ -228,8 +228,7 @@ where
 
         if let Some(duration) = line.runtime {
             push_dot(&mut items);
-            items
-                .push(fact_text(variant, format_duration_short(duration)).into());
+            items.push(fact_text(variant, format_duration_short(duration)).into());
         }
 
         if let Some(rating) = line.rating {
@@ -245,10 +244,7 @@ static TOMATO_HANDLE: LazyLock<svg::Handle> = LazyLock::new(|| {
     svg::Handle::from_memory(include_bytes!("../../assets/misc/tomato.svg").as_slice())
 });
 
-fn fact_text<'a>(
-    variant: Variant,
-    content: impl IntoFragment<'a>,
-) -> text::Text<'a> {
+fn fact_text<'a>(variant: Variant, content: impl IntoFragment<'a>) -> text::Text<'a> {
     match variant {
         Variant::Main => text::label(content, Variant::Alt),
         Variant::Alt => text::card_title(content),
